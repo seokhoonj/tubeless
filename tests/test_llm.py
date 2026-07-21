@@ -142,7 +142,7 @@ def test_make_backend_builds_ollama(monkeypatch: pytest.MonkeyPatch):
 # --- Gemini backend (OpenAI-compatible cloud endpoint) --------------------
 def test_make_backend_builds_gemini(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
-    assert _make_backend("gemini", None).model == "gemini-2.5-flash"
+    assert _make_backend("gemini", None).model == "gemini-flash-lite-latest"
     assert _make_backend("gemini", "gemini-2.5-pro").model == "gemini-2.5-pro"
 
 

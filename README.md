@@ -101,7 +101,7 @@ Pick the model with `--backend`. The default is OpenAI.
 |---|---|---|---|---|---|
 | **OpenAI** | `--backend openai` (default) | `OPENAI_SECRET_KEY` | `gpt-4o-mini` | OpenAI's servers | paid, prepaid credits |
 | **Claude** | `--backend anthropic` | `ANTHROPIC_SECRET_KEY` | `claude-haiku-4-5` | Anthropic's servers | paid, prepaid credits |
-| **Gemini** | `--backend gemini` | `GEMINI_SECRET_KEY` | `gemini-2.5-flash` | Google's servers | free tier + pay-as-you-go |
+| **Gemini** | `--backend gemini` | `GEMINI_SECRET_KEY` | `gemini-flash-lite-latest` | Google's servers | free tier + pay-as-you-go |
 | **Ollama** | `--backend ollama` | none | `llama3.1` | your own machine | free |
 
 **Where to pay, and how much.** Both cloud vendors are **prepaid**: you buy usage
@@ -120,8 +120,10 @@ credits up front, and each summary draws down from that balance.
 - **Gemini** — get a key at [aistudio.google.com](https://aistudio.google.com).
   Gemini has a **genuine free tier** (rate-limited) — enough to try tubeless
   without paying at all. For higher volume, enable pay-as-you-go billing in AI
-  Studio; the default `gemini-2.5-flash` is a cheap, fast model. Rates:
-  [Gemini pricing](https://ai.google.dev/pricing).
+  Studio; the default `gemini-flash-lite-latest` is a cheap, fast model that
+  runs on the free tier. (It's a `-latest` alias — pinned names like
+  `gemini-2.5-flash` can 404 for a newly created key, so the alias is the safe
+  default; override with `--model`.) Rates: [Gemini pricing](https://ai.google.dev/pricing).
 - **Ollama** — no key, no bill; the model runs on your own computer (see below).
   Free and offline, at the cost of the summary quality your local model can give.
 
@@ -425,7 +427,7 @@ tubeless 이름(`<VENDOR>_SECRET_KEY`)이 우선합니다.
 |---|---|---|---|---|---|
 | **OpenAI** | `--backend openai` (기본) | `OPENAI_SECRET_KEY` | `gpt-4o-mini` | OpenAI 서버 | 유료, 선불 크레딧 |
 | **Claude** | `--backend anthropic` | `ANTHROPIC_SECRET_KEY` | `claude-haiku-4-5` | Anthropic 서버 | 유료, 선불 크레딧 |
-| **Gemini** | `--backend gemini` | `GEMINI_SECRET_KEY` | `gemini-2.5-flash` | Google 서버 | 무료 티어 + 종량제 |
+| **Gemini** | `--backend gemini` | `GEMINI_SECRET_KEY` | `gemini-flash-lite-latest` | Google 서버 | 무료 티어 + 종량제 |
 | **Ollama** | `--backend ollama` | 불필요 | `llama3.1` | 내 컴퓨터 | 무료 |
 
 **어디서, 얼마부터 결제하나.** 두 클라우드 벤더 모두 **선불(prepaid)**입니다 —
@@ -442,8 +444,10 @@ tubeless 이름(`<VENDOR>_SECRET_KEY`)이 우선합니다.
 - **Gemini** — [aistudio.google.com](https://aistudio.google.com)에서 키 발급.
   Gemini는 **진짜 무료 티어**(요율 제한)가 있어 결제 없이도 tubeless를 시험해볼 수
   있습니다. 사용량이 많으면 AI Studio에서 종량제 결제를 켭니다. 기본
-  `gemini-2.5-flash`는 저렴하고 빠른 모델입니다. 요금:
-  [Gemini 요금](https://ai.google.dev/pricing).
+  기본 `gemini-flash-lite-latest`는 저렴하고 빠르며 무료 티어에서 돕니다.
+  (`-latest` 별칭입니다 — `gemini-2.5-flash` 같은 고정 이름은 새로 만든 키에서
+  404가 날 수 있어 별칭을 기본으로 씁니다. `--model`로 바꿀 수 있습니다.)
+  요금: [Gemini 요금](https://ai.google.dev/pricing).
 - **Ollama** — 키도 청구서도 없습니다. 모델이 내 컴퓨터에서 돕니다(아래 참고).
   무료·오프라인이지만 요약 품질은 로컬 모델 성능만큼입니다.
 

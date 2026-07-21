@@ -131,7 +131,10 @@ class GeminiBackend:
 
     _BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 
-    def __init__(self, *, model: str = "gemini-2.5-flash", api_key: str | None = None) -> None:
+    # A '-latest' alias, not a pinned version: Google gates pinned names (e.g.
+    # gemini-2.5-flash) to 404 for newly created API keys, while the alias tracks
+    # the current model and stays on the free tier. Override with model=.
+    def __init__(self, *, model: str = "gemini-flash-lite-latest", api_key: str | None = None) -> None:
         resolved_key = api_key if api_key is not None else config.api_key("gemini")
         if not resolved_key:
             raise LLMError(

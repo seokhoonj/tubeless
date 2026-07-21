@@ -36,7 +36,7 @@ __all__ = ["main"]
 _DEFAULT_MODEL = {
     "openai":    "gpt-4o-mini",
     "anthropic": "claude-haiku-4-5-20251001",
-    "gemini":    "gemini-2.5-flash",
+    "gemini":    "gemini-flash-lite-latest",
     "ollama":    "llama3.1",
 }
 _SUBCOMMANDS = ("summarize", "digest")
