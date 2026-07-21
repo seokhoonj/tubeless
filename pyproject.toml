@@ -35,9 +35,10 @@ Repository = "https://github.com/seokhoonj/tubeless"
 Issues     = "https://github.com/seokhoonj/tubeless/issues"
 
 [project.optional-dependencies]
-# Claude is the second backend; its SDK is imported lazily, so it is optional --
-# an OpenAI-only user need not install it (pip install tubeless[anthropic]).
-anthropic = ["anthropic>=0.40"]
+# The Claude backend's SDK (the `anthropic` package) is imported lazily, so it is
+# optional -- an OpenAI/Gemini/Ollama user need not install it. The extra is named
+# for the backend (`tubeless[claude]`), the package it pulls in is `anthropic`.
+claude = ["anthropic>=0.40"]
 dev = [
     "pytest>=8.0",
     "ruff>=0.6",

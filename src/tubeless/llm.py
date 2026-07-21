@@ -16,7 +16,7 @@ from tubeless.errors import LLMError
 if TYPE_CHECKING:
     from openai import OpenAI  # only for the type hint below; imported lazily at runtime
 
-__all__ = ["AnthropicBackend", "GeminiBackend", "LLMBackend", "OllamaBackend", "OpenAIBackend"]
+__all__ = ["ClaudeBackend", "GeminiBackend", "LLMBackend", "OllamaBackend", "OpenAIBackend"]
 
 
 class LLMBackend(Protocol):
@@ -84,7 +84,7 @@ class OpenAIBackend:
         resolved_key = api_key if api_key is not None else config.api_key("openai")
         if not resolved_key:
             raise LLMError(
-                "no OpenAI API key: pass api_key=, set OPENAI_SECRET_KEY in the "
+                "no OpenAI API key: pass api_key=, set OPENAI_API_KEY in the "
                 "environment, or add it to ~/.tubeless/config.env"
             )
         # Imported here, not at module top: constructing a backend is the first
@@ -149,7 +149,7 @@ class GeminiBackend:
         resolved_key = api_key if api_key is not None else config.api_key("gemini")
         if not resolved_key:
             raise LLMError(
-                "no Gemini API key: pass api_key=, set GEMINI_SECRET_KEY in the "
+                "no Gemini API key: pass api_key=, set GEMINI_API_KEY in the "
                 "environment, or add it to ~/.tubeless/config.env"
             )
         from openai import OpenAI  # lazy, like OpenAIBackend (see above)
@@ -164,10 +164,10 @@ class GeminiBackend:
         return _chat_complete(self._client, self.model, prompt, system=system, label="Gemini")
 
 
-class AnthropicBackend:
-    """Messages backend over the Anthropic SDK: Claude tends to hedge unsupported
-    specifics rather than invent them, which is the safer default when the
-    transcript is a noisy auto-caption.
+class ClaudeBackend:
+    """Messages backend for Claude, over Anthropic's ``anthropic`` SDK: Claude
+    tends to hedge unsupported specifics rather than invent them, which is the
+    safer default when the transcript is a noisy auto-caption.
 
     A class for the same reason as :class:`OpenAIBackend` -- client and model are
     configured once and reused across a summary's map-reduce calls.
@@ -178,10 +178,10 @@ class AnthropicBackend:
 
     def __init__(self, *, model: str = "claude-haiku-4-5-20251001",
                  api_key: str | None = None, max_tokens: int = 2048) -> None:
-        resolved_key = api_key if api_key is not None else config.api_key("anthropic")
+        resolved_key = api_key if api_key is not None else config.api_key("claude")
         if not resolved_key:
             raise LLMError(
-                "no Anthropic API key: pass api_key=, set ANTHROPIC_SECRET_KEY in the "
+                "no Claude API key: pass api_key=, set CLAUDE_API_KEY in the "
                 "environment, or add it to ~/.tubeless/config.env"
             )
         try:
@@ -189,8 +189,8 @@ class AnthropicBackend:
         except ImportError as err:
             # anthropic is an optional extra; give a one-line fix, not a traceback.
             raise LLMError(
-                "the Anthropic backend needs the 'anthropic' package: "
-                "pip install 'tubeless[anthropic]'"
+                "the Claude backend needs the 'anthropic' package: "
+                "pip install 'tubeless[claude]'"
             ) from err
 
         self.model      = model
@@ -198,7 +198,7 @@ class AnthropicBackend:
         self._client    = Anthropic(api_key=resolved_key)
 
     def __repr__(self) -> str:
-        return f"AnthropicBackend(model={self.model!r})"
+        return f"ClaudeBackend(model={self.model!r})"
 
     def complete(self, prompt: str, *, system: str | None = None) -> str:
         import anthropic

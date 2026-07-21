@@ -37,7 +37,7 @@ class CannedBackend:
 
 
 @pytest.fixture
-def pipeline_with_fakes(monkeypatch: pytest.MonkeyPatch) -> None:
+def pipeline_with_fakes(monkeypatch: pytest.MonkeyPatch, _no_config_file) -> None:
     monkeypatch.setattr(cli_module, "fetch_video_meta", lambda url: SAMPLE_VIDEO)
     monkeypatch.setattr(cli_module, "fetch_transcript", lambda video_id: SAMPLE_TRANSCRIPT)
     monkeypatch.setattr(cli_module, "OpenAIBackend", CannedBackend)
@@ -176,7 +176,7 @@ def test_main_with_json_flag_prints_machine_readable_output(
 
 
 def test_main_reports_an_invalid_url_cleanly_without_a_traceback(
-    capsys: pytest.CaptureFixture[str],
+    _no_config_file, capsys: pytest.CaptureFixture[str],
 ) -> None:
     # No fakes needed: parse_video_id rejects the junk before any network call.
     exit_code = main(["definitely-not-a-video"])
@@ -189,7 +189,7 @@ def test_main_reports_an_invalid_url_cleanly_without_a_traceback(
 
 
 def test_main_reports_a_missing_transcript_cleanly(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    _no_config_file, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setattr(cli_module, "fetch_video_meta", lambda url: SAMPLE_VIDEO)
 
@@ -226,7 +226,7 @@ def test_explicit_summarize_subcommand_works(
 
 
 def test_digest_dry_run_prints_markdown_without_writing(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    _no_config_file, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     from tubeless.digest import Digest, DigestEntry
     from tubeless.feed import Upload
@@ -258,7 +258,7 @@ def test_digest_dry_run_prints_markdown_without_writing(
     assert "🔴 예시 채널 — A talk about ducks" in captured.out
 
 
-def test_digest_only_filters_channels_by_label(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_digest_only_filters_channels_by_label(_no_config_file, monkeypatch: pytest.MonkeyPatch) -> None:
     from tubeless.channels import Channel
     from tubeless.digest import Digest
 
@@ -279,7 +279,7 @@ def test_digest_only_filters_channels_by_label(monkeypatch: pytest.MonkeyPatch) 
     assert seen_channels["labels"] == ["Closing Bell"]
 
 
-def test_digest_only_with_no_match_errors(monkeypatch: pytest.MonkeyPatch,
+def test_digest_only_with_no_match_errors(_no_config_file, monkeypatch: pytest.MonkeyPatch,
                                           capsys: pytest.CaptureFixture[str]) -> None:
     from tubeless.channels import Channel
     monkeypatch.setattr(cli_module, "load_channels",

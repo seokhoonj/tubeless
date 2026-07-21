@@ -23,15 +23,15 @@ from tubeless.feed import (
     resolve_channel_id,
 )
 from tubeless.importance import Importance, ImportanceTier, score_importance
-from tubeless.llm import AnthropicBackend, GeminiBackend, LLMBackend, OllamaBackend, OpenAIBackend
+from tubeless.llm import ClaudeBackend, GeminiBackend, LLMBackend, OllamaBackend, OpenAIBackend
 from tubeless.render import to_markdown
 from tubeless.source import Video, fetch_video_meta, parse_video_id
 from tubeless.summary import DETAIL_LEVELS, DetailLevel, Summary, summarize
 from tubeless.transcript import Transcript, TranscriptSegment, fetch_transcript
 
 __all__ = [
-    "AnthropicBackend",
     "Channel",
+    "ClaudeBackend",
     "ConfigError",
     "DETAIL_LEVELS",
     "DetailLevel",

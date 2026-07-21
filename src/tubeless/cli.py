@@ -23,7 +23,7 @@ from tubeless import config
 from tubeless.channels import CHANNELS_PATH, load_channels
 from tubeless.digest import build_digest
 from tubeless.errors import ConfigError, TubelessError
-from tubeless.llm import AnthropicBackend, GeminiBackend, LLMBackend, OllamaBackend, OpenAIBackend
+from tubeless.llm import ClaudeBackend, GeminiBackend, LLMBackend, OllamaBackend, OpenAIBackend
 from tubeless.render import to_markdown
 from tubeless.source import fetch_video_meta
 from tubeless.state import STATE_PATH, read_seen, write_seen
@@ -34,7 +34,7 @@ __all__ = ["main"]
 
 # Per-vendor default model, used when --model is not given. Kept cheap: the
 # summary map-reduce can be many calls, so the small-tier model is the default.
-_BACKENDS = ("openai", "anthropic", "gemini", "ollama")
+_BACKENDS = ("openai", "claude", "gemini", "ollama")
 _SUBCOMMANDS = ("summarize", "digest")
 _DIGEST_DIR  = Path.home() / ".tubeless" / "digests"
 
@@ -210,10 +210,10 @@ def _make_backend(backend: str, model: str | None) -> LLMBackend:
     that monkeypatches e.g. ``OpenAIBackend`` still takes effect.)
     """
     backend_class = {
-        "openai":    OpenAIBackend,
-        "anthropic": AnthropicBackend,
-        "gemini":    GeminiBackend,
-        "ollama":    OllamaBackend,
+        "openai": OpenAIBackend,
+        "claude": ClaudeBackend,
+        "gemini": GeminiBackend,
+        "ollama": OllamaBackend,
     }[backend]
     return backend_class() if model is None else backend_class(model=model)
 

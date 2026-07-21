@@ -14,7 +14,7 @@ from tubeless import config
 from tubeless.cli import _make_backend
 from tubeless.errors import LLMError
 from tubeless.llm import (
-    AnthropicBackend,
+    ClaudeBackend,
     GeminiBackend,
     OllamaBackend,
     OpenAIBackend,
@@ -26,9 +26,7 @@ def _no_keys_anywhere(monkeypatch: pytest.MonkeyPatch) -> None:
     """Blind the key resolver: an empty config file and no env variables, so a
     real ~/.tubeless/config.env on the test machine cannot satisfy the lookup."""
     monkeypatch.setattr(config, "read_config", lambda *a, **k: {})
-    for name in ("OPENAI_SECRET_KEY", "OPENAI_API_KEY",
-                 "ANTHROPIC_SECRET_KEY", "ANTHROPIC_API_KEY",
-                 "GEMINI_SECRET_KEY", "GEMINI_API_KEY"):
+    for name in ("OPENAI_API_KEY", "CLAUDE_API_KEY", "GEMINI_API_KEY"):
         monkeypatch.delenv(name, raising=False)
 
 
@@ -39,10 +37,10 @@ def test_openai_backend_without_a_key_raises(monkeypatch: pytest.MonkeyPatch):
         OpenAIBackend()
 
 
-def test_anthropic_backend_without_a_key_raises(monkeypatch: pytest.MonkeyPatch):
+def test_claude_backend_without_a_key_raises(monkeypatch: pytest.MonkeyPatch):
     _no_keys_anywhere(monkeypatch)
     with pytest.raises(LLMError):
-        AnthropicBackend()
+        ClaudeBackend()
 
 
 def test_gemini_backend_without_a_key_raises(monkeypatch: pytest.MonkeyPatch):
@@ -51,14 +49,14 @@ def test_gemini_backend_without_a_key_raises(monkeypatch: pytest.MonkeyPatch):
         GeminiBackend()
 
 
-def test_anthropic_backend_without_the_package_raises_a_helpful_error(monkeypatch: pytest.MonkeyPatch):
+def test_claude_backend_without_the_package_raises_a_helpful_error(monkeypatch: pytest.MonkeyPatch):
     # anthropic is an optional extra; a missing install must surface as a one-line
     # LLMError telling the user how to fix it, not a raw ModuleNotFoundError.
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setenv("CLAUDE_API_KEY", "test-key")
     monkeypatch.setitem(sys.modules, "anthropic", None)  # makes `from anthropic import ...` fail
     with pytest.raises(LLMError) as raised:
-        AnthropicBackend()
-    assert "tubeless[anthropic]" in str(raised.value)
+        ClaudeBackend()
+    assert "tubeless[claude]" in str(raised.value)
 
 
 # --- Anthropic error wrapping + response parsing --------------------------
@@ -90,10 +88,10 @@ def _text_block(text):
 
 def _install_fake_anthropic(monkeypatch, *, create):
     monkeypatch.setitem(sys.modules, "anthropic", _fake_anthropic_module(create=create))
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setenv("CLAUDE_API_KEY", "test-key")
 
 
-def test_anthropic_backend_joins_text_blocks(monkeypatch: pytest.MonkeyPatch):
+def test_claude_backend_joins_text_blocks(monkeypatch: pytest.MonkeyPatch):
     def create(**kwargs):
         # system is passed as its own argument, never as a message role
         assert kwargs["system"] == "be terse"
@@ -102,45 +100,44 @@ def test_anthropic_backend_joins_text_blocks(monkeypatch: pytest.MonkeyPatch):
         return types.SimpleNamespace(content=[_text_block("한 "), _text_block("줄")])
 
     _install_fake_anthropic(monkeypatch, create=create)
-    assert AnthropicBackend().complete("hi", system="be terse") == "한 줄"
+    assert ClaudeBackend().complete("hi", system="be terse") == "한 줄"
 
 
-def test_anthropic_backend_wraps_sdk_errors(monkeypatch: pytest.MonkeyPatch):
+def test_claude_backend_wraps_sdk_errors(monkeypatch: pytest.MonkeyPatch):
     def create(**kwargs):
         raise _FakeAnthropicError("boom")
 
     _install_fake_anthropic(monkeypatch, create=create)
     with pytest.raises(LLMError):
-        AnthropicBackend().complete("hi")
+        ClaudeBackend().complete("hi")
 
 
-def test_anthropic_backend_rejects_an_empty_completion(monkeypatch: pytest.MonkeyPatch):
+def test_claude_backend_rejects_an_empty_completion(monkeypatch: pytest.MonkeyPatch):
     def create(**kwargs):
         return types.SimpleNamespace(content=[_text_block("   ")])
 
     _install_fake_anthropic(monkeypatch, create=create)
     with pytest.raises(LLMError):
-        AnthropicBackend().complete("hi")
+        ClaudeBackend().complete("hi")
 
 
 # --- CLI backend selection ------------------------------------------------
 def test_make_backend_defaults_the_model_per_vendor(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setenv("CLAUDE_API_KEY", "test-key")
     # openai client import is real but cheap; anthropic uses the fake if present.
     monkeypatch.setitem(sys.modules, "anthropic",
                         _fake_anthropic_module(create=lambda **k: None))
 
     assert _make_backend("openai", None).model == "gpt-4o-mini"
-    assert _make_backend("anthropic", None).model == "claude-haiku-4-5-20251001"
-    assert _make_backend("anthropic", "claude-sonnet-5").model == "claude-sonnet-5"
+    assert _make_backend("claude", None).model == "claude-haiku-4-5-20251001"
+    assert _make_backend("claude", "claude-sonnet-5").model == "claude-sonnet-5"
 
 
 # --- Ollama backend (local, no key) ---------------------------------------
 def test_ollama_backend_needs_no_key(monkeypatch: pytest.MonkeyPatch):
     # A local backend must construct with no API key set anywhere.
-    for name in ("OPENAI_SECRET_KEY", "OPENAI_API_KEY"):
-        monkeypatch.delenv(name, raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     assert OllamaBackend(model="llama3.1").model == "llama3.1"
 
 

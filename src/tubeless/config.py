@@ -21,22 +21,15 @@ CONFIG_PATH = Path.home() / ".tubeless" / "config.env"
 
 # The vendors tubeless resolves a key for. Closed set: a typo is a static error,
 # not a runtime KeyError against the maps below.
-Vendor = Literal["openai", "anthropic", "gemini"]
+Vendor = Literal["openai", "claude", "gemini"]
 
-# The env-var name that holds each vendor's key. "SECRET_KEY" mirrors the wording
-# on OpenAI's own key page ("secret key") and gives every vendor the same shape,
-# <VENDOR>_SECRET_KEY, so a new backend's name is predictable.
+# The env-var (or config.env) name tubeless reads for each vendor's key: the
+# backend name plus the shared `_API_KEY` suffix, so the key name always matches
+# `--backend`. (A Claude key comes from the Claude console, platform.claude.com.)
 _KEY_NAME = {
-    "openai":    "OPENAI_SECRET_KEY",
-    "anthropic": "ANTHROPIC_SECRET_KEY",
-    "gemini":    "GEMINI_SECRET_KEY",
-}
-# The SDK-standard name each vendor's own client reads. Tried after the tubeless
-# name so a machine that already exports OPENAI_API_KEY keeps working untouched.
-_SDK_NAME = {
-    "openai":    "OPENAI_API_KEY",
-    "anthropic": "ANTHROPIC_API_KEY",
-    "gemini":    "GEMINI_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "claude": "CLAUDE_API_KEY",
+    "gemini": "GEMINI_API_KEY",
 }
 
 
@@ -69,19 +62,14 @@ def read_config(path: Path | None = None) -> dict[str, str]:
 
 
 def api_key(vendor: Vendor, *, config: dict[str, str] | None = None) -> str | None:
-    """Return the API key for ``vendor`` ('openai' / 'anthropic' / 'gemini'), or ``None``.
+    """Return the API key for ``vendor`` ('openai' / 'claude' / 'gemini'), or ``None``.
 
-    Each name is looked up in the environment first, then in the config file, so a
-    single run can override the file. The tubeless name (``<VENDOR>_SECRET_KEY``)
-    wins over the SDK-standard name (``<VENDOR>_API_KEY``); the latter is a
-    fallback for a machine that already has the standard variable set.
+    The name (``<BACKEND>_API_KEY``) is looked up in the environment first, then
+    in the config file, so a single run can override the file.
     """
     values = read_config() if config is None else config
-    for name in (_KEY_NAME[vendor], _SDK_NAME[vendor]):
-        found = os.environ.get(name) or values.get(name)
-        if found:
-            return found
-    return None
+    name = _KEY_NAME[vendor]
+    return os.environ.get(name) or values.get(name) or None
 
 
 def setting(name: str, *, config: dict[str, str] | None = None) -> str | None:

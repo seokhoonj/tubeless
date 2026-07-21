@@ -53,7 +53,7 @@ py -m pipx install git+https://github.com/seokhoonj/tubeless.git
 
 Add the Claude backend at install time with the `anthropic` extra:
 ```sh
-pipx install "git+https://github.com/seokhoonj/tubeless.git#egg=tubeless[anthropic]"
+pipx install "git+https://github.com/seokhoonj/tubeless.git#egg=tubeless[claude]"
 ```
 
 Confirm it works:
@@ -72,9 +72,9 @@ Pick the model with `--backend`. The default is OpenAI.
 
 | backend | flag | key needed | default model | runs where | cost |
 |---|---|---|---|---|---|
-| **OpenAI** | `--backend openai` (default) | `OPENAI_SECRET_KEY` | `gpt-4o-mini` | OpenAI's servers | paid, prepaid credits |
-| **Claude** | `--backend anthropic` | `ANTHROPIC_SECRET_KEY` | `claude-haiku-4-5` | Anthropic's servers | paid, prepaid credits |
-| **Gemini** | `--backend gemini` | `GEMINI_SECRET_KEY` | `gemini-flash-lite-latest` | Google's servers | free tier + pay-as-you-go |
+| **OpenAI** | `--backend openai` (default) | `OPENAI_API_KEY` | `gpt-4o-mini` | OpenAI's servers | paid, prepaid credits |
+| **Claude** | `--backend claude` | `CLAUDE_API_KEY` | `claude-haiku-4-5` | Anthropic's servers | paid, prepaid credits |
+| **Gemini** | `--backend gemini` | `GEMINI_API_KEY` | `gemini-flash-lite-latest` | Google's servers | free tier + pay-as-you-go |
 | **Ollama** | `--backend ollama` | none | `llama3.1` | your own machine | free |
 
 **Where to pay, and how much.** Both cloud vendors are **prepaid**: you buy usage
@@ -85,7 +85,7 @@ credits up front, and each summary draws down from that balance.
   [pricing page](https://openai.com/api/pricing/). The default `gpt-4o-mini` is
   the cheapest tier — one video summary costs a fraction of a cent, so a **$5**
   top-up covers *thousands* of videos.
-- **Claude** — buy credits at [console.anthropic.com](https://console.anthropic.com)
+- **Claude** — buy credits at [platform.claude.com](https://platform.claude.com)
   → Billing → Buy credits. **Minimum top-up is also $5.** The default
   `claude-haiku-4-5` is Anthropic's cheapest model (about $1 per million input
   tokens / $5 per million output); a typical video is a cent or two, so **$5**
@@ -164,9 +164,9 @@ never from the repo — and never prints or logs the value. Create
 mkdir -p ~/.tubeless
 cat > ~/.tubeless/config.env <<'EOF'
 # --- keys: fill in only the backend(s) you use ---
-OPENAI_SECRET_KEY=sk-...
-# ANTHROPIC_SECRET_KEY=sk-ant-...
-# GEMINI_SECRET_KEY=...
+OPENAI_API_KEY=sk-...
+# CLAUDE_API_KEY=sk-ant-...
+# GEMINI_API_KEY=...
 
 # --- optional defaults, so you don't retype flags ---
 # TUBELESS_BACKEND=gemini   # default --backend
@@ -179,12 +179,12 @@ EOF
 ```
 
 - **Get an OpenAI key:** [platform.openai.com](https://platform.openai.com) → API keys.
-- **Get a Claude key:** [console.anthropic.com](https://console.anthropic.com) → API keys.
+- **Get a Claude key:** [platform.claude.com](https://platform.claude.com) → API keys.
 - **Get a Gemini key:** [aistudio.google.com](https://aistudio.google.com) → Get API key.
 
-If your machine already exports the SDK-standard names `OPENAI_API_KEY` /
-`ANTHROPIC_API_KEY` / `GEMINI_API_KEY`, tubeless honors those as a fallback. The
-tubeless name (`<VENDOR>_SECRET_KEY`) wins when both are set.
+You can also just set these as environment variables instead of using the file —
+tubeless reads `OPENAI_API_KEY` / `CLAUDE_API_KEY` / `GEMINI_API_KEY` from the
+environment too, and an environment value overrides the file.
 
 **Set defaults so you never retype a flag.** Each `TUBELESS_*` above is the
 default for the matching option. Put `TUBELESS_BACKEND=gemini` and
@@ -213,7 +213,7 @@ You can pass a full URL (`watch?v=`, `youtu.be/`, `/shorts/`, `/embed/`,
 |---|---|---|
 | `--detail brief\|normal\|deep` | How full the summary is. **`deep` keeps every number** — see below. | `normal` |
 | `--points N` | Max key points. Overrides the per-detail default (brief 5 / normal 8 / deep 14). | per-detail |
-| `--backend openai\|anthropic\|gemini\|ollama` | Which LLM to use. | `openai` |
+| `--backend openai\|claude\|gemini\|ollama` | Which LLM to use. | `openai` |
 | `--model NAME` | Model id. Defaults to the backend's small/cheap model. | per-backend |
 | `--lang CODE` | Language of the summary. Works across languages — an English video can be summarized in Korean. | `ko` |
 | `--json` | Print machine-readable JSON instead of text. | off |
@@ -321,7 +321,7 @@ Run the installed `tubeless` CLI on the URL the user gave and show the result:
 
     tubeless "<url>" --detail deep --lang ko
 
-Pass `--backend anthropic` for Claude or `--backend ollama` for a local model.
+Pass `--backend claude` for Claude or `--backend ollama` for a local model.
 Show the TLDR and key points back to the user.
 ```
 
@@ -342,7 +342,7 @@ for point in summary.points:
     print("-", point)
 ```
 
-`AnthropicBackend` and `OllamaBackend` are drop-in replacements for
+`ClaudeBackend` and `OllamaBackend` are drop-in replacements for
 `OpenAIBackend`. The digest pieces (`load_channels`, `build_digest`,
 `to_markdown`) are exported too.
 
@@ -424,7 +424,7 @@ py -m pipx install git+https://github.com/seokhoonj/tubeless.git
 
 Claude 백엔드까지 함께 설치하려면 `anthropic` 추가옵션:
 ```sh
-pipx install "git+https://github.com/seokhoonj/tubeless.git#egg=tubeless[anthropic]"
+pipx install "git+https://github.com/seokhoonj/tubeless.git#egg=tubeless[claude]"
 ```
 
 동작 확인:
@@ -442,9 +442,9 @@ tubeless --help
 
 | 백엔드 | 플래그 | 필요한 키 | 기본 모델 | 실행 위치 | 비용 |
 |---|---|---|---|---|---|
-| **OpenAI** | `--backend openai` (기본) | `OPENAI_SECRET_KEY` | `gpt-4o-mini` | OpenAI 서버 | 유료, 선불 크레딧 |
-| **Claude** | `--backend anthropic` | `ANTHROPIC_SECRET_KEY` | `claude-haiku-4-5` | Anthropic 서버 | 유료, 선불 크레딧 |
-| **Gemini** | `--backend gemini` | `GEMINI_SECRET_KEY` | `gemini-flash-lite-latest` | Google 서버 | 무료 티어 + 종량제 |
+| **OpenAI** | `--backend openai` (기본) | `OPENAI_API_KEY` | `gpt-4o-mini` | OpenAI 서버 | 유료, 선불 크레딧 |
+| **Claude** | `--backend claude` | `CLAUDE_API_KEY` | `claude-haiku-4-5` | Anthropic 서버 | 유료, 선불 크레딧 |
+| **Gemini** | `--backend gemini` | `GEMINI_API_KEY` | `gemini-flash-lite-latest` | Google 서버 | 무료 티어 + 종량제 |
 | **Ollama** | `--backend ollama` | 불필요 | `llama3.1` | 내 컴퓨터 | 무료 |
 
 **어디서, 얼마부터 결제하나.** 두 클라우드 벤더 모두 **선불(prepaid)**입니다 —
@@ -454,7 +454,7 @@ tubeless --help
   Billing에서 크레딧 구매. **최소 충전 $5.** 모델별 요금은
   [요금 페이지](https://openai.com/api/pricing/) 참고. 기본 `gpt-4o-mini`가 가장 싼
   등급이라 영상 하나 요약에 1센트도 안 들고, **$5**면 *수천 편*을 커버합니다.
-- **Claude** — [console.anthropic.com](https://console.anthropic.com) → Billing →
+- **Claude** — [platform.claude.com](https://platform.claude.com) → Billing →
   Buy credits에서 구매. **최소 충전도 $5.** 기본 `claude-haiku-4-5`는 Anthropic에서
   가장 싼 모델로(입력 100만 토큰당 약 $1 / 출력 $5), 영상 하나에 1~2센트라 **$5**로
   수백 편을 커버합니다. 전체 요금: [Claude 요금](https://platform.claude.com/docs/en/about-claude/pricing).
@@ -531,9 +531,9 @@ OpenAI·Claude·Gemini는 API 키가 필요합니다(Ollama는 로컬 실행이�
 mkdir -p ~/.tubeless
 cat > ~/.tubeless/config.env <<'EOF'
 # --- 키: 실제로 쓰는 백엔드만 채우세요 ---
-OPENAI_SECRET_KEY=sk-...
-# ANTHROPIC_SECRET_KEY=sk-ant-...
-# GEMINI_SECRET_KEY=...
+OPENAI_API_KEY=sk-...
+# CLAUDE_API_KEY=sk-ant-...
+# GEMINI_API_KEY=...
 
 # --- 선택: 기본값(플래그를 매번 안 치도록) ---
 # TUBELESS_BACKEND=gemini   # 기본 --backend
@@ -546,12 +546,12 @@ EOF
 ```
 
 - **OpenAI 키 발급:** [platform.openai.com](https://platform.openai.com) → API keys.
-- **Claude 키 발급:** [console.anthropic.com](https://console.anthropic.com) → API keys.
+- **Claude 키 발급:** [platform.claude.com](https://platform.claude.com) → API keys.
 - **Gemini 키 발급:** [aistudio.google.com](https://aistudio.google.com) → Get API key.
 
-머신에 이미 표준 이름 `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GEMINI_API_KEY`가
-있으면 tubeless가 폴백으로 인정합니다. 둘 다 있으면 tubeless 이름
-(`<VENDOR>_SECRET_KEY`)이 우선합니다.
+파일 대신 그냥 환경변수로 둬도 됩니다 — tubeless는 `OPENAI_API_KEY` /
+`CLAUDE_API_KEY` / `GEMINI_API_KEY`를 환경변수에서도 읽고, 환경변수 값이 파일보다
+우선합니다.
 
 **기본값을 넣어 플래그를 안 치기.** 위의 `TUBELESS_*`는 각각 해당 옵션의 기본값
 입니다. `TUBELESS_BACKEND=gemini`와 `TUBELESS_DETAIL=deep`를 넣으면 `tubeless <url>`
@@ -579,7 +579,7 @@ tubeless VIDEO_ID_XX --detail deep --lang ko --points 20
 |---|---|---|
 | `--detail brief\|normal\|deep` | 요약 깊이. **`deep`은 모든 숫자를 보존** — 아래 참고. | `normal` |
 | `--points N` | 핵심 포인트 최대 개수. `--detail` 기본값(brief 5 / normal 8 / deep 14)을 덮어씀. | 깊이별 |
-| `--backend openai\|anthropic\|gemini\|ollama` | 어떤 LLM을 쓸지. | `openai` |
+| `--backend openai\|claude\|gemini\|ollama` | 어떤 LLM을 쓸지. | `openai` |
 | `--model NAME` | 모델 id. 미지정 시 백엔드의 소형·저가 모델. | 백엔드별 |
 | `--lang CODE` | 요약 언어. 언어 교차 가능 — 영어 영상을 한국어로 요약. | `ko` |
 | `--json` | 텍스트 대신 기계용 JSON 출력. | 꺼짐 |
@@ -685,7 +685,7 @@ description: 유튜브 영상을 요약. 유튜브 URL이나 "이 영상 요약�
 
     tubeless "<url>" --detail deep --lang ko
 
-Claude는 `--backend anthropic`, 로컬 모델은 `--backend ollama`를 붙인다.
+Claude는 `--backend claude`, 로컬 모델은 `--backend ollama`를 붙인다.
 TLDR과 핵심 포인트를 사용자에게 돌려준다.
 ```
 
@@ -706,7 +706,7 @@ for point in summary.points:
     print("-", point)
 ```
 
-`AnthropicBackend`·`OllamaBackend`는 `OpenAIBackend`와 그대로 바꿔 끼울 수
+`ClaudeBackend`·`OllamaBackend`는 `OpenAIBackend`와 그대로 바꿔 끼울 수
 있습니다. 다이제스트 조각(`load_channels`, `build_digest`, `to_markdown`)도
 export되어 있습니다.
 
