@@ -80,33 +80,33 @@ class _DetailSpec:
     default point cap a typical-length video warrants, and an optional trailing
     instruction (e.g. keep every figure) appended to the format block."""
 
-    tldr:   str
-    point:  str
-    points: int
-    note:   str = ""
+    tldr:       str
+    point:      str
+    max_points: int
+    note:       str = ""
 
 
 # --detail chooses one of these. "normal" is the default: fuller than a bare
 # headline list, short of the exhaustive "deep" notes.
 _DETAIL = {
     "brief": _DetailSpec(
-        tldr   = "one-sentence gist",
-        point  = "a single concise clause",
-        points = 5,
+        tldr       = "one-sentence gist",
+        point      = "a single concise clause",
+        max_points = 5,
     ),
     "normal": _DetailSpec(
-        tldr   = "two- to three-sentence gist",
-        point  = "one full sentence that states the specific claim, not just its topic",
-        points = 8,
+        tldr       = "two- to three-sentence gist",
+        point      = "one full sentence that states the specific claim, not just its topic",
+        max_points = 8,
     ),
     "deep": _DetailSpec(
-        tldr   = "three- to four-sentence overview",
-        point  = (
+        tldr       = "three- to four-sentence overview",
+        point      = (
             "two to four sentences that spell out the specifics -- the names, "
             "numbers, and reasoning the speaker actually gave, not just the topic"
         ),
-        points = 14,
-        note   = _PRESERVE_FIGURES,
+        max_points = 14,
+        note       = _PRESERVE_FIGURES,
     ),
 }
 DETAIL_LEVELS = tuple(_DETAIL)
@@ -168,7 +168,7 @@ def summarize(
         # the negative-slice `points[:max_points]`, silently drop trailing points
         # instead of capping. Reject it at the boundary.
         raise ValueError(f"max_points must be >= 1, got {max_points}")
-    cap = spec.points if max_points is None else max_points
+    cap = spec.max_points if max_points is None else max_points
 
     hedge  = _AUTO_CAPTION_HEDGE if transcript.is_auto_generated else ""
     chunks = _split_into_chunks(transcript.text, word_limit=CHUNK_WORD_LIMIT)
@@ -285,9 +285,9 @@ def _parse_reply(reply: str, *, max_points: int) -> tuple[str, tuple[str, ...]]:
         if line.startswith(_BULLET_PREFIXES):
             points.append(line[2:].strip())
             continue
-        numbered = _NUMBERED_POINT.match(line)
-        if numbered:
-            points.append(numbered.group(1).strip())
+        numbered_match = _NUMBERED_POINT.match(line)
+        if numbered_match:
+            points.append(numbered_match.group(1).strip())
             continue
         # Bold markers ("**TLDR:** ...") are the most common format drift;
         # strip them only on non-bullet lines so "* " bullets survive above.

@@ -13,7 +13,7 @@ Works with OpenAI, Claude, or a local model via Ollama.
 - [Install](#install) — macOS, Linux, Windows
 - [Backends: Gemini (free), Claude, OpenAI, Ollama — and what each costs](#backends)
 - [Set up config: keys and defaults](#set-up-config-keys-and-defaults) (`~/.tubeless/config.env`)
-- [Summarize one video](#summarize-one-video) (`--detail` / `--points` / `--backend` / `--model` / `--lang`)
+- [Summarize one video](#summarize-one-video) (`--detail` / `--max-points` / `--backend` / `--model` / `--lang`)
 - [Daily digest](#daily-digest)
 - [Run it every day with cron (Linux)](#run-it-every-day-with-cron-linux)
 - [Use it from Claude Code](#use-it-from-claude-code-tubeless-skill) (`/tubeless`)
@@ -183,7 +183,7 @@ OPENAI_API_KEY=sk-...
 # TUBELESS_BACKEND=gemini   # default --backend
 # TUBELESS_MODEL=...        # default --model
 # TUBELESS_DETAIL=deep      # default --detail (brief|normal|deep)
-# TUBELESS_POINTS=20        # default --points
+# TUBELESS_MAX_POINTS=20    # default --max-points
 # TUBELESS_LANG=ko          # default --lang
 # TUBELESS_LIMIT=5          # default --limit (digest)
 EOF
@@ -208,7 +208,7 @@ detail, a non-positive number) is reported as a one-line error.
 
 ```sh
 tubeless "https://www.youtube.com/watch?v=VIDEO_ID_XX"
-tubeless VIDEO_ID_XX --detail deep --lang en --points 20
+tubeless VIDEO_ID_XX --detail deep --lang en --max-points 20
 ```
 
 You can pass a full URL (`watch?v=`, `youtu.be/`, `/shorts/`, `/embed/`,
@@ -223,7 +223,7 @@ You can pass a full URL (`watch?v=`, `youtu.be/`, `/shorts/`, `/embed/`,
 | option | what it does | default |
 |---|---|---|
 | `--detail brief\|normal\|deep` | How full the summary is. **`deep` keeps every number** — see below. | `normal` |
-| `--points N` | Max key points. Overrides the per-detail default (brief 5 / normal 8 / deep 14). | per-detail |
+| `--max-points N` | Max key points. Overrides the per-detail default (brief 5 / normal 8 / deep 14). | per-detail |
 | `--backend openai\|claude\|gemini\|ollama` | Which LLM to use. | `openai` |
 | `--model NAME` | Model id. Defaults to the backend's small/cheap model. | per-backend |
 | `--lang CODE` | Language of the summary. Works across languages — an English video can be summarized in Korean. | `ko` |
@@ -243,7 +243,7 @@ numbers. So:
 tubeless VIDEO_ID_XX --detail deep
 
 # ...and raise the point cap if the video lists many items:
-tubeless VIDEO_ID_XX --detail deep --points 30
+tubeless VIDEO_ID_XX --detail deep --max-points 30
 ```
 
 ### Daily digest
@@ -395,7 +395,7 @@ MIT — see [LICENSE](LICENSE).
 - [설치](#설치) — macOS, Linux, Windows
 - [백엔드: Gemini(무료), Claude, OpenAI, Ollama — 그리고 결제](#백엔드)
 - [설정: 키와 기본값](#설정-키와-기본값) (`~/.tubeless/config.env`)
-- [영상 한 개 요약](#영상-한-개-요약) (`--detail` / `--points` / `--backend` / `--model` / `--lang`)
+- [영상 한 개 요약](#영상-한-개-요약) (`--detail` / `--max-points` / `--backend` / `--model` / `--lang`)
 - [데일리 다이제스트](#데일리-다이제스트)
 - [cron으로 매일 자동 실행 (Linux)](#cron으로-매일-자동-실행-linux)
 - [Claude Code에서 쓰기](#claude-code에서-쓰기-tubeless-스킬) (`/tubeless`)
@@ -559,7 +559,7 @@ OPENAI_API_KEY=sk-...
 # TUBELESS_BACKEND=gemini   # 기본 --backend
 # TUBELESS_MODEL=...        # 기본 --model
 # TUBELESS_DETAIL=deep      # 기본 --detail (brief|normal|deep)
-# TUBELESS_POINTS=20        # 기본 --points
+# TUBELESS_MAX_POINTS=20    # 기본 --max-points
 # TUBELESS_LANG=ko          # 기본 --lang
 # TUBELESS_LIMIT=5          # 기본 --limit (다이제스트)
 EOF
@@ -583,7 +583,7 @@ detail, 0 이하 숫자)은 한 줄 에러로 알려줍니다.
 
 ```sh
 tubeless "https://www.youtube.com/watch?v=VIDEO_ID_XX"
-tubeless VIDEO_ID_XX --detail deep --lang ko --points 20
+tubeless VIDEO_ID_XX --detail deep --lang ko --max-points 20
 ```
 
 전체 URL(`watch?v=`, `youtu.be/`, `/shorts/`, `/embed/`, `/live/`)이나 11자리
@@ -598,7 +598,7 @@ tubeless VIDEO_ID_XX --detail deep --lang ko --points 20
 | 옵션 | 뜻 | 기본값 |
 |---|---|---|
 | `--detail brief\|normal\|deep` | 요약 깊이. **`deep`은 모든 숫자를 보존** — 아래 참고. | `normal` |
-| `--points N` | 핵심 포인트 최대 개수. `--detail` 기본값(brief 5 / normal 8 / deep 14)을 덮어씀. | 깊이별 |
+| `--max-points N` | 핵심 포인트 최대 개수. `--detail` 기본값(brief 5 / normal 8 / deep 14)을 덮어씀. | 깊이별 |
 | `--backend openai\|claude\|gemini\|ollama` | 어떤 LLM을 쓸지. | `openai` |
 | `--model NAME` | 모델 id. 미지정 시 백엔드의 소형·저가 모델. | 백엔드별 |
 | `--lang CODE` | 요약 언어. 언어 교차 가능 — 영어 영상을 한국어로 요약. | `ko` |
@@ -616,7 +616,7 @@ tubeless VIDEO_ID_XX --detail deep --lang ko --points 20
 tubeless VIDEO_ID_XX --detail deep
 
 # ...항목이 많으면 포인트 상한을 올려서:
-tubeless VIDEO_ID_XX --detail deep --points 30
+tubeless VIDEO_ID_XX --detail deep --max-points 30
 ```
 
 ### 데일리 다이제스트

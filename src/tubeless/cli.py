@@ -71,7 +71,7 @@ def _run_summarize(args: argparse.Namespace) -> int:
         transcript, video, backend,
         target_language = args.lang,
         detail          = args.detail,
-        max_points      = args.points,
+        max_points      = args.max_points,
     )
     if args.json:
         print(json.dumps(dataclasses.asdict(summary), ensure_ascii=False, indent=2))
@@ -119,9 +119,9 @@ def _build_parser() -> argparse.ArgumentParser:
     summarize_parser.add_argument("--detail", choices=DETAIL_LEVELS,
                                   default=_configured_choice("TUBELESS_DETAIL", DETAIL_LEVELS, "normal"),
                                   help="summary depth: brief | normal | deep (default: normal, or $TUBELESS_DETAIL)")
-    summarize_parser.add_argument("--points", type=_positive_int,
-                                  default=_configured_positive_int("TUBELESS_POINTS", None),
-                                  help="max key points; overrides the per-detail default (or $TUBELESS_POINTS)")
+    summarize_parser.add_argument("--max-points", type=_positive_int,
+                                  default=_configured_positive_int("TUBELESS_MAX_POINTS", None),
+                                  help="max key points; overrides the per-detail default (or $TUBELESS_MAX_POINTS)")
     summarize_parser.add_argument("--json", action="store_true",
                                   help="print the summary as JSON instead of text")
     summarize_parser.set_defaults(run=_run_summarize)

@@ -49,7 +49,7 @@ def _no_config_file(monkeypatch: pytest.MonkeyPatch) -> None:
     ~/.tubeless/config.env or a stray export cannot set a default during tests."""
     monkeypatch.setattr(config, "read_config", lambda *a, **k: {})
     for name in ("TUBELESS_BACKEND", "TUBELESS_MODEL", "TUBELESS_DETAIL",
-                 "TUBELESS_POINTS", "TUBELESS_LANG", "TUBELESS_LIMIT"):
+                 "TUBELESS_MAX_POINTS", "TUBELESS_LANG", "TUBELESS_LIMIT"):
         monkeypatch.delenv(name, raising=False)
 
 
@@ -102,15 +102,15 @@ def test_configured_choice_falls_back_and_validates(_no_config_file, monkeypatch
 
 
 def test_configured_positive_int_reads_and_validates(_no_config_file, monkeypatch) -> None:
-    assert _configured_positive_int("TUBELESS_POINTS", None) is None
-    monkeypatch.setenv("TUBELESS_POINTS", "20")
-    assert _configured_positive_int("TUBELESS_POINTS", None) == 20
-    monkeypatch.setenv("TUBELESS_POINTS", "0")
+    assert _configured_positive_int("TUBELESS_MAX_POINTS", None) is None
+    monkeypatch.setenv("TUBELESS_MAX_POINTS", "20")
+    assert _configured_positive_int("TUBELESS_MAX_POINTS", None) == 20
+    monkeypatch.setenv("TUBELESS_MAX_POINTS", "0")
     with pytest.raises(ConfigError):
-        _configured_positive_int("TUBELESS_POINTS", 5)
-    monkeypatch.setenv("TUBELESS_POINTS", "lots")
+        _configured_positive_int("TUBELESS_MAX_POINTS", 5)
+    monkeypatch.setenv("TUBELESS_MAX_POINTS", "lots")
     with pytest.raises(ConfigError):
-        _configured_positive_int("TUBELESS_POINTS", 5)
+        _configured_positive_int("TUBELESS_MAX_POINTS", 5)
 
 
 def test_tubeless_detail_env_sets_the_default_detail(

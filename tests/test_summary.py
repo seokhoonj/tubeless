@@ -180,7 +180,7 @@ def test_summarize_detail_sets_the_default_point_cap() -> None:
 
     brief = summarize(make_transcript(n_words=50), SAMPLE_VIDEO, backend, detail="brief")
 
-    assert len(brief.points) == 5  # brief caps at 5 without an explicit --points
+    assert len(brief.points) == 5  # brief caps at 5 without an explicit --max-points
 
 
 def test_summarize_explicit_max_points_overrides_the_detail_default() -> None:
