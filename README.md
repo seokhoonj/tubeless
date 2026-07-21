@@ -29,13 +29,31 @@ Works with Gemini (free), OpenAI, Claude, or a local model via Ollama.
 
 ```sh
 pip install tubeless
-export GEMINI_API_KEY=...      # free key from https://aistudio.google.com
+```
+
+Then pick a backend and run — each needs its own key, except Ollama, which runs
+locally with none:
+
+```sh
+# Gemini — free tier, easiest to start (key: https://aistudio.google.com)
+export GEMINI_API_KEY=...
 tubeless "https://www.youtube.com/watch?v=iG9CE55wbtY" --backend gemini
+
+# OpenAI (key: https://platform.openai.com)
+export OPENAI_API_KEY=...
+tubeless "https://www.youtube.com/watch?v=iG9CE55wbtY" --backend openai
+
+# Claude — first: pip install "tubeless[claude]"  (key: https://platform.claude.com)
+export CLAUDE_API_KEY=...
+tubeless "https://www.youtube.com/watch?v=iG9CE55wbtY" --backend claude
+
+# Ollama — local, no key (install: https://ollama.com, then: ollama pull llama3.1)
+tubeless "https://www.youtube.com/watch?v=iG9CE55wbtY" --backend ollama
 ```
 
 A TLDR and key points print to your terminal. Everything below is the detailed
-version — full install (pipx, per-OS), the other backends, a config file so you
-never retype a key or flag, and the daily multi-channel digest.
+version — full install (pipx, per-OS), what each backend costs and where to pay,
+a config file so you never retype a key or flag, and the daily multi-channel digest.
 
 ### Install
 
@@ -424,12 +442,29 @@ Ollama로 로컬 모델까지 씁니다.
 
 ```sh
 pip install tubeless
-export GEMINI_API_KEY=...      # 무료 키: https://aistudio.google.com
+```
+
+백엔드를 하나 골라 실행 — 각자 키가 필요합니다(Ollama만 로컬이라 키 불필요):
+
+```sh
+# Gemini — 무료 티어, 시작하기 가장 쉬움 (키: https://aistudio.google.com)
+export GEMINI_API_KEY=...
 tubeless "https://www.youtube.com/watch?v=iG9CE55wbtY" --backend gemini --lang ko
+
+# OpenAI (키: https://platform.openai.com)
+export OPENAI_API_KEY=...
+tubeless "https://www.youtube.com/watch?v=iG9CE55wbtY" --backend openai --lang ko
+
+# Claude — 먼저: pip install "tubeless[claude]"  (키: https://platform.claude.com)
+export CLAUDE_API_KEY=...
+tubeless "https://www.youtube.com/watch?v=iG9CE55wbtY" --backend claude --lang ko
+
+# Ollama — 로컬, 키 불필요 (설치: https://ollama.com, 이후: ollama pull llama3.1)
+tubeless "https://www.youtube.com/watch?v=iG9CE55wbtY" --backend ollama --lang ko
 ```
 
 TLDR과 핵심 포인트가 터미널에 출력됩니다. 아래는 상세 버전 — OS별 전체 설치(pipx),
-다른 백엔드, 키·플래그를 매번 안 치게 하는 config 파일, 여러 채널 데일리 다이제스트.
+각 백엔드 비용·결제처, 키·플래그를 매번 안 치게 하는 config 파일, 여러 채널 데일리 다이제스트.
 
 ### 설치
 
