@@ -1,20 +1,24 @@
 """The set of channels the user follows, read from ``~/.tubeless/channels.toml``.
 
-Each entry names where to look (a handle, URL, or id), a label for the digest,
-and how deeply to summarize that channel. This module only reads config;
-resolving a handle to an id and fetching uploads is ``feed.py``'s job.
+Each entry names where to look (a handle, URL, id, or playlist), a label for the
+digest, how deeply to summarize, and optionally a title filter to keep only some
+of the source's uploads. This module only reads config; resolving a handle to an
+id and fetching uploads is ``feed.py``'s job.
 
 Example ``channels.toml``::
 
     [[channel]]
-    source = "@superstocktv"   # a handle, a channel URL, or a 'UC...' id
-    label  = "수페TV"
+    source = "@examplechannel"   # a handle, channel URL, 'UC...' id, or playlist
+    label  = "Example Channel"
     detail = "deep"
 
     [[channel]]
-    source = "@somelecture"
-    label  = "강의채널"
-    detail = "normal"
+    # a playlist narrows a channel to one series; title_includes narrows it
+    # further to uploads whose title contains every listed word (e.g. one host).
+    source         = "PLxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    label          = "A Daily Show"
+    detail         = "deep"
+    title_includes = ["Some Host"]
 """
 
 from __future__ import annotations
@@ -35,14 +39,16 @@ _VALID_DETAIL = ("brief", "normal", "deep")
 @dataclass(frozen=True, slots=True)
 class Channel:
     """One followed channel and how to summarize it. ``source`` is whatever the
-    user wrote (handle / URL / id); ``feed.resolve_channel_id`` turns it into an
-    id at digest time. ``preset`` is reserved for a future domain profile and is
-    unused by the neutral core."""
+    user wrote (handle / URL / id / playlist); ``feed.fetch_uploads`` resolves it
+    at digest time. ``title_includes`` keeps only uploads whose title contains
+    every listed word (case-insensitive) -- empty means keep all. ``preset`` is
+    reserved for a future domain profile and is unused by the neutral core."""
 
-    source: str
-    label:  str
-    detail: str = "deep"
-    preset: str | None = None
+    source:         str
+    label:          str
+    detail:         str = "deep"
+    preset:         str | None = None
+    title_includes: tuple[str, ...] = ()
 
 
 def load_channels(path: Path | None = None) -> tuple[Channel, ...]:
@@ -77,9 +83,13 @@ def _channel_from(entry: dict, path: Path) -> Channel:
         raise ConfigError(
             f"channel {source!r}: detail must be one of {_VALID_DETAIL}, got {detail!r}"
         )
+    raw_filter = entry.get("title_includes", ())
+    if isinstance(raw_filter, str):   # a bare string is a one-word filter
+        raw_filter = [raw_filter]
     return Channel(
-        source = source,
-        label  = entry.get("label") or source,
-        detail = detail,
-        preset = entry.get("preset"),
+        source         = source,
+        label          = entry.get("label") or source,
+        detail         = detail,
+        preset         = entry.get("preset"),
+        title_includes = tuple(str(word) for word in raw_filter),
     )

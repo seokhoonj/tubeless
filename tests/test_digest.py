@@ -85,6 +85,24 @@ def test_build_digest_marks_captionless_videos_processed_but_drops_them(monkeypa
     assert processed == {"ccccccccccc"}  # marked, so it is not retried tomorrow
 
 
+def test_build_digest_applies_a_title_filter(monkeypatch):
+    monkeypatch.setattr(
+        digest_module, "fetch_uploads",
+        lambda source, limit: (_upload("aaaaaaaaaaa", "[Show] with Alice"),
+                               _upload("bbbbbbbbbbb", "[Show] with Bob"),
+                               _upload("ccccccccccc", "[Other] with Alice too")),
+    )
+    monkeypatch.setattr(digest_module, "fetch_transcript", lambda video_id: _transcript(video_id))
+    channels = (Channel(source="@x", label="쇼", detail="normal",
+                        title_includes=("[Show]", "Alice")),)
+
+    digest, processed = build_digest(channels, ScoringBackend(), date="d", seen=set())
+
+    # only the upload whose title contains BOTH "[Show]" and "Alice"
+    assert [e.upload.video_id for e in digest.entries] == ["aaaaaaaaaaa"]
+    assert processed == {"aaaaaaaaaaa"}
+
+
 def test_build_digest_records_a_channel_whose_feed_fails(monkeypatch):
     def feed_down(source, limit):
         raise FeedError("feed unreachable")

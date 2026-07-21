@@ -22,6 +22,9 @@ from tubeless.transcript import fetch_transcript
 
 __all__ = ["Digest", "DigestEntry", "build_digest"]
 
+# YouTube's RSS feed tops out near 15 entries; a filtered source scans them all.
+_FILTERED_FETCH_LIMIT = 15
+
 
 @dataclass(frozen=True, slots=True)
 class DigestEntry:
@@ -71,11 +74,15 @@ def build_digest(
     processed: set[str] = set()
 
     for channel in channels:
+        # A filtered channel scans the full feed window, not just the first few:
+        # the wanted uploads (e.g. one host's episodes) are sparse among the rest.
+        fetch_limit = _FILTERED_FETCH_LIMIT if channel.title_includes else per_channel_limit
         try:
-            uploads = fetch_uploads(channel.source, limit=per_channel_limit)
+            uploads = fetch_uploads(channel.source, limit=fetch_limit)
         except FeedError as err:
             skipped.append(f"{channel.label}: {err}")
             continue
+        uploads = _matching_titles(uploads, channel.title_includes)
 
         for upload in uploads:
             if upload.video_id in seen or upload.video_id in processed:
@@ -87,6 +94,15 @@ def build_digest(
 
     entries.sort(key=lambda entry: entry.importance.score, reverse=True)
     return Digest(date=date, entries=tuple(entries), skipped=tuple(skipped)), processed
+
+
+def _matching_titles(uploads: tuple[Upload, ...], keywords: tuple[str, ...]) -> tuple[Upload, ...]:
+    """Keep uploads whose title contains every keyword (case-insensitive); with
+    no keywords, keep all."""
+    if not keywords:
+        return uploads
+    lowered = [word.lower() for word in keywords]
+    return tuple(u for u in uploads if all(word in u.title.lower() for word in lowered))
 
 
 def _summarize_upload(

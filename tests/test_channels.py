@@ -30,6 +30,26 @@ def test_load_channels_reads_entries_with_defaults(tmp_path):
     assert channels[1].detail == "deep"  # default when omitted
 
 
+def test_load_channels_reads_a_title_filter(tmp_path):
+    path = _write(
+        tmp_path,
+        '[[channel]]\nsource = "PLxxxxxxxxxx"\nlabel = "S"\ntitle_includes = ["Alice", "News"]\n',
+    )
+    assert load_channels(path)[0].title_includes == ("Alice", "News")
+
+
+def test_load_channels_wraps_a_bare_string_filter(tmp_path):
+    path = _write(tmp_path, '[[channel]]\nsource = "@x"\ntitle_includes = "Alice"\n')
+
+    assert load_channels(path)[0].title_includes == ("Alice",)
+
+
+def test_load_channels_defaults_to_no_filter(tmp_path):
+    path = _write(tmp_path, '[[channel]]\nsource = "@x"\nlabel = "X"\n')
+
+    assert load_channels(path)[0].title_includes == ()
+
+
 def test_load_channels_accepts_a_legacy_handle_key(tmp_path):
     path = _write(tmp_path, '[[channel]]\nhandle = "@x"\nlabel = "X"\n')
 
