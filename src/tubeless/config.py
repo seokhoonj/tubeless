@@ -13,6 +13,8 @@ import os
 from pathlib import Path
 from typing import Literal
 
+from tubeless.errors import ConfigError
+
 __all__ = ["CONFIG_PATH", "Vendor", "api_key", "read_config", "setting"]
 
 CONFIG_PATH = Path.home() / ".tubeless" / "config.env"
@@ -44,12 +46,20 @@ def read_config(path: Path | None = None) -> dict[str, str]:
     Each line is ``KEY=VALUE``; blank lines and ``#`` comments are skipped and
     surrounding quotes on the value are stripped. This is a hand-written key file,
     not a full dotenv document, so the parser stays deliberately small.
+
+    Raises:
+        ConfigError: the file exists but could not be read (I/O error or not
+            UTF-8) -- surfaced as a one-line CLI error, not a traceback.
     """
     path = path or CONFIG_PATH
     if not path.exists():
         return {}
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as err:
+        raise ConfigError(f"could not read config file {path}: {err}") from err
     values: dict[str, str] = {}
-    for raw in path.read_text(encoding="utf-8").splitlines():
+    for raw in text.splitlines():
         line = raw.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue

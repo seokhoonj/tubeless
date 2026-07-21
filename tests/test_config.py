@@ -4,7 +4,10 @@ No network and no real ~/.tubeless/config.env -- every lookup is pointed at a
 temp file or an injected dict so the tests are hermetic.
 """
 
+import pytest
+
 from tubeless import config
+from tubeless.errors import ConfigError
 
 
 def _write(tmp_path, text):
@@ -28,6 +31,22 @@ def test_read_config_skips_blanks_comments_and_strips_quotes(tmp_path):
 
 def test_read_config_missing_file_is_empty(tmp_path):
     assert config.read_config(tmp_path / "nope.env") == {}
+
+
+def test_read_config_raises_on_an_unreadable_file(tmp_path):
+    # a directory at the path: exists() is true, read_text raises OSError -> ConfigError,
+    # not a bare traceback out of the CLI.
+    unreadable = tmp_path / "config.env"
+    unreadable.mkdir()
+    with pytest.raises(ConfigError):
+        config.read_config(unreadable)
+
+
+def test_read_config_raises_on_a_non_utf8_file(tmp_path):
+    path = tmp_path / "config.env"
+    path.write_bytes(b"\xff\xfe\x00not utf-8")
+    with pytest.raises(ConfigError):
+        config.read_config(path)
 
 
 def test_api_key_reads_the_tubeless_name_from_the_config_dict(monkeypatch):

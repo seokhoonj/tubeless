@@ -64,7 +64,7 @@ def load_channels(path: Path | None = None) -> tuple[Channel, ...]:
         )
     try:
         data = tomllib.loads(path.read_text(encoding="utf-8"))
-    except (tomllib.TOMLDecodeError, OSError) as err:
+    except (tomllib.TOMLDecodeError, OSError, UnicodeDecodeError) as err:
         raise ConfigError(f"could not read {path}: {err}") from err
 
     entries = data.get("channel")
@@ -85,6 +85,11 @@ def _channel_from(entry: dict, path: Path) -> Channel:
     raw_filter = entry.get("title_includes", ())
     if isinstance(raw_filter, str):   # a bare string is a one-word filter
         raw_filter = [raw_filter]
+    elif not isinstance(raw_filter, (list, tuple)):
+        raise ConfigError(
+            f"channel {source!r}: title_includes must be a string or a list, "
+            f"got {type(raw_filter).__name__}"
+        )
     return Channel(
         source         = source,
         label          = entry.get("label") or source,

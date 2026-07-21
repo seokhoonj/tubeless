@@ -40,3 +40,22 @@ def test_read_seen_raises_on_an_unreadable_state_file(tmp_path):
 
     with pytest.raises(ConfigError):
         read_seen(unreadable)
+
+
+def test_read_seen_treats_a_non_utf8_file_as_empty(tmp_path):
+    # A garbled (non-UTF-8) state file is a corruption mode: recover as empty,
+    # like a corrupt-JSON file, rather than crashing the run.
+    path = tmp_path / "state.json"
+    path.write_bytes(b"\xff\xfe\x00")
+
+    assert read_seen(path) == set()
+
+
+def test_write_seen_raises_on_an_unwritable_path(tmp_path):
+    # A file where a directory is expected makes mkdir raise OSError -> ConfigError,
+    # not a bare traceback.
+    blocker = tmp_path / "blocker"
+    blocker.write_text("x", encoding="utf-8")
+
+    with pytest.raises(ConfigError):
+        write_seen({"a"}, blocker / "sub" / "state.json")

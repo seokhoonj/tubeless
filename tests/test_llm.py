@@ -51,6 +51,16 @@ def test_gemini_backend_without_a_key_raises(monkeypatch: pytest.MonkeyPatch):
         GeminiBackend()
 
 
+def test_anthropic_backend_without_the_package_raises_a_helpful_error(monkeypatch: pytest.MonkeyPatch):
+    # anthropic is an optional extra; a missing install must surface as a one-line
+    # LLMError telling the user how to fix it, not a raw ModuleNotFoundError.
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setitem(sys.modules, "anthropic", None)  # makes `from anthropic import ...` fail
+    with pytest.raises(LLMError) as raised:
+        AnthropicBackend()
+    assert "tubeless[anthropic]" in str(raised.value)
+
+
 # --- Anthropic error wrapping + response parsing --------------------------
 class _FakeAnthropicError(Exception):
     pass

@@ -35,20 +35,28 @@ def read_seen(path: Path | None = None) -> set[str]:
         return set()
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        return set()
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return set()   # a corrupt/garbled file must not crash a run; treat as no state
     except OSError as err:
         raise ConfigError(f"could not read state file {path}: {err}") from err
     seen = data.get("seen", [])
     return set(seen) if isinstance(seen, list) else set()
 
 
-def write_seen(ids: set[str], path: Path | None = None) -> None:
+def write_seen(video_ids: set[str], path: Path | None = None) -> None:
     """Persist the processed-video id set, creating the parent directory if
-    needed. Ids are written sorted so the file diffs cleanly between runs."""
+    needed. Ids are written sorted so the file diffs cleanly between runs.
+
+    Raises:
+        ConfigError: the state file could not be written (I/O error) -- surfaced
+            as a one-line CLI error, not a traceback.
+    """
     path = path or STATE_PATH
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps({"seen": sorted(ids)}, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps({"seen": sorted(video_ids)}, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    except OSError as err:
+        raise ConfigError(f"could not write state file {path}: {err}") from err

@@ -130,6 +130,23 @@ def test_tubeless_detail_env_sets_the_default_detail(
     assert seen["detail"] == "deep"
 
 
+def test_main_handles_keyboard_interrupt_cleanly(
+    _no_config_file, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Ctrl-C mid-run must exit 130 with a one-line message, not a traceback.
+    monkeypatch.setattr(cli_module, "fetch_video_meta", lambda url: SAMPLE_VIDEO)
+
+    def interrupted(video_id):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(cli_module, "fetch_transcript", interrupted)
+
+    exit_code = main([SAMPLE_VIDEO.url])
+
+    assert exit_code == 130
+    assert "cancelled" in capsys.readouterr().err
+
+
 def test_main_prints_the_summary_and_returns_zero(
     pipeline_with_fakes: None, capsys: pytest.CaptureFixture[str]
 ) -> None:

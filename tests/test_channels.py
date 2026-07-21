@@ -38,6 +38,15 @@ def test_load_channels_reads_a_title_filter(tmp_path):
     assert load_channels(path)[0].title_includes == ("Alice", "News")
 
 
+def test_load_channels_rejects_a_non_string_non_list_title_filter(tmp_path):
+    path = _write(
+        tmp_path,
+        '[[channel]]\nsource = "@x"\nlabel = "X"\ntitle_includes = 123\n',
+    )
+    with pytest.raises(ConfigError):
+        load_channels(path)
+
+
 def test_load_channels_wraps_a_bare_string_filter(tmp_path):
     path = _write(tmp_path, '[[channel]]\nsource = "@x"\ntitle_includes = "Alice"\n')
 

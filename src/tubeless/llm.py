@@ -181,7 +181,14 @@ class AnthropicBackend:
                 "no Anthropic API key: pass api_key=, set ANTHROPIC_SECRET_KEY in the "
                 "environment, or add it to ~/.tubeless/config.env"
             )
-        from anthropic import Anthropic  # lazy, like OpenAIBackend (see above)
+        try:
+            from anthropic import Anthropic  # lazy, like OpenAIBackend (see above)
+        except ImportError as err:
+            # anthropic is an optional extra; give a one-line fix, not a traceback.
+            raise LLMError(
+                "the Anthropic backend needs the 'anthropic' package: "
+                "pip install 'tubeless[anthropic]'"
+            ) from err
 
         self.model      = model
         self.max_tokens = max_tokens

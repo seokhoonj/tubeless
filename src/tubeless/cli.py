@@ -51,6 +51,11 @@ def main(argv: list[str] | None = None) -> int:
     try:
         args = _build_parser().parse_args(_with_default_subcommand(argv))
         return args.run(args)
+    except KeyboardInterrupt:
+        # Ctrl-C is a BaseException, so it slips past `except TubelessError`;
+        # catch it here for a clean exit instead of a network-stack traceback.
+        print("tubeless: cancelled", file=sys.stderr)
+        return 130   # 128 + SIGINT, the shell convention
     except TubelessError as err:
         print(f"tubeless: {err}", file=sys.stderr)
         return 1
