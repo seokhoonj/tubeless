@@ -158,7 +158,7 @@ def test_main_prints_the_summary_and_returns_zero(
     captured = capsys.readouterr()
     assert exit_code == 0
     assert "A talk about ducks" in captured.out
-    assert "TLDR: Ducks are great." in captured.out
+    assert "TL;DR: Ducks are great." in captured.out
     assert "- They float." in captured.out
     # The run's settings header goes to stderr, so stdout stays the summary alone;
     # it names the backend and the model actually used (the name-mangling hint).
@@ -216,7 +216,7 @@ def test_bare_url_still_routes_to_summarize(
     exit_code = main([SAMPLE_VIDEO.url])
 
     assert exit_code == 0
-    assert "TLDR: Ducks are great." in capsys.readouterr().out
+    assert "TL;DR: Ducks are great." in capsys.readouterr().out
 
 
 def test_explicit_summarize_subcommand_works(

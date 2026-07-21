@@ -333,7 +333,7 @@ Run the installed `tubeless` CLI on the URL the user gave and show the result:
     tubeless "<url>" --detail deep --lang ko
 
 Pass `--backend claude` for Claude or `--backend ollama` for a local model.
-Show the TLDR and key points back to the user.
+Show the TL;DR and key points back to the user.
 ```
 
 Then in Claude Code: `/tubeless https://youtu.be/VIDEO_ID_XX`. The same idea works
@@ -706,7 +706,7 @@ description: 유튜브 영상을 요약. 유튜브 URL이나 "이 영상 요약�
     tubeless "<url>" --detail deep --lang ko
 
 Claude는 `--backend claude`, 로컬 모델은 `--backend ollama`를 붙인다.
-TLDR과 핵심 포인트를 사용자에게 돌려준다.
+TL;DR과 핵심 포인트를 사용자에게 돌려준다.
 ```
 
 그러면 Claude Code에서 `/tubeless https://youtu.be/VIDEO_ID_XX`. 다른 에이전트

@@ -1,4 +1,4 @@
-"""Summarize a transcript into a TLDR and key points via an injected backend.
+"""Summarize a transcript into a TL;DR and key points via an injected backend.
 
 Pure transform territory: the only side effects are the backend calls, and the
 backend is a parameter, so the whole module tests with a fake and never
@@ -41,12 +41,12 @@ _SYSTEM_PROMPT = (
 )
 
 # The model is asked for exactly this shape so parsing stays trivial:
-# one "TLDR:" line, then "- " bullets. The three "<...>" slots are filled from
+# one "TL;DR:" line, then "- " bullets. The three "<...>" slots are filled from
 # the chosen detail level so the same skeleton yields a terse or a rich summary.
 _FORMAT_INSTRUCTION = (
     "Answer in {language}. Write no greeting or preamble; the very first line "
-    "must start with 'TLDR:'. Use exactly this format:\n"
-    "TLDR: <{tldr}>\n"
+    "must start with 'TL;DR:'. Use exactly this format:\n"
+    "TL;DR: <{tldr}>\n"
     "- <key point>\n"
     "- <key point>\n"
     "Give at most {max_points} key points; each key point is {point}. Start "
@@ -79,7 +79,7 @@ _PRESERVE_FIGURES = (
 
 @dataclass(frozen=True, slots=True)
 class _DetailSpec:
-    """How expansive one detail level is: TLDR length, per-point fullness, the
+    """How expansive one detail level is: TL;DR length, per-point fullness, the
     default point cap a typical-length video warrants, and an optional trailing
     instruction (e.g. keep every figure) appended to the format block."""
 
@@ -146,10 +146,10 @@ def summarize(
     detail:          DetailLevel = "normal",
     max_points:      int | None = None,
 ) -> Summary:
-    """Summarize ``transcript`` into a TLDR plus key points.
+    """Summarize ``transcript`` into a TL;DR plus key points.
 
     ``detail`` ('brief' / 'normal' / 'deep') sets how fully the summary is
-    written -- the TLDR length, how many sentences each point carries, and the
+    written -- the TL;DR length, how many sentences each point carries, and the
     default number of points. ``max_points`` overrides that default count when
     given; ``None`` keeps the per-detail default.
 
@@ -272,9 +272,9 @@ def _format_instruction(spec: _DetailSpec, *, language: str, max_points: int) ->
 def _parse_reply(reply: str, *, max_points: int) -> tuple[str, tuple[str, ...]]:
     """Extract (tldr, points) from the model's reply, tolerating drift.
 
-    Models mostly follow the requested "TLDR: ... / - ..." shape but drift on
+    Models mostly follow the requested "TL;DR: ... / - ..." shape but drift on
     details (bold markers, missing label, numbered lists, extra prose), so
-    parsing is forgiving: the TLDR is the labelled line if present, otherwise the
+    parsing is forgiving: the TL;DR is the labelled line if present, otherwise the
     first non-point line; points are every bullet or numbered line, capped at
     ``max_points``.
     """
@@ -292,14 +292,14 @@ def _parse_reply(reply: str, *, max_points: int) -> tuple[str, tuple[str, ...]]:
         if numbered_match:
             points.append(numbered_match.group(1).strip())
             continue
-        # Bold markers ("**TLDR:** ...") are the most common format drift;
+        # Bold markers ("**TL;DR:** ...") are the most common format drift;
         # strip them only on non-bullet lines so "* " bullets survive above.
         unbolded   = line.strip("*").strip()
         tldr_match = re.match(r"(?i)^tl;?dr\s*[:\-]\s*(.*)$", unbolded)
         if tldr_match and not tldr:
             tldr = tldr_match.group(1).strip().strip("*").strip()
         elif not tldr and not points:
-            # Unlabelled leading prose before any bullet: treat as the TLDR.
+            # Unlabelled leading prose before any bullet: treat as the TL;DR.
             tldr = unbolded
 
     return tldr, tuple(points[:max_points])

@@ -240,7 +240,7 @@ def _render_text(summary: Summary) -> str:
     header = summary.video.title
     if summary.video.channel:
         header += f" — {summary.video.channel}"
-    lines = [header, summary.video.url, "", f"TLDR: {summary.tldr}"]
+    lines = [header, summary.video.url, "", f"TL;DR: {summary.tldr}"]
     if summary.points:
         lines.append("")
         lines.extend(f"- {point}" for point in summary.points)

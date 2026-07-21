@@ -39,7 +39,7 @@ _PROMPT = (
     "SCORE: <a number from 0.0 to 1.0>\n"
     "REASON: <one short sentence in {language}>\n\n"
     "Title: {title}\n"
-    "TLDR: {tldr}\n"
+    "TL;DR: {tldr}\n"
     "Points:\n{points}"
 )
 

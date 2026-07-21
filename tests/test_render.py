@@ -32,7 +32,7 @@ def test_to_markdown_renders_header_score_and_points():
     assert "🔴" in md                    # 0.9 is the high tier
     assert "중요도 0.90" in md
     assert "> 큰 뉴스" in md
-    assert "**TLDR:** 핵심 요약" in md
+    assert "**TL;DR:** 핵심 요약" in md
     assert "- 포인트 1" in md
 
 

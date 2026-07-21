@@ -37,7 +37,7 @@ def _entry_lines(entry: DigestEntry) -> list[str]:
         lines.append(f"> {entry.importance.reason}")
     lines.append(summary.video.url)
     lines.append("")
-    lines.append(f"**TLDR:** {summary.tldr}")
+    lines.append(f"**TL;DR:** {summary.tldr}")
     if summary.points:
         lines.append("")
         lines.extend(f"- {point}" for point in summary.points)
