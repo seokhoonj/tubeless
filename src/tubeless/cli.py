@@ -34,7 +34,7 @@ __all__ = ["main"]
 
 # Per-vendor default model, used when --model is not given. Kept cheap: the
 # summary map-reduce can be many calls, so the small-tier model is the default.
-_BACKENDS = ("openai", "claude", "gemini", "ollama")
+_BACKENDS = ("claude", "openai", "gemini", "ollama")
 _SUBCOMMANDS = ("summarize", "digest")
 _DIGEST_DIR  = Path.home() / ".tubeless" / "digests"
 
@@ -210,8 +210,8 @@ def _make_backend(backend: str, model: str | None) -> LLMBackend:
     that monkeypatches e.g. ``OpenAIBackend`` still takes effect.)
     """
     backend_class = {
-        "openai": OpenAIBackend,
         "claude": ClaudeBackend,
+        "openai": OpenAIBackend,
         "gemini": GeminiBackend,
         "ollama": OllamaBackend,
     }[backend]

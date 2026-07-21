@@ -21,14 +21,14 @@ CONFIG_PATH = Path.home() / ".tubeless" / "config.env"
 
 # The vendors tubeless resolves a key for. Closed set: a typo is a static error,
 # not a runtime KeyError against the maps below.
-Vendor = Literal["openai", "claude", "gemini"]
+Vendor = Literal["claude", "openai", "gemini"]
 
 # The env-var (or config.env) name tubeless reads for each vendor's key: the
 # backend name plus the shared `_API_KEY` suffix, so the key name always matches
 # `--backend`. (A Claude key comes from the Claude console, platform.claude.com.)
 _KEY_NAME = {
-    "openai": "OPENAI_API_KEY",
     "claude": "CLAUDE_API_KEY",
+    "openai": "OPENAI_API_KEY",
     "gemini": "GEMINI_API_KEY",
 }
 

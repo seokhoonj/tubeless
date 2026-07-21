@@ -11,7 +11,7 @@ Works with OpenAI, Claude, or a local model via Ollama.
 ## English
 
 - [Install](#install) — macOS, Linux, Windows
-- [Backends: OpenAI, Claude, Ollama — and what each costs](#backends-openai-claude-ollama)
+- [Backends: Gemini (free), Claude, OpenAI, Ollama — and what each costs](#backends)
 - [Set up config: keys and defaults](#set-up-config-keys-and-defaults) (`~/.tubeless/config.env`)
 - [Summarize one video](#summarize-one-video) (`--detail` / `--points` / `--backend` / `--model` / `--lang`)
 - [Daily digest](#daily-digest)
@@ -66,47 +66,58 @@ tubeless --help
 > stays isolated. Once tubeless is published to PyPI, `pipx install tubeless`
 > will also work.
 
-### Backends: OpenAI, Claude, Ollama
+### Backends
 
-Pick the model with `--backend`. The default is OpenAI.
+Pick the LLM with `--backend`. **Gemini has a free tier, so it's the easiest way
+to start** (no card needed). OpenAI is the built-in default; change it once with
+`TUBELESS_BACKEND` (see [config](#set-up-config-keys-and-defaults)).
 
 | backend | flag | key needed | default model | runs where | cost |
 |---|---|---|---|---|---|
-| **OpenAI** | `--backend openai` (default) | `OPENAI_API_KEY` | `gpt-4o-mini` | OpenAI's servers | paid, prepaid credits |
-| **Claude** | `--backend claude` | `CLAUDE_API_KEY` | `claude-haiku-4-5` | Anthropic's servers | paid, prepaid credits |
 | **Gemini** | `--backend gemini` | `GEMINI_API_KEY` | `gemini-flash-lite-latest` | Google's servers | free tier + pay-as-you-go |
+| **Claude** | `--backend claude` | `CLAUDE_API_KEY` | `claude-haiku-4-5` | Anthropic's servers | paid, prepaid credits |
+| **OpenAI** | `--backend openai` (default) | `OPENAI_API_KEY` | `gpt-4o-mini` | OpenAI's servers | paid, prepaid credits |
 | **Ollama** | `--backend ollama` | none | `llama3.1` | your own machine | free |
 
-**Where to pay, and how much.** Both cloud vendors are **prepaid**: you buy usage
-credits up front, and each summary draws down from that balance.
+**Models per backend (`--model`).** Each backend uses a cheap small model by
+default; pass `--model NAME` to pick another. Model names shift often, so the
+linked list is the authoritative one.
 
-- **OpenAI** — buy credits at [platform.openai.com](https://platform.openai.com)
-  → Settings → Billing. **Minimum top-up is $5.** Prices per model are on the
-  [pricing page](https://openai.com/api/pricing/). The default `gpt-4o-mini` is
-  the cheapest tier — one video summary costs a fraction of a cent, so a **$5**
-  top-up covers *thousands* of videos.
-- **Claude** — buy credits at [platform.claude.com](https://platform.claude.com)
-  → Billing → Buy credits. **Minimum top-up is also $5.** The default
-  `claude-haiku-4-5` is Anthropic's cheapest model (about $1 per million input
-  tokens / $5 per million output); a typical video is a cent or two, so **$5**
-  still covers hundreds of videos. Full rates: [Claude pricing](https://platform.claude.com/docs/en/about-claude/pricing).
+| backend | default `--model` | other options | full list |
+|---|---|---|---|
+| Gemini | `gemini-flash-lite-latest` (free) | `gemini-flash-latest`, `gemini-2.5-pro` | [models](https://ai.google.dev/gemini-api/docs/models) |
+| Claude | `claude-haiku-4-5` (cheapest) | `claude-sonnet-5`, `claude-opus-4-8` (best) | [models](https://platform.claude.com/docs/en/about-claude/models/overview) |
+| OpenAI | `gpt-4o-mini` (cheapest) | `gpt-4o` | [models](https://platform.openai.com/docs/models) |
+| Ollama | `llama3.1` | any pulled model: `qwen2.5`, `gemma3`, … | [library](https://ollama.com/library) |
+
+> A bigger `--model` is worth it when exact names and figures matter: a small
+> default model can "correct" an unfamiliar name in a noisy auto-caption to a
+> similar one it knows (e.g. a brand-new model name → an older one it was trained
+> on). A larger, more recent model does this far less.
+
+**Where to pay, and how much.**
+
 - **Gemini** — get a key at [aistudio.google.com](https://aistudio.google.com).
   Gemini has a **genuine free tier** (rate-limited) — enough to try tubeless
   without paying at all. For higher volume, enable pay-as-you-go billing in AI
-  Studio; the default `gemini-flash-lite-latest` is a cheap, fast model that
-  runs on the free tier. (It's a `-latest` alias — pinned names like
-  `gemini-2.5-flash` can 404 for a newly created key, so the alias is the safe
-  default; override with `--model`.) Rates: [Gemini pricing](https://ai.google.dev/pricing).
+  Studio. Rates: [Gemini pricing](https://ai.google.dev/pricing).
+- **Claude** — **prepaid**: buy credits at [platform.claude.com](https://platform.claude.com)
+  → Billing → Buy credits (**$5 minimum**). The default `claude-haiku-4-5` is
+  Anthropic's cheapest model (~$1 / $5 per million input / output tokens); a
+  typical video is a cent or two, so $5 covers hundreds. Full rates: [Claude pricing](https://platform.claude.com/docs/en/about-claude/pricing).
+- **OpenAI** — **prepaid**: buy credits at [platform.openai.com](https://platform.openai.com)
+  → Settings → Billing (**$5 minimum**). The default `gpt-4o-mini` is the cheapest
+  tier — a fraction of a cent per video, so $5 covers *thousands*. Prices: [pricing](https://openai.com/api/pricing/).
 - **Ollama** — no key, no bill; the model runs on your own computer (see below).
   Free and offline, at the cost of the summary quality your local model can give.
 
-For OpenAI and Claude, credits **expire one year** after purchase and are
+Prepaid credits (Claude, OpenAI) **expire one year** after purchase and are
 non-refundable — so top up small.
 
-**Which to choose?** OpenAI `gpt-4o-mini` (the default) is the cheapest cloud
-all-rounder. Claude tends to *hedge* an uncertain number rather than invent one,
-which is safer on noisy auto-captions. Gemini's free tier is the easiest way to
-try a cloud model without paying. Ollama is the private/offline/free option.
+**Which to choose?** Gemini's free tier is the easiest way to start without
+paying. Claude tends to *hedge* an uncertain specific rather than invent one;
+OpenAI `gpt-4o-mini` is a cheap cloud all-rounder. Ollama is the
+private/offline/free option.
 
 **Using Ollama (local, free).** Install the server, pull a model, then point
 tubeless at it:
@@ -364,7 +375,7 @@ same tool works for a market recap, a lecture, or a match report.
 - **Auto-generated captions are noisy.** When the caption track is auto-generated,
   tubeless warns the model to hedge uncertain names and numbers rather than state
   them as fact — but a garbled caption can still produce a garbled point.
-- **Summaries cost money on the cloud backends** (see [Backends](#backends-openai-claude-ollama)).
+- **Summaries cost money on the cloud backends** (see [Backends](#backends)).
   Use Ollama to run free and offline.
 - **The importance score is the model's judgment**, not a hard metric — it ranks
   the digest, it isn't ground truth.
@@ -382,7 +393,7 @@ MIT — see [LICENSE](LICENSE).
 모델까지 씁니다.
 
 - [설치](#설치) — macOS, Linux, Windows
-- [백엔드: OpenAI, Claude, Ollama — 그리고 결제](#백엔드-openai-claude-ollama)
+- [백엔드: Gemini(무료), Claude, OpenAI, Ollama — 그리고 결제](#백엔드)
 - [설정: 키와 기본값](#설정-키와-기본값) (`~/.tubeless/config.env`)
 - [영상 한 개 요약](#영상-한-개-요약) (`--detail` / `--points` / `--backend` / `--model` / `--lang`)
 - [데일리 다이제스트](#데일리-다이제스트)
@@ -436,45 +447,54 @@ tubeless --help
 > 설치됩니다(가상환경 안에서 권장). pipx는 CLI를 격리하려는 권장일 뿐입니다.
 > 나중에 PyPI에 올라가면 `pipx install tubeless`로도 됩니다.
 
-### 백엔드: OpenAI, Claude, Ollama
+### 백엔드
 
-`--backend`로 모델을 고릅니다. 기본은 OpenAI입니다.
+`--backend`로 LLM을 고릅니다. **Gemini는 무료 티어가 있어 시작이 가장 쉽습니다**
+(카드 불필요). 기본은 OpenAI이고, `TUBELESS_BACKEND`로 한 번에 바꿀 수 있습니다
+(아래 [설정](#설정-키와-기본값) 참고).
 
 | 백엔드 | 플래그 | 필요한 키 | 기본 모델 | 실행 위치 | 비용 |
 |---|---|---|---|---|---|
-| **OpenAI** | `--backend openai` (기본) | `OPENAI_API_KEY` | `gpt-4o-mini` | OpenAI 서버 | 유료, 선불 크레딧 |
-| **Claude** | `--backend claude` | `CLAUDE_API_KEY` | `claude-haiku-4-5` | Anthropic 서버 | 유료, 선불 크레딧 |
 | **Gemini** | `--backend gemini` | `GEMINI_API_KEY` | `gemini-flash-lite-latest` | Google 서버 | 무료 티어 + 종량제 |
+| **Claude** | `--backend claude` | `CLAUDE_API_KEY` | `claude-haiku-4-5` | Anthropic 서버 | 유료, 선불 크레딧 |
+| **OpenAI** | `--backend openai` (기본) | `OPENAI_API_KEY` | `gpt-4o-mini` | OpenAI 서버 | 유료, 선불 크레딧 |
 | **Ollama** | `--backend ollama` | 불필요 | `llama3.1` | 내 컴퓨터 | 무료 |
 
-**어디서, 얼마부터 결제하나.** 두 클라우드 벤더 모두 **선불(prepaid)**입니다 —
-크레딧을 미리 사두면 요약할 때마다 그 잔액에서 차감됩니다.
+**백엔드별 모델 (`--model`).** 각 백엔드는 기본으로 싼 소형 모델을 씁니다.
+`--model NAME`으로 다른 걸 고르세요. 모델명은 자주 바뀌니 링크의 목록이 정본입니다.
 
-- **OpenAI** — [platform.openai.com](https://platform.openai.com) → Settings →
-  Billing에서 크레딧 구매. **최소 충전 $5.** 모델별 요금은
-  [요금 페이지](https://openai.com/api/pricing/) 참고. 기본 `gpt-4o-mini`가 가장 싼
-  등급이라 영상 하나 요약에 1센트도 안 들고, **$5**면 *수천 편*을 커버합니다.
-- **Claude** — [platform.claude.com](https://platform.claude.com) → Billing →
-  Buy credits에서 구매. **최소 충전도 $5.** 기본 `claude-haiku-4-5`는 Anthropic에서
-  가장 싼 모델로(입력 100만 토큰당 약 $1 / 출력 $5), 영상 하나에 1~2센트라 **$5**로
-  수백 편을 커버합니다. 전체 요금: [Claude 요금](https://platform.claude.com/docs/en/about-claude/pricing).
+| 백엔드 | 기본 `--model` | 다른 선택지 | 전체 목록 |
+|---|---|---|---|
+| Gemini | `gemini-flash-lite-latest` (무료) | `gemini-flash-latest`, `gemini-2.5-pro` | [목록](https://ai.google.dev/gemini-api/docs/models) |
+| Claude | `claude-haiku-4-5` (가장 쌈) | `claude-sonnet-5`, `claude-opus-4-8` (최고) | [목록](https://platform.claude.com/docs/en/about-claude/models/overview) |
+| OpenAI | `gpt-4o-mini` (가장 쌈) | `gpt-4o` | [목록](https://platform.openai.com/docs/models) |
+| Ollama | `llama3.1` | 받아둔 모든 모델: `qwen2.5`, `gemma3`, … | [라이브러리](https://ollama.com/library) |
+
+> 이름·수치가 정확히 중요하면 **더 큰 `--model`**이 낫습니다: 작은 기본 모델은
+> 노이즈 많은 자동자막의 낯선 이름을, 자기가 아는 비슷한 이름으로 "교정"할 수
+> 있습니다(예: 갓 나온 모델명 → 학습 때 아는 옛 이름). 크고 최신인 모델은 이런
+> 실수가 훨씬 적습니다.
+
+**어디서, 얼마부터 결제하나.**
+
 - **Gemini** — [aistudio.google.com](https://aistudio.google.com)에서 키 발급.
-  Gemini는 **진짜 무료 티어**(요율 제한)가 있어 결제 없이도 tubeless를 시험해볼 수
-  있습니다. 사용량이 많으면 AI Studio에서 종량제 결제를 켭니다. 기본
-  기본 `gemini-flash-lite-latest`는 저렴하고 빠르며 무료 티어에서 돕니다.
-  (`-latest` 별칭입니다 — `gemini-2.5-flash` 같은 고정 이름은 새로 만든 키에서
-  404가 날 수 있어 별칭을 기본으로 씁니다. `--model`로 바꿀 수 있습니다.)
-  요금: [Gemini 요금](https://ai.google.dev/pricing).
+  **진짜 무료 티어**(요율 제한)가 있어 결제 없이도 tubeless를 시험해볼 수 있습니다.
+  사용량이 많으면 AI Studio에서 종량제를 켭니다. 요금: [Gemini 요금](https://ai.google.dev/pricing).
+- **Claude** — **선불**: [platform.claude.com](https://platform.claude.com) → Billing →
+  Buy credits에서 구매(**최소 $5**). 기본 `claude-haiku-4-5`는 가장 싼 모델(입력 100만
+  토큰당 약 $1 / 출력 $5), 영상 하나에 1~2센트라 $5로 수백 편. 전체 요금:
+  [Claude 요금](https://platform.claude.com/docs/en/about-claude/pricing).
+- **OpenAI** — **선불**: [platform.openai.com](https://platform.openai.com) → Settings →
+  Billing에서 구매(**최소 $5**). 기본 `gpt-4o-mini`가 가장 싼 등급이라 영상당 1센트도
+  안 들고, $5면 *수천 편*. 요금: [요금 페이지](https://openai.com/api/pricing/).
 - **Ollama** — 키도 청구서도 없습니다. 모델이 내 컴퓨터에서 돕니다(아래 참고).
   무료·오프라인이지만 요약 품질은 로컬 모델 성능만큼입니다.
 
-OpenAI·Claude 크레딧은 구매 **1년 뒤 만료**되고 환불되지 않으니 조금씩
-충전하세요.
+Claude·OpenAI 크레딧은 구매 **1년 뒤 만료**되고 환불되지 않으니 조금씩 충전하세요.
 
-**뭘 고를까?** 기본 OpenAI `gpt-4o-mini`가 가장 저렴한 클라우드 올라운더입니다.
-Claude는 불확실한 숫자를 지어내기보다 *유보*하는 경향이라 노이즈 많은 자동자막에
-더 안전합니다. Gemini는 무료 티어라 결제 없이 클라우드 모델을 가장 쉽게 시험해볼
-수 있습니다. Ollama는 비공개·오프라인·무료 옵션입니다.
+**뭘 고를까?** Gemini는 무료 티어라 결제 없이 가장 쉽게 시작합니다. Claude는
+불확실한 값을 지어내기보다 *유보*하는 경향이고, OpenAI `gpt-4o-mini`는 싼 클라우드
+올라운더입니다. Ollama는 비공개·오프라인·무료 옵션입니다.
 
 **Ollama 쓰기(로컬, 무료).** 서버를 설치하고 모델을 받은 뒤 tubeless를 가리키게
 합니다:
@@ -726,7 +746,7 @@ LLM 백엔드로 요약합니다(긴 자막은 map-reduce로 나눠 아무것도
 - **자동 생성 자막은 노이즈가 있습니다.** 자막이 자동 생성일 때 tubeless는 모델
   에게 불확실한 이름·숫자를 단정하지 말고 유보하라고 경고하지만, 뭉개진 자막은
   여전히 뭉개진 포인트를 낳을 수 있습니다.
-- **클라우드 백엔드 요약은 유료입니다**([백엔드](#백엔드-openai-claude-ollama) 참고).
+- **클라우드 백엔드 요약은 유료입니다**([백엔드](#백엔드) 참고).
   무료·오프라인으로 쓰려면 Ollama를 쓰세요.
 - **중요도 점수는 모델의 판단**이지 확정 지표가 아닙니다 — 다이제스트를 정렬할
   뿐 정답은 아닙니다.
