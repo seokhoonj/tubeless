@@ -46,7 +46,7 @@ _PROMPT = (
 # Capture any number the model writes (e.g. "0.85", "1", a stray "1.5"); the
 # caller clamps it to 0..1, so an out-of-range reply is pulled to the nearest
 # bound instead of silently discarded.
-_SCORE_PATTERN  = re.compile(r"(?i)score\s*[:=]\s*(-?\d*\.?\d+)")
+_SCORE_PATTERN  = re.compile(r"(?i)score\s*[:=]\s*([+-]?\d*[.,]?\d+)")
 _REASON_PATTERN = re.compile(r"(?i)reason\s*[:=]\s*(.+)")
 
 
@@ -91,12 +91,20 @@ def score_importance(summary: Summary, backend: LLMBackend, *, language: str = "
 
 def _parse_importance(reply: str) -> Importance:
     score_match = _SCORE_PATTERN.search(reply)
-    score = max(0.0, min(1.0, float(score_match.group(1)))) if score_match else 0.5
+    if score_match:
+        # Normalize a comma decimal ("0,7") and a leading '+' before parsing, so a
+        # locale-formatted score is not silently truncated; then clamp to 0..1.
+        raw   = score_match.group(1).replace(",", ".").lstrip("+")
+        score = max(0.0, min(1.0, float(raw)))
+    else:
+        score = 0.5
 
     reason_match = _REASON_PATTERN.search(reply)
     if reason_match:
         reason = reason_match.group(1).strip()
     else:
-        lines = [line.strip() for line in reply.splitlines() if line.strip()]
-        reason = lines[0] if lines else ""
+        # No REASON line: use the first line that is not the SCORE line, so a
+        # score-only reply does not show "SCORE: 0.8" as its reason.
+        lines  = [line.strip() for line in reply.splitlines() if line.strip()]
+        reason = next((line for line in lines if not _SCORE_PATTERN.search(line)), lines[0] if lines else "")
     return Importance(score=score, reason=reason)

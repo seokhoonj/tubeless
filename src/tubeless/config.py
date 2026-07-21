@@ -67,9 +67,12 @@ def api_key(vendor: Vendor, *, config: dict[str, str] | None = None) -> str | No
     The name (``<BACKEND>_API_KEY``) is looked up in the environment first, then
     in the config file, so a single run can override the file.
     """
-    values = read_config() if config is None else config
     name = _KEY_NAME[vendor]
-    return os.environ.get(name) or values.get(name) or None
+    env  = os.environ.get(name)
+    if env:
+        return env
+    values = read_config() if config is None else config
+    return values.get(name) or None
 
 
 def setting(name: str, *, config: dict[str, str] | None = None) -> str | None:
@@ -81,5 +84,8 @@ def setting(name: str, *, config: dict[str, str] | None = None) -> str | None:
     ``tubeless <url>`` use Gemini, so a non-OpenAI user need not pass
     ``--backend`` every time (an explicit flag still overrides it).
     """
+    env = os.environ.get(name)
+    if env:
+        return env
     values = read_config() if config is None else config
-    return os.environ.get(name) or values.get(name)
+    return values.get(name)

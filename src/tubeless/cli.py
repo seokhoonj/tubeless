@@ -32,8 +32,8 @@ from tubeless.transcript import fetch_transcript
 
 __all__ = ["main"]
 
-# Per-vendor default model, used when --model is not given. Kept cheap: the
-# summary map-reduce can be many calls, so the small-tier model is the default.
+# The LLM vendors --backend accepts. Each backend class owns its own default
+# model (see _make_backend); this is only the choice set for the flag.
 _BACKENDS = ("claude", "openai", "gemini", "ollama")
 _SUBCOMMANDS = ("summarize", "digest")
 _DIGEST_DIR  = Path.home() / ".tubeless" / "digests"
@@ -195,8 +195,8 @@ def _as_positive_int(text: str) -> int:
 
 
 def _positive_int(text: str) -> int:
-    """argparse ``type=`` for --points/--limit (a non-positive cap slices instead
-    of capping -- see summary.summarize)."""
+    """argparse ``type=`` for --max-points/--limit (a non-positive cap slices
+    instead of capping -- see summary.summarize)."""
     try:
         return _as_positive_int(text)
     except ValueError as err:

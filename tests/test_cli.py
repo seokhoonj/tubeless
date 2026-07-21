@@ -133,6 +133,26 @@ def test_tubeless_detail_env_sets_the_default_detail(
     assert seen["detail"] == "deep"
 
 
+def test_tubeless_max_points_env_caps_points(
+    _no_config_file, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TUBELESS_MAX_POINTS", "3")
+    monkeypatch.setattr(cli_module, "fetch_video_meta", lambda url: SAMPLE_VIDEO)
+    monkeypatch.setattr(cli_module, "fetch_transcript", lambda video_id: SAMPLE_TRANSCRIPT)
+    monkeypatch.setattr(cli_module, "OpenAIBackend", CannedBackend)
+    seen: dict[str, object] = {}
+    real_summarize = cli_module.summarize
+
+    def spy(*args, **kwargs):
+        seen.update(kwargs)
+        return real_summarize(*args, **kwargs)
+
+    monkeypatch.setattr(cli_module, "summarize", spy)
+
+    assert main([SAMPLE_VIDEO.url]) == 0   # no --max-points flag
+    assert seen["max_points"] == 3
+
+
 def test_main_handles_keyboard_interrupt_cleanly(
     _no_config_file, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -164,6 +184,7 @@ def test_main_prints_the_summary_and_returns_zero(
     # it names the backend and the model actually used (the name-mangling hint).
     assert "backend=openai" in captured.err
     assert "model=unused"   in captured.err
+    assert "tubeless:"  not in captured.out   # header must not leak into stdout
 
 
 def test_main_with_json_flag_prints_machine_readable_output(

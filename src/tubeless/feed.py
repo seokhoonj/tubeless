@@ -175,14 +175,14 @@ def resolve_channel_id(handle_or_url: str) -> str:
     # recommended/related channel appearing earlier in the HTML, silently
     # resolving a handle to the wrong channel (seen with some non-ASCII handles).
     # externalId (the page's own metadata) then a plain channelId are fallbacks.
-    match = (
+    channel_id_match = (
         re.search(r'<link rel="canonical" href="https://www\.youtube\.com/channel/(UC[A-Za-z0-9_-]{22})"', response.text)
         or re.search(r'"externalId":"(UC[A-Za-z0-9_-]{22})"', response.text)
         or re.search(r'"channelId":"(UC[A-Za-z0-9_-]{22})"', response.text)
     )
-    if not match:
+    if not channel_id_match:
         raise FeedError(f"could not find a channel id on {url!r}")
-    return match.group(1)
+    return channel_id_match.group(1)
 
 
 def _channel_page_url(handle_or_url: str) -> str:

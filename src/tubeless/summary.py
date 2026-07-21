@@ -249,7 +249,7 @@ def _combine_prompt(
     chunk_summaries: list[str], video: Video, *,
     hedge: str, language: str, spec: _DetailSpec, max_points: int,
 ) -> str:
-    numbered = "\n\n".join(
+    numbered_parts = "\n\n".join(
         f"[part {part_number}]\n{part_summary}"
         for part_number, part_summary in enumerate(chunk_summaries, start=1)
     )
@@ -258,7 +258,7 @@ def _combine_prompt(
         "Combine them into one summary of the whole video.\n"
         f"{hedge}"
         f"{_format_instruction(spec, language=language, max_points=max_points)}\n\n"
-        f"{numbered}"
+        f"{numbered_parts}"
     )
 
 
@@ -295,7 +295,7 @@ def _parse_reply(reply: str, *, max_points: int) -> tuple[str, tuple[str, ...]]:
         # Bold markers ("**TL;DR:** ...") are the most common format drift;
         # strip them only on non-bullet lines so "* " bullets survive above.
         unbolded   = line.strip("*").strip()
-        tldr_match = re.match(r"(?i)^tl;?dr\s*[:\-]\s*(.*)$", unbolded)
+        tldr_match = re.match(r"(?i)^tl;?dr\s*[:\-\u2013\u2014]\s*(.*)$", unbolded)
         if tldr_match and not tldr:
             tldr = tldr_match.group(1).strip().strip("*").strip()
         elif not tldr and not points:

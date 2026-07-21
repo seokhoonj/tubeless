@@ -72,6 +72,17 @@ def test_summarize_parses_a_numbered_list_as_points() -> None:
     assert summary.points == ("first", "second", "third")
 
 
+def test_summarize_parses_the_canonical_tldr_label() -> None:
+    # tubeless now emits "TL;DR:"; the parser must read the canonical form as well
+    # as the plain "TLDR:" it still tolerates, and accept an em-dash separator.
+    backend = RecordingBackend(reply="TL;DR — the gist\n- a point\n")
+
+    summary = summarize(make_transcript(n_words=50), SAMPLE_VIDEO, backend)
+
+    assert summary.tldr   == "the gist"
+    assert summary.points == ("a point",)
+
+
 def test_summarize_parses_a_reply_without_a_tldr_label() -> None:
     backend = RecordingBackend(reply="Just the gist as plain prose.\n- one point\n")
 
