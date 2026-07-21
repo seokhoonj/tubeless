@@ -1,5 +1,8 @@
 """Seen-set persistence: roundtrip and graceful handling of a missing/corrupt file."""
 
+import pytest
+
+from tubeless.errors import ConfigError
 from tubeless.state import read_seen, write_seen
 
 
@@ -26,3 +29,14 @@ def test_write_seen_creates_the_parent_directory(tmp_path):
     write_seen({"x"}, path)
 
     assert read_seen(path) == {"x"}
+
+
+def test_read_seen_raises_on_an_unreadable_state_file(tmp_path):
+    # A present-but-unreadable file must not read as "no state" (which would then
+    # be overwritten, wiping the seen-set and re-summarizing the backlog). Here a
+    # directory at the path makes read_text raise OSError.
+    unreadable = tmp_path / "state.json"
+    unreadable.mkdir()
+
+    with pytest.raises(ConfigError):
+        read_seen(unreadable)

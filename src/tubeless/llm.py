@@ -34,6 +34,11 @@ class LLMBackend(Protocol):
 # vendor-default temperature.
 _TEMPERATURE = 0.2
 
+# An upper bound tubeless controls, instead of each SDK's multi-minute default:
+# the digest calls a backend once per video in a loop, so one wedged request
+# must not stall the whole run.
+_LLM_TIMEOUT_SECONDS = 60.0
+
 
 def _chat_complete(client, model: str, prompt: str, *, system: str | None, label: str) -> str:
     """Run one chat completion against any OpenAI-style ``/v1`` client.
@@ -51,10 +56,13 @@ def _chat_complete(client, model: str, prompt: str, *, system: str | None, label
     try:
         response = client.chat.completions.create(
             model=model, messages=messages, temperature=_TEMPERATURE,
+            timeout=_LLM_TIMEOUT_SECONDS,
         )
     except openai.OpenAIError as err:
         raise LLMError(f"{label} completion failed for model {model!r}: {err}") from err
 
+    if not response.choices:   # content-filter / gateway responses can be empty
+        raise LLMError(f"{label} returned no choices for model {model!r}")
     text = response.choices[0].message.content
     if not text:
         raise LLMError(f"{label} returned an empty completion for model {model!r}")
@@ -186,10 +194,11 @@ class AnthropicBackend:
         import anthropic
 
         # Anthropic takes ``system`` as its own argument, not a message role.
-        kwargs: dict = {
+        kwargs: dict[str, object] = {
             "model": self.model,
             "max_tokens": self.max_tokens,
             "messages": [{"role": "user", "content": prompt}],
+            "timeout": _LLM_TIMEOUT_SECONDS,
         }
         if system is not None:
             kwargs["system"] = system

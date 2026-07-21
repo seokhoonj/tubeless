@@ -26,7 +26,7 @@ from tubeless.llm import AnthropicBackend, GeminiBackend, LLMBackend, OllamaBack
 from tubeless.render import to_markdown
 from tubeless.source import fetch_video_meta
 from tubeless.state import STATE_PATH, read_seen, write_seen
-from tubeless.summary import Summary, summarize
+from tubeless.summary import DETAIL_LEVELS, Summary, summarize
 from tubeless.transcript import fetch_transcript
 
 __all__ = ["main"]
@@ -115,9 +115,9 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_backend_args(summarize_parser)
     summarize_parser.add_argument("--lang", default="ko",
                                   help="language of the summary (default: ko)")
-    summarize_parser.add_argument("--detail", choices=("brief", "normal", "deep"), default="normal",
+    summarize_parser.add_argument("--detail", choices=DETAIL_LEVELS, default="normal",
                                   help="summary depth: brief | normal | deep (default: normal)")
-    summarize_parser.add_argument("--points", type=int, default=None,
+    summarize_parser.add_argument("--points", type=_positive_int, default=None,
                                   help="max key points; overrides the per-detail default")
     summarize_parser.add_argument("--json", action="store_true",
                                   help="print the summary as JSON instead of text")
@@ -135,7 +135,7 @@ def _build_parser() -> argparse.ArgumentParser:
                                help=f"directory for the digest file (default: {_DIGEST_DIR})")
     digest_parser.add_argument("--only", default=None,
                                help="run only channels whose label contains this text")
-    digest_parser.add_argument("--limit", type=int, default=5,
+    digest_parser.add_argument("--limit", type=_positive_int, default=5,
                                help="max recent uploads to check per channel (default: 5)")
     digest_parser.add_argument("--dry-run", action="store_true",
                                help="print the digest instead of writing it and updating state")
@@ -148,6 +148,15 @@ def _add_backend_args(sub: argparse.ArgumentParser) -> None:
                      help="LLM vendor (default: openai)")
     sub.add_argument("--model", default=None,
                      help="model id; defaults to the backend's small-tier model")
+
+
+def _positive_int(text: str) -> int:
+    """An argparse type that rejects zero and negatives (see summary.summarize:
+    a non-positive point cap slices instead of capping)."""
+    value = int(text)
+    if value < 1:
+        raise argparse.ArgumentTypeError(f"must be a positive integer, got {value}")
+    return value
 
 
 def _make_backend(backend: str, model: str | None) -> LLMBackend:

@@ -10,7 +10,7 @@ import pytest
 import tubeless.digest as digest_module
 from tubeless.channels import Channel
 from tubeless.digest import build_digest
-from tubeless.errors import FeedError, TranscriptUnavailable
+from tubeless.errors import FeedError, TranscriptFetchBlocked, TranscriptUnavailable
 from tubeless.feed import Upload
 from tubeless.transcript import Transcript, TranscriptSegment
 
@@ -83,6 +83,55 @@ def test_build_digest_marks_captionless_videos_processed_but_drops_them(monkeypa
 
     assert digest.entries == ()
     assert processed == {"ccccccccccc"}  # marked, so it is not retried tomorrow
+
+
+def test_build_digest_aborts_on_a_transient_transcript_block(monkeypatch):
+    # A transient IP block must abort the whole run (propagate), NOT be swallowed
+    # like a captionless video -- otherwise build_digest would report the video as
+    # processed and the caller would persist it, losing it forever.
+    monkeypatch.setattr(digest_module, "fetch_uploads",
+                        lambda source, limit: (_upload("ddddddddddd", "blocked"),))
+
+    def blocked(video_id):
+        raise TranscriptFetchBlocked("ip blocked")
+
+    monkeypatch.setattr(digest_module, "fetch_transcript", blocked)
+
+    with pytest.raises(TranscriptFetchBlocked):
+        build_digest(_ONE_CHANNEL, ScoringBackend(), date="d", seen=set())
+
+
+def test_build_digest_processes_a_repeated_video_only_once(monkeypatch):
+    # The same upload served by two channel sources must be summarized once.
+    monkeypatch.setattr(digest_module, "fetch_uploads",
+                        lambda source, limit: (_upload("aaaaaaaaaaa", "shared upload"),))
+    fetched: list[str] = []
+
+    def record(video_id):
+        fetched.append(video_id)
+        return _transcript(video_id)
+
+    monkeypatch.setattr(digest_module, "fetch_transcript", record)
+    two_channels = (Channel(source="@a", label="A", detail="normal"),
+                    Channel(source="@b", label="B", detail="normal"))
+
+    digest, processed = build_digest(two_channels, ScoringBackend(), date="d", seen=set())
+
+    assert len(digest.entries) == 1
+    assert processed == {"aaaaaaaaaaa"}
+    assert fetched == ["aaaaaaaaaaa"]  # summarized once, not per channel
+
+
+def test_build_digest_title_filter_ignores_case(monkeypatch):
+    monkeypatch.setattr(digest_module, "fetch_uploads",
+                        lambda source, limit: (_upload("aaaaaaaaaaa", "Morning SHOW with ALICE"),))
+    monkeypatch.setattr(digest_module, "fetch_transcript", lambda video_id: _transcript(video_id))
+    channels = (Channel(source="@x", label="쇼", detail="normal",
+                        title_includes=("show", "alice")),)   # lowercase filter, mixed-case title
+
+    digest, processed = build_digest(channels, ScoringBackend(), date="d", seen=set())
+
+    assert [e.upload.video_id for e in digest.entries] == ["aaaaaaaaaaa"]
 
 
 def test_build_digest_applies_a_title_filter(monkeypatch):

@@ -200,6 +200,42 @@ def test_summarize_rejects_an_unknown_detail_level() -> None:
         summarize(make_transcript(n_words=50), SAMPLE_VIDEO, backend, detail="huge")
 
 
+def test_summarize_strips_bold_markers_from_the_tldr_label() -> None:
+    # A common drift: the model bolds the label as "**TLDR:** ...".
+    backend = RecordingBackend(reply="**TLDR:** the bolded gist\n- a point\n")
+
+    summary = summarize(make_transcript(n_words=50), SAMPLE_VIDEO, backend)
+
+    assert summary.tldr   == "the bolded gist"
+    assert summary.points == ("a point",)
+
+
+def test_summarize_does_not_mistake_a_leading_year_for_a_numbered_point() -> None:
+    # "2026. ..." is four digits, so it must fall through as prose (the TLDR),
+    # not be parsed as list item "2026".
+    backend = RecordingBackend(reply="2026. The year in review\n- one point\n")
+
+    summary = summarize(make_transcript(n_words=50), SAMPLE_VIDEO, backend)
+
+    assert summary.tldr   == "2026. The year in review"
+    assert summary.points == ("one point",)
+
+
+def test_summarize_with_max_points_zero_is_rejected() -> None:
+    backend = RecordingBackend(reply=_reply_with_points(5))
+
+    with pytest.raises(ValueError):
+        summarize(make_transcript(n_words=50), SAMPLE_VIDEO, backend, max_points=0)
+
+
+def test_summarize_with_negative_max_points_is_rejected() -> None:
+    # Guards the negative-slice trap: points[:-2] would drop trailing points.
+    backend = RecordingBackend(reply=_reply_with_points(5))
+
+    with pytest.raises(ValueError):
+        summarize(make_transcript(n_words=50), SAMPLE_VIDEO, backend, max_points=-2)
+
+
 def test_summarize_passes_the_target_language_into_the_prompt() -> None:
     backend = RecordingBackend()
 

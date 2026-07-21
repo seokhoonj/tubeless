@@ -1,7 +1,13 @@
 import pytest
 
 import tubeless.transcript as transcript_module
-from tubeless import Transcript, TranscriptSegment, TranscriptUnavailable, fetch_transcript
+from tubeless import (
+    Transcript,
+    TranscriptFetchBlocked,
+    TranscriptSegment,
+    TranscriptUnavailable,
+    fetch_transcript,
+)
 
 
 def test_transcript_text_joins_segments_with_spaces() -> None:
@@ -89,4 +95,29 @@ def test_fetch_transcript_reraises_vendor_failure_as_transcript_unavailable(
         fetch_transcript("dQw4w9WgXcQ")
 
     assert isinstance(raised.value.__cause__, _VendorFetchFailure)
+    assert "dQw4w9WgXcQ" in str(raised.value)
+
+
+class _VendorBlocked(Exception):
+    """Stands in for the vendor's RequestBlocked/IpBlocked (a transient IP block)."""
+
+
+class _BlockedTranscriptAPI:
+    def list(self, video_id: str) -> None:
+        raise _VendorBlocked("your IP has been blocked by YouTube")
+
+
+def test_fetch_transcript_reraises_a_transient_block_as_fetch_blocked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A transient block must NOT come back as TranscriptUnavailable, or the digest
+    # would mark the video permanently processed and never retry it.
+    monkeypatch.setattr(transcript_module, "RequestBlocked", _VendorBlocked)
+    monkeypatch.setattr(transcript_module, "YouTubeTranscriptApi", _BlockedTranscriptAPI)
+
+    with pytest.raises(TranscriptFetchBlocked) as raised:
+        fetch_transcript("dQw4w9WgXcQ")
+
+    assert not isinstance(raised.value, TranscriptUnavailable)
+    assert isinstance(raised.value.__cause__, _VendorBlocked)
     assert "dQw4w9WgXcQ" in str(raised.value)

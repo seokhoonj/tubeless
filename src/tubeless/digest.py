@@ -9,6 +9,7 @@ the caller persists them.
 
 from __future__ import annotations
 
+from collections.abc import Container, Iterable
 from dataclasses import dataclass
 
 from tubeless.channels import Channel
@@ -47,11 +48,11 @@ class Digest:
 
 
 def build_digest(
-    channels: tuple[Channel, ...],
+    channels: Iterable[Channel],
     backend:  LLMBackend,
     *,
     date:              str,
-    seen:              set[str],
+    seen:              Container[str],
     language:          str = "ko",
     per_channel_limit: int = 5,
 ) -> tuple[Digest, set[str]]:
@@ -68,6 +69,9 @@ def build_digest(
     Raises:
         LLMError: propagated from the backend (a credential/credit problem is
             global, so it should stop the run rather than be swallowed per video).
+        TranscriptFetchBlocked: propagated from ``fetch_transcript`` when YouTube
+            transiently blocks the run. Aborts before the caller persists state,
+            so the affected videos are retried next run rather than lost.
     """
     entries:   list[DigestEntry] = []
     skipped:   list[str] = []

@@ -15,9 +15,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from youtube_transcript_api import CouldNotRetrieveTranscript, YouTubeTranscriptApi
+from youtube_transcript_api import (
+    CouldNotRetrieveTranscript,
+    IpBlocked,
+    RequestBlocked,
+    YouTubeRequestFailed,
+    YouTubeTranscriptApi,
+)
 
-from tubeless.errors import TranscriptUnavailable
+from tubeless.errors import TranscriptFetchBlocked, TranscriptUnavailable
 
 __all__ = ["TranscriptSegment", "Transcript", "fetch_transcript"]
 
@@ -64,13 +70,23 @@ def fetch_transcript(
         languages: language codes in preference order.
 
     Raises:
-        TranscriptUnavailable: captions are disabled, none of the requested
-            languages exist, or the video is unreachable.
+        TranscriptFetchBlocked: YouTube transiently rate-limited or IP-blocked
+            this request (not a property of the video).
+        TranscriptUnavailable: captions are permanently absent -- disabled, none
+            of the requested languages exist, or the video does not exist.
     """
     try:
         listed  = YouTubeTranscriptApi().list(video_id)
         chosen  = listed.find_transcript(list(languages))
         fetched = chosen.fetch()
+    except (RequestBlocked, IpBlocked, YouTubeRequestFailed) as err:
+        # Transient: the run's IP is blocked/throttled. Kept separate from the
+        # permanent case so the digest aborts rather than marking the video
+        # processed -- see TranscriptFetchBlocked. These subclass
+        # CouldNotRetrieveTranscript, so this arm MUST come first.
+        raise TranscriptFetchBlocked(
+            f"transcript fetch blocked for video {video_id!r}: {err}"
+        ) from err
     except CouldNotRetrieveTranscript as err:
         raise TranscriptUnavailable(
             f"no transcript for video {video_id!r} in languages {languages!r}: {err}"

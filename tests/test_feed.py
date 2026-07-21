@@ -47,6 +47,16 @@ def test_parse_feed_honors_the_limit():
     assert len(_parse_feed(SAMPLE_FEED, limit=1)) == 1
 
 
+def test_parse_feed_skips_entries_without_a_video_id():
+    # A malformed entry (no <yt:videoId>) must be skipped, not turned into an
+    # upload with an empty id.
+    feed = SAMPLE_FEED.replace("<yt:videoId>vid00000002</yt:videoId>", "")
+
+    uploads = _parse_feed(feed, limit=15)
+
+    assert [u.video_id for u in uploads] == ["vid00000001"]
+
+
 def test_parse_feed_raises_on_malformed_xml():
     with pytest.raises(FeedError):
         _parse_feed("this is not xml", limit=15)

@@ -9,12 +9,18 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import Literal
 
 from tubeless.llm import LLMBackend
 from tubeless.source import Video
 from tubeless.transcript import Transcript
 
-__all__ = ["DETAIL_LEVELS", "Summary", "summarize"]
+__all__ = ["DETAIL_LEVELS", "DetailLevel", "Summary", "summarize"]
+
+# The closed set of summary depths. `DETAIL_LEVELS` is the runtime tuple (still
+# used to validate a caller who bypasses the type checker); `DetailLevel` is the
+# static type. Both derive from `_DETAIL` below so the set lives in one place.
+DetailLevel = Literal["brief", "normal", "deep"]
 
 # One map-phase chunk is ~3000 words (~4000 tokens of English; Korean is
 # denser per word, still far inside any current chat model's context). Small
@@ -133,7 +139,7 @@ def summarize(
     backend:    LLMBackend,
     *,
     target_language: str = "ko",
-    detail:          str = "normal",
+    detail:          DetailLevel = "normal",
     max_points:      int | None = None,
 ) -> Summary:
     """Summarize ``transcript`` into a TLDR plus key points.
@@ -149,12 +155,18 @@ def summarize(
     the model to hedge uncertain names and numbers.
 
     Raises:
-        ValueError: ``detail`` is not one of ``DETAIL_LEVELS``.
+        ValueError: ``detail`` is not one of ``DETAIL_LEVELS``, or ``max_points``
+            is given and is less than 1.
         LLMError: propagated from the backend.
     """
     spec = _DETAIL.get(detail)
     if spec is None:
         raise ValueError(f"detail must be one of {DETAIL_LEVELS}, got {detail!r}")
+    if max_points is not None and max_points < 1:
+        # A non-positive cap would ask the model for "at most 0 points" and, via
+        # the negative-slice `points[:max_points]`, silently drop trailing points
+        # instead of capping. Reject it at the boundary.
+        raise ValueError(f"max_points must be >= 1, got {max_points}")
     cap = spec.points if max_points is None else max_points
 
     hedge  = _AUTO_CAPTION_HEDGE if transcript.is_auto_generated else ""

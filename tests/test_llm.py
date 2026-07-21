@@ -13,7 +13,13 @@ import pytest
 from tubeless import config
 from tubeless.cli import _make_backend
 from tubeless.errors import LLMError
-from tubeless.llm import AnthropicBackend, GeminiBackend, OllamaBackend, OpenAIBackend
+from tubeless.llm import (
+    AnthropicBackend,
+    GeminiBackend,
+    OllamaBackend,
+    OpenAIBackend,
+    _chat_complete,
+)
 
 
 def _no_keys_anywhere(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -150,3 +156,18 @@ def test_gemini_backend_targets_the_openai_compatible_host(monkeypatch: pytest.M
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     backend = GeminiBackend()
     assert "generativelanguage.googleapis.com" in str(backend._client.base_url)
+
+
+# --- shared OpenAI-style completion path -----------------------------------
+def test_chat_complete_rejects_a_response_with_no_choices():
+    # A content-filter/gateway response can carry an empty choices list; indexing
+    # it would raise IndexError outside the LLMError hierarchy.
+    def create(**kwargs):
+        return types.SimpleNamespace(choices=[])
+
+    client = types.SimpleNamespace(
+        chat=types.SimpleNamespace(completions=types.SimpleNamespace(create=create))
+    )
+
+    with pytest.raises(LLMError):
+        _chat_complete(client, "gpt-x", "hi", system=None, label="OpenAI")

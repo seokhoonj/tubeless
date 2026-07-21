@@ -28,11 +28,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from tubeless.errors import ConfigError
+from tubeless.summary import DETAIL_LEVELS, DetailLevel
 
 __all__ = ["CHANNELS_PATH", "Channel", "load_channels"]
 
 CHANNELS_PATH = Path.home() / ".tubeless" / "channels.toml"
-_VALID_DETAIL = ("brief", "normal", "deep")
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,7 +45,7 @@ class Channel:
 
     source:         str
     label:          str
-    detail:         str = "deep"
+    detail:         DetailLevel = "deep"
     preset:         str | None = None
     title_includes: tuple[str, ...] = ()
 
@@ -78,9 +78,9 @@ def _channel_from(entry: dict, path: Path) -> Channel:
     if not source:
         raise ConfigError(f"a [[channel]] in {path} is missing 'source' (a handle, URL, or id)")
     detail = entry.get("detail", "deep")
-    if detail not in _VALID_DETAIL:
+    if detail not in DETAIL_LEVELS:
         raise ConfigError(
-            f"channel {source!r}: detail must be one of {_VALID_DETAIL}, got {detail!r}"
+            f"channel {source!r}: detail must be one of {DETAIL_LEVELS}, got {detail!r}"
         )
     raw_filter = entry.get("title_includes", ())
     if isinstance(raw_filter, str):   # a bare string is a one-word filter

@@ -11,10 +11,15 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Literal
 
-__all__ = ["CONFIG_PATH", "api_key", "read_config"]
+__all__ = ["CONFIG_PATH", "Vendor", "api_key", "read_config"]
 
 CONFIG_PATH = Path.home() / ".tubeless" / "config.env"
+
+# The vendors tubeless resolves a key for. Closed set: a typo is a static error,
+# not a runtime KeyError against the maps below.
+Vendor = Literal["openai", "anthropic", "gemini"]
 
 # The env-var name that holds each vendor's key. "SECRET_KEY" mirrors the wording
 # on OpenAI's own key page ("secret key") and gives every vendor the same shape,
@@ -53,7 +58,7 @@ def read_config(path: Path | None = None) -> dict[str, str]:
     return values
 
 
-def api_key(vendor: str, *, config: dict[str, str] | None = None) -> str | None:
+def api_key(vendor: Vendor, *, config: dict[str, str] | None = None) -> str | None:
     """Return the API key for ``vendor`` ('openai' / 'anthropic' / 'gemini'), or ``None``.
 
     Each name is looked up in the environment first, then in the config file, so a

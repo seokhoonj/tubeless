@@ -106,6 +106,8 @@ def fetch_video_meta(url_or_id: str) -> Video:
         )
         response.raise_for_status()
         payload = response.json()
+        if not isinstance(payload, dict):   # valid JSON but not an object (null, list)
+            raise ValueError("oembed payload was not a JSON object")
     except (requests.RequestException, ValueError):
         return Video(video_id=video_id, title=video_id, url=watch_url, channel=None)
 

@@ -8,6 +8,7 @@ unrelated bugs.
 __all__ = [
     "TubelessError",
     "TranscriptUnavailable",
+    "TranscriptFetchBlocked",
     "LLMError",
     "InvalidVideoURL",
     "FeedError",
@@ -21,7 +22,20 @@ class TubelessError(Exception):
 
 class TranscriptUnavailable(TubelessError):
     """The video has no usable transcript (captions disabled, none in the
-    requested languages, or the video does not exist)."""
+    requested languages, or the video does not exist).
+
+    This is a *permanent* condition for that video: the digest records it as
+    processed so it is not retried every run."""
+
+
+class TranscriptFetchBlocked(TubelessError):
+    """The transcript could not be fetched because of a *transient* block --
+    YouTube rate-limited or IP-blocked this run, not a property of the video.
+
+    Kept distinct from ``TranscriptUnavailable`` on purpose: the digest must not
+    mark an affected video processed, or a momentary block would drop it
+    forever. This error aborts the run instead, so the video is retried once the
+    block clears."""
 
 
 class LLMError(TubelessError):

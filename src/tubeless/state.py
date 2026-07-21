@@ -11,6 +11,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from tubeless.errors import ConfigError
+
 __all__ = ["STATE_PATH", "read_seen", "write_seen"]
 
 STATE_PATH = Path.home() / ".tubeless" / "state.json"
@@ -18,14 +20,25 @@ STATE_PATH = Path.home() / ".tubeless" / "state.json"
 
 def read_seen(path: Path | None = None) -> set[str]:
     """Return the set of already-processed video ids; empty if there is no state
-    yet or the file is unreadable (a corrupt state must not crash a run)."""
+    yet or the file is corrupt.
+
+    A corrupt (unparseable) file is treated as no state so one bad write cannot
+    crash every future run. A genuine I/O error is *not* swallowed, though:
+    reading it as empty would let the next write overwrite and wipe the real
+    seen-set, re-summarizing the whole backlog.
+
+    Raises:
+        ConfigError: the state file exists but could not be read (I/O error).
+    """
     path = path or STATE_PATH
     if not path.exists():
         return set()
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+    except json.JSONDecodeError:
         return set()
+    except OSError as err:
+        raise ConfigError(f"could not read state file {path}: {err}") from err
     seen = data.get("seen", [])
     return set(seen) if isinstance(seen, list) else set()
 

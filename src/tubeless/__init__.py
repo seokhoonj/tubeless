@@ -11,6 +11,7 @@ from tubeless.errors import (
     FeedError,
     InvalidVideoURL,
     LLMError,
+    TranscriptFetchBlocked,
     TranscriptUnavailable,
     TubelessError,
 )
@@ -44,6 +45,7 @@ __all__ = [
     "OpenAIBackend",
     "Summary",
     "Transcript",
+    "TranscriptFetchBlocked",
     "TranscriptSegment",
     "TranscriptUnavailable",
     "TubelessError",
