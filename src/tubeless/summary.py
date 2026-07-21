@@ -37,18 +37,35 @@ _FORMAT_INSTRUCTION = (
     "- <key point>\n"
     "- <key point>\n"
     "Give at most {max_points} key points; each key point is {point}. "
-    "Keep each key point on its own single line. No other text."
+    "Keep each key point on its own single line.{note} No other text."
+)
+
+# Appended (via _DetailSpec.note) when the level wants data kept, not smoothed.
+# Domain-neutral on purpose: a market recap, a match report, and an earnings
+# call are all "data-dense briefings" whose value is the exact figures. Without
+# this, "at most N key points" makes the model keep the headline claim and drop
+# the numbers around it (every index move, rate, and sector but one).
+_PRESERVE_FIGURES = (
+    " This may be a data-dense briefing; preserve EVERY specific figure the "
+    "speaker states -- each index and its move, each rate, price, percentage, "
+    "and named entity with its number. Attach each figure to its period and "
+    "unit -- the year, quarter, or date it applies to, and whether it is a past "
+    "result or a forecast -- because a number without its timeframe is "
+    "incomplete. Never fold two figures into one vague phrase, and never drop a "
+    "stated number. Add points beyond the cap only if needed to hold the figures."
 )
 
 
 @dataclass(frozen=True, slots=True)
 class _DetailSpec:
-    """How expansive one detail level is: TLDR length, per-point fullness, and
-    the default point cap a typical-length video warrants at this level."""
+    """How expansive one detail level is: TLDR length, per-point fullness, the
+    default point cap a typical-length video warrants, and an optional trailing
+    instruction (e.g. keep every figure) appended to the format block."""
 
     tldr:   str
     point:  str
     points: int
+    note:   str = ""
 
 
 # --detail chooses one of these. "normal" is the default: fuller than a bare
@@ -71,6 +88,7 @@ _DETAIL = {
             "numbers, and reasoning the speaker actually gave, not just the topic"
         ),
         points = 14,
+        note   = _PRESERVE_FIGURES,
     ),
 }
 DETAIL_LEVELS = tuple(_DETAIL)
@@ -211,7 +229,8 @@ def _combine_prompt(
 
 def _format_instruction(spec: _DetailSpec, *, language: str, max_points: int) -> str:
     return _FORMAT_INSTRUCTION.format(
-        language=language, max_points=max_points, tldr=spec.tldr, point=spec.point,
+        language=language, max_points=max_points,
+        tldr=spec.tldr, point=spec.point, note=spec.note,
     )
 
 

@@ -135,6 +135,22 @@ def test_summarize_deep_detail_asks_for_fuller_points() -> None:
     assert "two to four sentences" in backend.prompts[0]
 
 
+def test_summarize_deep_detail_asks_to_preserve_every_figure() -> None:
+    backend = RecordingBackend()
+
+    summarize(make_transcript(n_words=50), SAMPLE_VIDEO, backend, detail="deep")
+
+    assert "preserve EVERY specific figure" in backend.prompts[0]
+
+
+def test_summarize_normal_detail_does_not_force_figure_preservation() -> None:
+    backend = RecordingBackend()
+
+    summarize(make_transcript(n_words=50), SAMPLE_VIDEO, backend, detail="normal")
+
+    assert "preserve EVERY specific figure" not in backend.prompts[0]
+
+
 def test_summarize_detail_sets_the_default_point_cap() -> None:
     backend = RecordingBackend(reply=_reply_with_points(20))
 
