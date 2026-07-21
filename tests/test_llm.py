@@ -14,6 +14,7 @@ from tubeless import config
 from tubeless.cli import _make_backend
 from tubeless.errors import LLMError
 from tubeless.llm import (
+    _LLM_TIMEOUT_SECONDS,
     ClaudeBackend,
     GeminiBackend,
     OllamaBackend,
@@ -178,3 +179,27 @@ def test_chat_complete_rejects_a_response_with_no_choices():
 
     with pytest.raises(LLMError):
         _chat_complete(client, "gpt-x", "hi", system=None, label="OpenAI")
+
+
+def test_chat_complete_returns_text_and_passes_a_timeout():
+    # Happy path: the reply text comes back, the system prompt is sent as its own
+    # message, and a timeout is always passed so one wedged call can't hang a run.
+    seen: dict[str, object] = {}
+
+    def create(**kwargs):
+        seen.update(kwargs)
+        message = types.SimpleNamespace(content="the summary")
+        return types.SimpleNamespace(choices=[types.SimpleNamespace(message=message)])
+
+    client = types.SimpleNamespace(
+        chat=types.SimpleNamespace(completions=types.SimpleNamespace(create=create))
+    )
+
+    text = _chat_complete(client, "gpt-x", "hi", system="be terse", label="OpenAI")
+
+    assert text == "the summary"
+    assert seen["timeout"] == _LLM_TIMEOUT_SECONDS
+    assert seen["messages"] == [
+        {"role": "system", "content": "be terse"},
+        {"role": "user", "content": "hi"},
+    ]

@@ -67,6 +67,8 @@ def _run_summarize(args: argparse.Namespace) -> int:
     video      = fetch_video_meta(args.url)
     transcript = fetch_transcript(video.video_id)
     backend    = _make_backend(args.backend, args.model)
+    _print_run_settings(args.backend, backend.model,
+                        detail=args.detail, max_points=args.max_points, lang=args.lang)
     summary    = summarize(
         transcript, video, backend,
         target_language = args.lang,
@@ -87,6 +89,7 @@ def _run_digest(args: argparse.Namespace) -> int:
         if not channels:
             raise ConfigError(f"no channel label contains {args.only!r} in {args.channels}")
     backend           = _make_backend(args.backend, args.model)
+    _print_run_settings(args.backend, backend.model, lang=args.lang, limit=args.limit)
     seen              = read_seen(args.state)
     digest, processed = build_digest(
         channels, backend,
@@ -216,6 +219,21 @@ def _make_backend(backend: str, model: str | None) -> LLMBackend:
         "ollama": OllamaBackend,
     }[backend]
     return backend_class() if model is None else backend_class(model=model)
+
+
+def _print_run_settings(backend: str, model: str, **fields: object) -> None:
+    """Print the resolved run settings to stderr, so a bare ``tubeless <url>``
+    shows which backend/model and options it actually used.
+
+    Goes to stderr, not stdout, so it never contaminates the summary text or the
+    ``--json`` payload. The model line matters most: a small model on an
+    unfamiliar name can quietly mangle it, and seeing the model makes that legible
+    rather than mysterious. ``model`` is read from the constructed backend, so it
+    reflects the class default when ``--model`` was not given. ``None`` fields are
+    omitted (an unset --max-points is not worth a line)."""
+    parts = [f"backend={backend}", f"model={model}"]
+    parts += [f"{name}={value}" for name, value in fields.items() if value is not None]
+    print("tubeless: " + "  ".join(parts), file=sys.stderr)
 
 
 def _render_text(summary: Summary) -> str:

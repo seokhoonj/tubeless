@@ -160,7 +160,10 @@ def test_main_prints_the_summary_and_returns_zero(
     assert "A talk about ducks" in captured.out
     assert "TLDR: Ducks are great." in captured.out
     assert "- They float." in captured.out
-    assert captured.err == ""
+    # The run's settings header goes to stderr, so stdout stays the summary alone;
+    # it names the backend and the model actually used (the name-mangling hint).
+    assert "backend=openai" in captured.err
+    assert "model=unused"   in captured.err
 
 
 def test_main_with_json_flag_prints_machine_readable_output(

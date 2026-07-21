@@ -22,6 +22,11 @@ __all__ = ["ClaudeBackend", "GeminiBackend", "LLMBackend", "OllamaBackend", "Ope
 class LLMBackend(Protocol):
     """Anything that can turn a prompt into a text completion."""
 
+    model: str
+    """The model id the backend calls -- read by the CLI to print which model a
+    run actually used (the settings header), so a small model mangling an
+    unfamiliar name is visible rather than mysterious."""
+
     def complete(self, prompt: str, *, system: str | None = None) -> str:
         """Return the model's text reply for one prompt.
 
