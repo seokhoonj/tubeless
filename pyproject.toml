@@ -7,6 +7,20 @@ name            = "tubeless"
 version         = "0.1.0"
 description     = "Summarize YouTube videos with an LLM, one video or a daily digest."
 readme          = "README.md"
+license         = "MIT"
+license-files   = ["LICENSE"]
+authors         = [{ name = "seokhoonj", email = "seokhoonj@gmail.com" }]
+keywords        = ["youtube", "transcript", "summarize", "llm", "digest", "openai", "claude"]
+classifiers     = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Video",
+    "Topic :: Text Processing :: Linguistic",
+]
 # 3.11+ for the stdlib tomllib the digest's channels.toml parser uses.
 requires-python = ">=3.11"
 dependencies    = [
@@ -14,6 +28,11 @@ dependencies    = [
     "openai>=1.0",
     "requests>=2.31",
 ]
+
+[project.urls]
+Homepage   = "https://github.com/seokhoonj/tubeless"
+Repository = "https://github.com/seokhoonj/tubeless"
+Issues     = "https://github.com/seokhoonj/tubeless/issues"
 
 [project.optional-dependencies]
 # Claude is the second backend; its SDK is imported lazily, so it is optional --
