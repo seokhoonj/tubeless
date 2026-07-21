@@ -62,6 +62,16 @@ def test_summarize_caps_points_at_max_points() -> None:
     assert summary.points == ("point 0", "point 1")
 
 
+def test_summarize_parses_a_numbered_list_as_points() -> None:
+    # Smaller models often answer with "1. 2. 3." instead of "- " bullets.
+    backend = RecordingBackend(reply="TLDR: gist\n1. first\n2) second\n3. third\n")
+
+    summary = summarize(make_transcript(n_words=50), SAMPLE_VIDEO, backend)
+
+    assert summary.tldr   == "gist"
+    assert summary.points == ("first", "second", "third")
+
+
 def test_summarize_parses_a_reply_without_a_tldr_label() -> None:
     backend = RecordingBackend(reply="Just the gist as plain prose.\n- one point\n")
 

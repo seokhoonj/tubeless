@@ -107,6 +107,10 @@ _AUTO_CAPTION_HEDGE = (
 )
 
 _BULLET_PREFIXES = ("- ", "* ", "• ")
+# Some models (esp. smaller local ones) answer with a numbered list instead of
+# "- " bullets. Recognize "1. ", "2) " etc. as points too. One or two digits
+# only, so a sentence opening with a year ("2026. ") is not mistaken for a list.
+_NUMBERED_POINT = re.compile(r"^\d{1,2}[.)]\s+(.*)$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -249,9 +253,10 @@ def _parse_reply(reply: str, *, max_points: int) -> tuple[str, tuple[str, ...]]:
     """Extract (tldr, points) from the model's reply, tolerating drift.
 
     Models mostly follow the requested "TLDR: ... / - ..." shape but drift on
-    details (bold markers, missing label, extra prose), so parsing is
-    forgiving: the TLDR is the labelled line if present, otherwise the first
-    non-bullet line; points are every bullet line, capped at ``max_points``.
+    details (bold markers, missing label, numbered lists, extra prose), so
+    parsing is forgiving: the TLDR is the labelled line if present, otherwise the
+    first non-point line; points are every bullet or numbered line, capped at
+    ``max_points``.
     """
     tldr:   str = ""
     points: list[str] = []
@@ -262,6 +267,10 @@ def _parse_reply(reply: str, *, max_points: int) -> tuple[str, tuple[str, ...]]:
             continue
         if line.startswith(_BULLET_PREFIXES):
             points.append(line[2:].strip())
+            continue
+        numbered = _NUMBERED_POINT.match(line)
+        if numbered:
+            points.append(numbered.group(1).strip())
             continue
         # Bold markers ("**TLDR:** ...") are the most common format drift;
         # strip them only on non-bullet lines so "* " bullets survive above.
