@@ -11,8 +11,8 @@ Works with OpenAI, Claude, or a local model via Ollama.
 ## English
 
 - [Install](#install) — macOS, Linux, Windows
-- [Set up your keys](#set-up-your-keys-tubelessconfigenv) (`~/.tubeless/config.env`)
 - [Backends: OpenAI, Claude, Ollama — and what each costs](#backends-openai-claude-ollama)
+- [Set up config: keys and defaults](#set-up-config-keys-and-defaults) (`~/.tubeless/config.env`)
 - [Summarize one video](#summarize-one-video) (`--detail` / `--points` / `--backend` / `--model` / `--lang`)
 - [Daily digest](#daily-digest)
 - [Run it every day with cron (Linux)](#run-it-every-day-with-cron-linux)
@@ -65,42 +65,6 @@ tubeless --help
 > works too (ideally inside a virtualenv). pipx is only recommended so the CLI
 > stays isolated. Once tubeless is published to PyPI, `pipx install tubeless`
 > will also work.
-
-### Set up your keys (`~/.tubeless/config.env`)
-
-OpenAI and Claude need an API key. Ollama does not (it runs locally). Keys are
-secrets, so tubeless reads them from a file in your home directory — never from
-the repo — and never prints or logs the value.
-
-Create `~/.tubeless/config.env` with one `KEY=VALUE` per line:
-
-```sh
-mkdir -p ~/.tubeless
-cat > ~/.tubeless/config.env <<'EOF'
-# Only fill in the backend(s) you actually use.
-OPENAI_SECRET_KEY=sk-...
-# ANTHROPIC_SECRET_KEY=sk-ant-...
-# GEMINI_SECRET_KEY=...
-#
-# Optional: change the default backend so a bare `tubeless <url>` uses it
-# without --backend (an explicit --backend still overrides). E.g. for Gemini:
-# TUBELESS_BACKEND=gemini
-EOF
-```
-
-- **Get an OpenAI key:** [platform.openai.com](https://platform.openai.com) → API keys.
-- **Get a Claude key:** [console.anthropic.com](https://console.anthropic.com) → API keys.
-- **Get a Gemini key:** [aistudio.google.com](https://aistudio.google.com) → Get API key. (Add `GEMINI_SECRET_KEY=...` to the file.)
-
-If your machine already exports the SDK-standard names `OPENAI_API_KEY` /
-`ANTHROPIC_API_KEY` / `GEMINI_API_KEY`, tubeless honors those as a fallback, so
-you can skip the file. The tubeless name (`<VENDOR>_SECRET_KEY`) wins when both
-are set.
-
-**Change the default backend.** OpenAI is the built-in default. If you mostly use
-another — say Gemini — put `TUBELESS_BACKEND=gemini` in the same `config.env` (or
-export it). Then a bare `tubeless <url>` uses that backend and you never type
-`--backend`; passing `--backend` on a command still wins for that run.
 
 ### Backends: OpenAI, Claude, Ollama
 
@@ -188,6 +152,46 @@ switch model or enable billing and retry. Example:
 ```sh
 tubeless VIDEO_ID_XX --backend gemini --model gemini-flash-latest --detail deep
 ```
+
+### Set up config: keys and defaults
+
+OpenAI, Claude, and Gemini need an API key (Ollama runs locally and needs none).
+Keys are secrets, so tubeless reads them from a file in your home directory —
+never from the repo — and never prints or logs the value. Create
+`~/.tubeless/config.env` with one `KEY=VALUE` per line:
+
+```sh
+mkdir -p ~/.tubeless
+cat > ~/.tubeless/config.env <<'EOF'
+# --- keys: fill in only the backend(s) you use ---
+OPENAI_SECRET_KEY=sk-...
+# ANTHROPIC_SECRET_KEY=sk-ant-...
+# GEMINI_SECRET_KEY=...
+
+# --- optional defaults, so you don't retype flags ---
+# TUBELESS_BACKEND=gemini   # default --backend
+# TUBELESS_MODEL=...        # default --model
+# TUBELESS_DETAIL=deep      # default --detail (brief|normal|deep)
+# TUBELESS_POINTS=20        # default --points
+# TUBELESS_LANG=ko          # default --lang
+# TUBELESS_LIMIT=5          # default --limit (digest)
+EOF
+```
+
+- **Get an OpenAI key:** [platform.openai.com](https://platform.openai.com) → API keys.
+- **Get a Claude key:** [console.anthropic.com](https://console.anthropic.com) → API keys.
+- **Get a Gemini key:** [aistudio.google.com](https://aistudio.google.com) → Get API key.
+
+If your machine already exports the SDK-standard names `OPENAI_API_KEY` /
+`ANTHROPIC_API_KEY` / `GEMINI_API_KEY`, tubeless honors those as a fallback. The
+tubeless name (`<VENDOR>_SECRET_KEY`) wins when both are set.
+
+**Set defaults so you never retype a flag.** Each `TUBELESS_*` above is the
+default for the matching option. Put `TUBELESS_BACKEND=gemini` and
+`TUBELESS_DETAIL=deep` in the file and a bare `tubeless <url>` runs Gemini at
+deep detail — no flags. An explicit flag on a command still wins for that run,
+and these work as plain environment variables too. An invalid value (a bad
+detail, a non-positive number) is reported as a one-line error.
 
 ### Summarize one video
 
@@ -378,8 +382,8 @@ MIT — see [LICENSE](LICENSE).
 모델까지 씁니다.
 
 - [설치](#설치) — macOS, Linux, Windows
-- [키 설정](#키-설정-tubelessconfigenv) (`~/.tubeless/config.env`)
 - [백엔드: OpenAI, Claude, Ollama — 그리고 결제](#백엔드-openai-claude-ollama)
+- [설정: 키와 기본값](#설정-키와-기본값) (`~/.tubeless/config.env`)
 - [영상 한 개 요약](#영상-한-개-요약) (`--detail` / `--points` / `--backend` / `--model` / `--lang`)
 - [데일리 다이제스트](#데일리-다이제스트)
 - [cron으로 매일 자동 실행 (Linux)](#cron으로-매일-자동-실행-linux)
@@ -431,41 +435,6 @@ tubeless --help
 > **pipx가 없어도** `pip install git+https://github.com/seokhoonj/tubeless.git`로
 > 설치됩니다(가상환경 안에서 권장). pipx는 CLI를 격리하려는 권장일 뿐입니다.
 > 나중에 PyPI에 올라가면 `pipx install tubeless`로도 됩니다.
-
-### 키 설정 (`~/.tubeless/config.env`)
-
-OpenAI·Claude는 API 키가 필요합니다. Ollama는 필요 없습니다(로컬 실행). 키는
-비밀값이라, tubeless는 저장소가 아니라 홈 디렉터리의 파일에서 읽고 그 값을
-화면·로그에 절대 남기지 않습니다.
-
-`~/.tubeless/config.env`에 `KEY=VALUE`를 한 줄씩 적습니다:
-
-```sh
-mkdir -p ~/.tubeless
-cat > ~/.tubeless/config.env <<'EOF'
-# 실제로 쓰는 백엔드만 채우세요.
-OPENAI_SECRET_KEY=sk-...
-# ANTHROPIC_SECRET_KEY=sk-ant-...
-# GEMINI_SECRET_KEY=...
-#
-# 선택: 기본 백엔드를 바꿔서 --backend 없이 `tubeless <url>`만으로 쓰기
-# (명령에 --backend를 주면 그게 우선). 예: Gemini
-# TUBELESS_BACKEND=gemini
-EOF
-```
-
-- **OpenAI 키 발급:** [platform.openai.com](https://platform.openai.com) → API keys.
-- **Claude 키 발급:** [console.anthropic.com](https://console.anthropic.com) → API keys.
-- **Gemini 키 발급:** [aistudio.google.com](https://aistudio.google.com) → Get API key. (파일에 `GEMINI_SECRET_KEY=...` 추가.)
-
-머신에 이미 표준 이름 `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GEMINI_API_KEY`가
-있으면 tubeless가 폴백으로 인정하므로 파일을 건너뛰어도 됩니다. 둘 다 있으면
-tubeless 이름(`<VENDOR>_SECRET_KEY`)이 우선합니다.
-
-**기본 백엔드 바꾸기.** 내장 기본은 OpenAI입니다. 주로 다른 걸 쓴다면 — 예를 들어
-Gemini — 같은 `config.env`에 `TUBELESS_BACKEND=gemini`를 넣으세요(또는 export).
-그러면 `tubeless <url>`만 쳐도 그 백엔드를 쓰고 `--backend`를 매번 안 붙여도 됩니다.
-특정 명령에 `--backend`를 주면 그 실행에선 그게 우선합니다.
 
 ### 백엔드: OpenAI, Claude, Ollama
 
@@ -550,6 +519,45 @@ tubeless VIDEO_ID_XX --backend ollama --model llama3.1
 ```sh
 tubeless VIDEO_ID_XX --backend gemini --model gemini-flash-latest --detail deep
 ```
+
+### 설정: 키와 기본값
+
+OpenAI·Claude·Gemini는 API 키가 필요합니다(Ollama는 로컬 실행이라 불필요). 키는
+비밀값이라, tubeless는 저장소가 아니라 홈 디렉터리의 파일에서 읽고 그 값을
+화면·로그에 절대 남기지 않습니다. `~/.tubeless/config.env`에 `KEY=VALUE`를 한 줄씩
+적습니다:
+
+```sh
+mkdir -p ~/.tubeless
+cat > ~/.tubeless/config.env <<'EOF'
+# --- 키: 실제로 쓰는 백엔드만 채우세요 ---
+OPENAI_SECRET_KEY=sk-...
+# ANTHROPIC_SECRET_KEY=sk-ant-...
+# GEMINI_SECRET_KEY=...
+
+# --- 선택: 기본값(플래그를 매번 안 치도록) ---
+# TUBELESS_BACKEND=gemini   # 기본 --backend
+# TUBELESS_MODEL=...        # 기본 --model
+# TUBELESS_DETAIL=deep      # 기본 --detail (brief|normal|deep)
+# TUBELESS_POINTS=20        # 기본 --points
+# TUBELESS_LANG=ko          # 기본 --lang
+# TUBELESS_LIMIT=5          # 기본 --limit (다이제스트)
+EOF
+```
+
+- **OpenAI 키 발급:** [platform.openai.com](https://platform.openai.com) → API keys.
+- **Claude 키 발급:** [console.anthropic.com](https://console.anthropic.com) → API keys.
+- **Gemini 키 발급:** [aistudio.google.com](https://aistudio.google.com) → Get API key.
+
+머신에 이미 표준 이름 `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GEMINI_API_KEY`가
+있으면 tubeless가 폴백으로 인정합니다. 둘 다 있으면 tubeless 이름
+(`<VENDOR>_SECRET_KEY`)이 우선합니다.
+
+**기본값을 넣어 플래그를 안 치기.** 위의 `TUBELESS_*`는 각각 해당 옵션의 기본값
+입니다. `TUBELESS_BACKEND=gemini`와 `TUBELESS_DETAIL=deep`를 넣으면 `tubeless <url>`
+만 쳐도 Gemini로 deep 요약이 됩니다 — 플래그 없이. 특정 명령에 플래그를 주면 그
+실행에선 그게 우선하고, 이 값들은 그냥 환경변수로도 동작합니다. 잘못된 값(엉뚱한
+detail, 0 이하 숫자)은 한 줄 에러로 알려줍니다.
 
 ### 영상 한 개 요약
 
