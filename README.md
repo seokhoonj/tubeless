@@ -1,5 +1,9 @@
 # tubeless
 
+[![PyPI](https://img.shields.io/pypi/v/tubeless)](https://pypi.org/project/tubeless/)
+[![Python](https://img.shields.io/pypi/pyversions/tubeless)](https://pypi.org/project/tubeless/)
+[![License](https://img.shields.io/pypi/l/tubeless)](https://github.com/seokhoonj/tubeless/blob/main/LICENSE)
+
 Fetch a YouTube video's transcript and summarize it with an LLM — one video from
 the command line, or a daily digest of the channels and series you follow.
 Works with Gemini (free), OpenAI, Claude, or a local model via Ollama.
@@ -10,6 +14,7 @@ Works with Gemini (free), OpenAI, Claude, or a local model via Ollama.
 
 ## English
 
+- [Quick start](#quick-start)
 - [Install](#install) — macOS, Linux, Windows
 - [Backends: Gemini (free), Claude, OpenAI, Ollama — and what each costs](#backends)
 - [Set up config: keys and defaults](#set-up-config-keys-and-defaults) (`~/.tubeless/config.env`)
@@ -20,27 +25,39 @@ Works with Gemini (free), OpenAI, Claude, or a local model via Ollama.
 - [Use it as a Python library](#use-it-as-a-python-library)
 - [Limits](#limits)
 
+### Quick start
+
+```sh
+pip install tubeless
+export GEMINI_API_KEY=...      # free key from https://aistudio.google.com
+tubeless "https://www.youtube.com/watch?v=iG9CE55wbtY" --backend gemini
+```
+
+A TLDR and key points print to your terminal. Everything below is the detailed
+version — full install (pipx, per-OS), the other backends, a config file so you
+never retype a key or flag, and the daily multi-channel digest.
+
 ### Install
 
 You need **Python 3.11 or newer**. Check with `python3 --version`. Installing with
 [pipx](https://pipx.pypa.io) keeps the `tubeless` command in its own isolated
 environment so it never clashes with your other Python packages.
 
-tubeless is installed straight from GitHub. Follow the block for your OS top to
-bottom — after the last line, the `tubeless` command is on your PATH.
+tubeless is on PyPI. Follow the block for your OS top to bottom — after the last
+line, the `tubeless` command is on your PATH.
 
 **macOS**
 ```sh
 brew install python pipx            # skip if you already have them
 pipx ensurepath                     # adds pipx's bin dir to PATH (open a new terminal after)
-pipx install git+https://github.com/seokhoonj/tubeless.git
+pipx install tubeless
 ```
 
 **Linux** (Debian/Ubuntu; use your distro's package manager elsewhere)
 ```sh
 sudo apt update && sudo apt install -y python3 python3-pip pipx
 pipx ensurepath                     # open a new terminal afterwards
-pipx install git+https://github.com/seokhoonj/tubeless.git
+pipx install tubeless
 ```
 
 **Windows** (PowerShell)
@@ -48,12 +65,12 @@ pipx install git+https://github.com/seokhoonj/tubeless.git
 # 1. Install Python 3.11+ from https://python.org — tick "Add python.exe to PATH".
 py -m pip install --user pipx
 py -m pipx ensurepath               # close and reopen PowerShell afterwards
-py -m pipx install git+https://github.com/seokhoonj/tubeless.git
+py -m pipx install tubeless
 ```
 
 Add the Claude backend at install time with the `claude` extra (it pulls in the `anthropic` SDK):
 ```sh
-pipx install "tubeless[claude] @ git+https://github.com/seokhoonj/tubeless.git"
+pipx install "tubeless[claude]"
 ```
 
 Confirm it works:
@@ -61,10 +78,10 @@ Confirm it works:
 tubeless --help
 ```
 
-> **No pipx?** Plain `pip install git+https://github.com/seokhoonj/tubeless.git`
-> works too (ideally inside a virtualenv). pipx is only recommended so the CLI
-> stays isolated. Once tubeless is published to PyPI, `pipx install tubeless`
-> will also work.
+> **No pipx?** Plain `pip install tubeless` works too (ideally inside a
+> virtualenv). pipx is only recommended so the CLI stays isolated. To install the
+> newest unreleased code instead, use
+> `pipx install git+https://github.com/seokhoonj/tubeless.git`.
 
 ### Backends
 
@@ -392,6 +409,7 @@ MIT — see [LICENSE](LICENSE).
 구독하는 채널·시리즈의 하루치 다이제스트를. Gemini(무료)·OpenAI·Claude, 또는
 Ollama로 로컬 모델까지 씁니다.
 
+- [빠른 시작](#빠른-시작)
 - [설치](#설치) — macOS, Linux, Windows
 - [백엔드: Gemini(무료), Claude, OpenAI, Ollama — 그리고 결제](#백엔드)
 - [설정: 키와 기본값](#설정-키와-기본값) (`~/.tubeless/config.env`)
@@ -402,27 +420,38 @@ Ollama로 로컬 모델까지 씁니다.
 - [파이썬 라이브러리로 쓰기](#파이썬-라이브러리로-쓰기)
 - [한계](#한계)
 
+### 빠른 시작
+
+```sh
+pip install tubeless
+export GEMINI_API_KEY=...      # 무료 키: https://aistudio.google.com
+tubeless "https://www.youtube.com/watch?v=iG9CE55wbtY" --backend gemini --lang ko
+```
+
+TLDR과 핵심 포인트가 터미널에 출력됩니다. 아래는 상세 버전 — OS별 전체 설치(pipx),
+다른 백엔드, 키·플래그를 매번 안 치게 하는 config 파일, 여러 채널 데일리 다이제스트.
+
 ### 설치
 
 **Python 3.11 이상**이 필요합니다(`python3 --version`으로 확인). [pipx](https://pipx.pypa.io)로
 설치하면 `tubeless` 명령이 격리된 환경에 깔려 다른 파이썬 패키지와 충돌하지
 않습니다.
 
-tubeless는 GitHub에서 바로 설치합니다. 본인 OS 블록을 위에서 아래로 그대로
-따라가면 됩니다 — 마지막 줄까지 실행하면 `tubeless` 명령을 쓸 수 있습니다.
+tubeless는 PyPI에 있습니다. 본인 OS 블록을 위에서 아래로 그대로 따라가면 됩니다
+— 마지막 줄까지 실행하면 `tubeless` 명령을 쓸 수 있습니다.
 
 **macOS**
 ```sh
 brew install python pipx            # 이미 있으면 생략
 pipx ensurepath                     # pipx 실행 경로를 PATH에 추가(끝나면 새 터미널 열기)
-pipx install git+https://github.com/seokhoonj/tubeless.git
+pipx install tubeless
 ```
 
 **Linux** (데비안/우분투; 다른 배포판은 각자 패키지매니저 사용)
 ```sh
 sudo apt update && sudo apt install -y python3 python3-pip pipx
 pipx ensurepath                     # 끝나면 새 터미널 열기
-pipx install git+https://github.com/seokhoonj/tubeless.git
+pipx install tubeless
 ```
 
 **Windows** (PowerShell)
@@ -430,12 +459,12 @@ pipx install git+https://github.com/seokhoonj/tubeless.git
 # 1. https://python.org 에서 Python 3.11+ 설치 — "Add python.exe to PATH" 체크.
 py -m pip install --user pipx
 py -m pipx ensurepath               # 끝나면 PowerShell 닫았다 다시 열기
-py -m pipx install git+https://github.com/seokhoonj/tubeless.git
+py -m pipx install tubeless
 ```
 
 Claude 백엔드까지 함께 설치하려면 `claude` 추가옵션(`anthropic` SDK를 끌어옵니다):
 ```sh
-pipx install "tubeless[claude] @ git+https://github.com/seokhoonj/tubeless.git"
+pipx install "tubeless[claude]"
 ```
 
 동작 확인:
@@ -443,9 +472,9 @@ pipx install "tubeless[claude] @ git+https://github.com/seokhoonj/tubeless.git"
 tubeless --help
 ```
 
-> **pipx가 없어도** `pip install git+https://github.com/seokhoonj/tubeless.git`로
-> 설치됩니다(가상환경 안에서 권장). pipx는 CLI를 격리하려는 권장일 뿐입니다.
-> 나중에 PyPI에 올라가면 `pipx install tubeless`로도 됩니다.
+> **pipx가 없어도** `pip install tubeless`로 설치됩니다(가상환경 안에서 권장).
+> pipx는 CLI를 격리하려는 권장일 뿐입니다. 아직 릴리스 안 된 최신 코드는
+> `pipx install git+https://github.com/seokhoonj/tubeless.git`로 설치하세요.
 
 ### 백엔드
 
