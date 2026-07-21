@@ -237,11 +237,11 @@ def test_digest_dry_run_prints_markdown_without_writing(
     from tubeless.summary import Summary
 
     entry = DigestEntry(
-        channel="예시 채널",
-        upload=Upload(video_id="dQw4w9WgXcQ", title="예시 영상", published="",
-                      channel_id="UC", channel_title="예시 채널"),
-        summary=Summary(video=SAMPLE_VIDEO, tldr="핵심", points=("a",), language="ko"),
-        importance=Importance(score=0.9, reason="큰 뉴스"),
+        channel="Example Channel",
+        upload=Upload(video_id="dQw4w9WgXcQ", title="Example Video", published="",
+                      channel_id="UC", channel_title="Example Channel"),
+        summary=Summary(video=SAMPLE_VIDEO, tldr="gist", points=("a",), language="ko"),
+        importance=Importance(score=0.9, reason="big news"),
     )
     monkeypatch.setattr(cli_module, "load_channels", lambda path: ())
     monkeypatch.setattr(cli_module, "OpenAIBackend", CannedBackend)
@@ -256,9 +256,9 @@ def test_digest_dry_run_prints_markdown_without_writing(
 
     captured = capsys.readouterr()
     assert exit_code == 0
-    assert "유튜브 다이제스트 — 2026-07-21" in captured.out
+    assert "YouTube digest — 2026-07-21" in captured.out
     # header uses the summary's video title (SAMPLE_VIDEO), tier from the score
-    assert "🔴 예시 채널 — A talk about ducks" in captured.out
+    assert "🔴 Example Channel — A talk about ducks" in captured.out
 
 
 def test_digest_only_filters_channels_by_label(_no_config_file, monkeypatch: pytest.MonkeyPatch) -> None:

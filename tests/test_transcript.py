@@ -43,8 +43,8 @@ class _FakeListedTranscript:
 
     def fetch(self) -> list[_FakeSnippet]:
         return [
-            _FakeSnippet("첫 문장", 0.0, 2.0),
-            _FakeSnippet("둘째 문장", 2.0, 2.5),
+            _FakeSnippet("first sentence", 0.0, 2.0),
+            _FakeSnippet("second sentence", 2.0, 2.5),
         ]
 
 
@@ -78,8 +78,8 @@ def test_fetch_transcript_maps_vendor_snippets_to_segments(
     assert fetched.language == "ko"
     assert fetched.is_auto_generated is True
     assert fetched.segments == (
-        TranscriptSegment(text="첫 문장", start=0.0, duration=2.0),
-        TranscriptSegment(text="둘째 문장", start=2.0, duration=2.5),
+        TranscriptSegment(text="first sentence", start=0.0, duration=2.0),
+        TranscriptSegment(text="second sentence", start=2.0, duration=2.5),
     )
 
 

@@ -17,14 +17,14 @@ _TIER_MARKER = {"high": "🔴", "mid": "🟡", "low": "⚪"}
 
 def to_markdown(digest: Digest) -> str:
     """Render one day's digest as a Markdown document."""
-    lines = [f"# 유튜브 다이제스트 — {digest.date}", ""]
+    lines = [f"# YouTube digest — {digest.date}", ""]
     if not digest.entries:
-        lines.append("_새 영상이 없습니다._")
+        lines.append("_No new videos._")
     for entry in digest.entries:
         lines.extend(_entry_lines(entry))
     if digest.skipped:
         lines.append("---")
-        lines.append("### 읽지 못한 채널")
+        lines.append("### Skipped channels")
         lines.extend(f"- {note}" for note in digest.skipped)
     return "\n".join(lines).rstrip() + "\n"
 
@@ -32,7 +32,7 @@ def to_markdown(digest: Digest) -> str:
 def _entry_lines(entry: DigestEntry) -> list[str]:
     summary = entry.summary
     marker  = _TIER_MARKER[entry.importance.tier]
-    lines   = [f"## {marker} {entry.channel} — {summary.video.title} (중요도 {entry.importance.score:.2f})"]
+    lines   = [f"## {marker} {entry.channel} — {summary.video.title} (importance {entry.importance.score:.2f})"]
     if entry.importance.reason:
         lines.append(f"> {entry.importance.reason}")
     lines.append(summary.video.url)

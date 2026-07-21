@@ -17,16 +17,16 @@ def test_load_channels_reads_entries_with_defaults(tmp_path):
         tmp_path,
         '[[channel]]\n'
         'source = "@examplechannel"\n'
-        'label  = "예시 채널"\n'
+        'label  = "Example Channel"\n'
         'detail = "deep"\n'
         '\n'
         '[[channel]]\n'
         'source = "@anotherchannel"\n'
-        'label  = "다른 채널"\n',
+        'label  = "Other Channel"\n',
     )
     channels = load_channels(path)
 
-    assert channels[0] == Channel(source="@examplechannel", label="예시 채널", detail="deep")
+    assert channels[0] == Channel(source="@examplechannel", label="Example Channel", detail="deep")
     assert channels[1].detail == "deep"  # default when omitted
 
 

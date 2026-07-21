@@ -19,15 +19,15 @@ SAMPLE_FEED = f"""<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns:yt="http://www.youtube.com/xml/schemas/2015"
       xmlns="http://www.w3.org/2005/Atom">
   <yt:channelId>{_CHANNEL_ID}</yt:channelId>
-  <title>예시 채널</title>
+  <title>Example Channel</title>
   <entry>
     <yt:videoId>vid00000001</yt:videoId>
-    <title>첫 번째 영상</title>
+    <title>First Video</title>
     <published>2026-07-20T09:00:00+00:00</published>
   </entry>
   <entry>
     <yt:videoId>vid00000002</yt:videoId>
-    <title>두 번째 영상</title>
+    <title>Second Video</title>
     <published>2026-07-19T09:00:00+00:00</published>
   </entry>
 </feed>"""
@@ -37,9 +37,9 @@ def test_parse_feed_reads_entries_in_order():
     uploads = _parse_feed(SAMPLE_FEED, limit=15)
 
     assert [u.video_id for u in uploads] == ["vid00000001", "vid00000002"]
-    assert uploads[0].title         == "첫 번째 영상"
+    assert uploads[0].title         == "First Video"
     assert uploads[0].channel_id    == _CHANNEL_ID
-    assert uploads[0].channel_title == "예시 채널"
+    assert uploads[0].channel_title == "Example Channel"
     assert uploads[0].published     == "2026-07-20T09:00:00+00:00"
 
 

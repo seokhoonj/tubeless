@@ -98,10 +98,10 @@ def test_claude_backend_joins_text_blocks(monkeypatch: pytest.MonkeyPatch):
         assert kwargs["system"] == "be terse"
         assert kwargs["messages"] == [{"role": "user", "content": "hi"}]
         assert kwargs["max_tokens"] == 2048
-        return types.SimpleNamespace(content=[_text_block("한 "), _text_block("줄")])
+        return types.SimpleNamespace(content=[_text_block("one "), _text_block("line")])
 
     _install_fake_anthropic(monkeypatch, create=create)
-    assert ClaudeBackend().complete("hi", system="be terse") == "한 줄"
+    assert ClaudeBackend().complete("hi", system="be terse") == "one line"
 
 
 def test_claude_backend_wraps_sdk_errors(monkeypatch: pytest.MonkeyPatch):

@@ -63,10 +63,10 @@ def test_importance_tier_classifies_the_score(score, expected_tier):
 
 
 def test_score_importance_calls_the_backend_and_returns_importance():
-    got = score_importance(SAMPLE_SUMMARY, OneReplyBackend("SCORE: 0.42\nREASON: 보통"))
+    got = score_importance(SAMPLE_SUMMARY, OneReplyBackend("SCORE: 0.42\nREASON: moderate"))
 
     assert got.score  == pytest.approx(0.42)
-    assert got.reason == "보통"
+    assert got.reason == "moderate"
 
 
 @pytest.mark.parametrize(

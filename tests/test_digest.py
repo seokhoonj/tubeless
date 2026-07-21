@@ -19,13 +19,13 @@ _CHANNEL_ID = "UCabcdefghijklmnopqrstuv"
 
 def _upload(video_id: str, title: str) -> Upload:
     return Upload(video_id=video_id, title=title, published="",
-                  channel_id=_CHANNEL_ID, channel_title="예시 채널")
+                  channel_id=_CHANNEL_ID, channel_title="Example Channel")
 
 
 def _transcript(video_id: str) -> Transcript:
     return Transcript(
         video_id=video_id, language="ko", is_auto_generated=False,
-        segments=(TranscriptSegment(text="말 말 말", start=0.0, duration=3.0),),
+        segments=(TranscriptSegment(text="words words words", start=0.0, duration=3.0),),
     )
 
 
@@ -37,7 +37,7 @@ class ScoringBackend:
     def complete(self, prompt: str, *, system: str | None = None) -> str:
         if "importance" in prompt.lower():
             score = 0.9 if "big" in prompt.lower() else 0.2
-            return f"SCORE: {score}\nREASON: 이유"
+            return f"SCORE: {score}\nREASON: reason"
         return "TLDR: gist\n- point one\n- point two"
 
 
@@ -49,7 +49,7 @@ def two_uploads(monkeypatch):
     monkeypatch.setattr(digest_module, "fetch_transcript", lambda video_id: _transcript(video_id))
 
 
-_ONE_CHANNEL = (Channel(source="@x", label="예시 채널", detail="normal"),)
+_ONE_CHANNEL = (Channel(source="@x", label="Example Channel", detail="normal"),)
 
 
 def test_build_digest_sorts_entries_by_importance(two_uploads):
@@ -126,7 +126,7 @@ def test_build_digest_title_filter_ignores_case(monkeypatch):
     monkeypatch.setattr(digest_module, "fetch_uploads",
                         lambda source, limit: (_upload("aaaaaaaaaaa", "Morning SHOW with ALICE"),))
     monkeypatch.setattr(digest_module, "fetch_transcript", lambda video_id: _transcript(video_id))
-    channels = (Channel(source="@x", label="쇼", detail="normal",
+    channels = (Channel(source="@x", label="Show", detail="normal",
                         title_includes=("show", "alice")),)   # lowercase filter, mixed-case title
 
     digest, processed = build_digest(channels, ScoringBackend(), date="d", seen=set())
@@ -142,7 +142,7 @@ def test_build_digest_applies_a_title_filter(monkeypatch):
                                _upload("ccccccccccc", "[Other] with Alice too")),
     )
     monkeypatch.setattr(digest_module, "fetch_transcript", lambda video_id: _transcript(video_id))
-    channels = (Channel(source="@x", label="쇼", detail="normal",
+    channels = (Channel(source="@x", label="Show", detail="normal",
                         title_includes=("[Show]", "Alice")),)
 
     digest, processed = build_digest(channels, ScoringBackend(), date="d", seen=set())
@@ -163,4 +163,4 @@ def test_build_digest_records_a_channel_whose_feed_fails(monkeypatch):
     assert digest.entries == ()
     assert processed == set()
     assert len(digest.skipped) == 1
-    assert "예시 채널" in digest.skipped[0]
+    assert "Example Channel" in digest.skipped[0]
