@@ -81,6 +81,10 @@ cat > ~/.tubeless/config.env <<'EOF'
 OPENAI_SECRET_KEY=sk-...
 # ANTHROPIC_SECRET_KEY=sk-ant-...
 # GEMINI_SECRET_KEY=...
+#
+# Optional: change the default backend so a bare `tubeless <url>` uses it
+# without --backend (an explicit --backend still overrides). E.g. for Gemini:
+# TUBELESS_BACKEND=gemini
 EOF
 ```
 
@@ -92,6 +96,11 @@ If your machine already exports the SDK-standard names `OPENAI_API_KEY` /
 `ANTHROPIC_API_KEY` / `GEMINI_API_KEY`, tubeless honors those as a fallback, so
 you can skip the file. The tubeless name (`<VENDOR>_SECRET_KEY`) wins when both
 are set.
+
+**Change the default backend.** OpenAI is the built-in default. If you mostly use
+another — say Gemini — put `TUBELESS_BACKEND=gemini` in the same `config.env` (or
+export it). Then a bare `tubeless <url>` uses that backend and you never type
+`--backend`; passing `--backend` on a command still wins for that run.
 
 ### Backends: OpenAI, Claude, Ollama
 
@@ -189,6 +198,12 @@ tubeless VIDEO_ID_XX --detail deep --lang en --points 20
 
 You can pass a full URL (`watch?v=`, `youtu.be/`, `/shorts/`, `/embed/`,
 `/live/`) or just the bare 11-character video id.
+
+> **Quote the URL.** A YouTube URL often contains `&` (e.g. `...&t=25s`), and in a
+> shell `&` means "run in the background" — an unquoted URL gets split there (you'll
+> see a `[1] 12345` job number and odd output). Wrap it in quotes:
+> `tubeless "https://www.youtube.com/watch?v=VIDEO_ID_XX&t=25s"`. A bare video id
+> needs no quotes.
 
 | option | what it does | default |
 |---|---|---|
@@ -432,6 +447,10 @@ cat > ~/.tubeless/config.env <<'EOF'
 OPENAI_SECRET_KEY=sk-...
 # ANTHROPIC_SECRET_KEY=sk-ant-...
 # GEMINI_SECRET_KEY=...
+#
+# 선택: 기본 백엔드를 바꿔서 --backend 없이 `tubeless <url>`만으로 쓰기
+# (명령에 --backend를 주면 그게 우선). 예: Gemini
+# TUBELESS_BACKEND=gemini
 EOF
 ```
 
@@ -442,6 +461,11 @@ EOF
 머신에 이미 표준 이름 `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GEMINI_API_KEY`가
 있으면 tubeless가 폴백으로 인정하므로 파일을 건너뛰어도 됩니다. 둘 다 있으면
 tubeless 이름(`<VENDOR>_SECRET_KEY`)이 우선합니다.
+
+**기본 백엔드 바꾸기.** 내장 기본은 OpenAI입니다. 주로 다른 걸 쓴다면 — 예를 들어
+Gemini — 같은 `config.env`에 `TUBELESS_BACKEND=gemini`를 넣으세요(또는 export).
+그러면 `tubeless <url>`만 쳐도 그 백엔드를 쓰고 `--backend`를 매번 안 붙여도 됩니다.
+특정 명령에 `--backend`를 주면 그 실행에선 그게 우선합니다.
 
 ### 백엔드: OpenAI, Claude, Ollama
 
@@ -536,6 +560,12 @@ tubeless VIDEO_ID_XX --detail deep --lang ko --points 20
 
 전체 URL(`watch?v=`, `youtu.be/`, `/shorts/`, `/embed/`, `/live/`)이나 11자리
 영상 id만 줘도 됩니다.
+
+> **URL은 따옴표로 감싸세요.** 유튜브 URL엔 `&`가 자주 들어갑니다(예: `...&t=25s`).
+> 셸에서 `&`는 "백그라운드 실행"이라, 따옴표 없는 URL은 거기서 잘립니다(`[1] 12345`
+> 같은 작업번호와 이상한 출력이 뜸). 따옴표로 감싸면 됩니다:
+> `tubeless "https://www.youtube.com/watch?v=VIDEO_ID_XX&t=25s"`. 순수 영상 id는
+> 따옴표가 필요 없습니다.
 
 | 옵션 | 뜻 | 기본값 |
 |---|---|---|
