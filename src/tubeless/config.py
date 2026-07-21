@@ -22,12 +22,14 @@ CONFIG_PATH = Path.home() / ".tubeless" / "config.env"
 _KEY_NAME = {
     "openai":    "OPENAI_SECRET_KEY",
     "anthropic": "ANTHROPIC_SECRET_KEY",
+    "gemini":    "GEMINI_SECRET_KEY",
 }
 # The SDK-standard name each vendor's own client reads. Tried after the tubeless
 # name so a machine that already exports OPENAI_API_KEY keeps working untouched.
 _SDK_NAME = {
     "openai":    "OPENAI_API_KEY",
     "anthropic": "ANTHROPIC_API_KEY",
+    "gemini":    "GEMINI_API_KEY",
 }
 
 
@@ -52,7 +54,7 @@ def read_config(path: Path | None = None) -> dict[str, str]:
 
 
 def api_key(vendor: str, *, config: dict[str, str] | None = None) -> str | None:
-    """Return the API key for ``vendor`` ('openai' / 'anthropic'), or ``None``.
+    """Return the API key for ``vendor`` ('openai' / 'anthropic' / 'gemini'), or ``None``.
 
     Each name is looked up in the environment first, then in the config file, so a
     single run can override the file. The tubeless name (``<VENDOR>_SECRET_KEY``)

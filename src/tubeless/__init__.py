@@ -22,7 +22,7 @@ from tubeless.feed import (
     resolve_channel_id,
 )
 from tubeless.importance import Importance, score_importance
-from tubeless.llm import AnthropicBackend, LLMBackend, OllamaBackend, OpenAIBackend
+from tubeless.llm import AnthropicBackend, GeminiBackend, LLMBackend, OllamaBackend, OpenAIBackend
 from tubeless.render import to_markdown
 from tubeless.source import Video, fetch_video_meta, parse_video_id
 from tubeless.summary import Summary, summarize
@@ -35,6 +35,7 @@ __all__ = [
     "Digest",
     "DigestEntry",
     "FeedError",
+    "GeminiBackend",
     "Importance",
     "InvalidVideoURL",
     "LLMBackend",

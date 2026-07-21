@@ -13,7 +13,7 @@ import pytest
 from tubeless import config
 from tubeless.cli import _make_backend
 from tubeless.errors import LLMError
-from tubeless.llm import AnthropicBackend, OllamaBackend, OpenAIBackend
+from tubeless.llm import AnthropicBackend, GeminiBackend, OllamaBackend, OpenAIBackend
 
 
 def _no_keys_anywhere(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -21,7 +21,8 @@ def _no_keys_anywhere(monkeypatch: pytest.MonkeyPatch) -> None:
     real ~/.tubeless/config.env on the test machine cannot satisfy the lookup."""
     monkeypatch.setattr(config, "read_config", lambda *a, **k: {})
     for name in ("OPENAI_SECRET_KEY", "OPENAI_API_KEY",
-                 "ANTHROPIC_SECRET_KEY", "ANTHROPIC_API_KEY"):
+                 "ANTHROPIC_SECRET_KEY", "ANTHROPIC_API_KEY",
+                 "GEMINI_SECRET_KEY", "GEMINI_API_KEY"):
         monkeypatch.delenv(name, raising=False)
 
 
@@ -36,6 +37,12 @@ def test_anthropic_backend_without_a_key_raises(monkeypatch: pytest.MonkeyPatch)
     _no_keys_anywhere(monkeypatch)
     with pytest.raises(LLMError):
         AnthropicBackend()
+
+
+def test_gemini_backend_without_a_key_raises(monkeypatch: pytest.MonkeyPatch):
+    _no_keys_anywhere(monkeypatch)
+    with pytest.raises(LLMError):
+        GeminiBackend()
 
 
 # --- Anthropic error wrapping + response parsing --------------------------
@@ -130,3 +137,16 @@ def test_ollama_backend_targets_the_local_host_by_default(monkeypatch: pytest.Mo
 def test_make_backend_builds_ollama(monkeypatch: pytest.MonkeyPatch):
     assert _make_backend("ollama", None).model == "llama3.1"
     assert _make_backend("ollama", "qwen2.5").model == "qwen2.5"
+
+
+# --- Gemini backend (OpenAI-compatible cloud endpoint) --------------------
+def test_make_backend_builds_gemini(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    assert _make_backend("gemini", None).model == "gemini-2.5-flash"
+    assert _make_backend("gemini", "gemini-2.5-pro").model == "gemini-2.5-pro"
+
+
+def test_gemini_backend_targets_the_openai_compatible_host(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    backend = GeminiBackend()
+    assert "generativelanguage.googleapis.com" in str(backend._client.base_url)

@@ -13,7 +13,7 @@ from typing import Protocol
 from tubeless import config
 from tubeless.errors import LLMError
 
-__all__ = ["AnthropicBackend", "LLMBackend", "OllamaBackend", "OpenAIBackend"]
+__all__ = ["AnthropicBackend", "GeminiBackend", "LLMBackend", "OllamaBackend", "OpenAIBackend"]
 
 
 class LLMBackend(Protocol):
@@ -119,10 +119,41 @@ class OllamaBackend:
         return _chat_complete(self._client, self.model, prompt, system=system, label="Ollama")
 
 
+class GeminiBackend:
+    """Chat-completions backend over Google's Gemini models.
+
+    Gemini exposes an OpenAI-compatible ``/v1beta/openai`` endpoint, so this
+    reuses the OpenAI SDK pointed at that host -- the same shape as
+    :class:`OllamaBackend`, but Gemini is a cloud vendor and so needs a key.
+    A class for the same reason as :class:`OpenAIBackend` -- client and model
+    are configured once and reused across a summary's map-reduce calls.
+    """
+
+    _BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+
+    def __init__(self, *, model: str = "gemini-2.5-flash", api_key: str | None = None) -> None:
+        resolved_key = api_key if api_key is not None else config.api_key("gemini")
+        if not resolved_key:
+            raise LLMError(
+                "no Gemini API key: pass api_key=, set GEMINI_SECRET_KEY in the "
+                "environment, or add it to ~/.tubeless/config.env"
+            )
+        from openai import OpenAI  # lazy, like OpenAIBackend (see above)
+
+        self.model   = model
+        self._client = OpenAI(base_url=self._BASE_URL, api_key=resolved_key)
+
+    def __repr__(self) -> str:
+        return f"GeminiBackend(model={self.model!r})"
+
+    def complete(self, prompt: str, *, system: str | None = None) -> str:
+        return _chat_complete(self._client, self.model, prompt, system=system, label="Gemini")
+
+
 class AnthropicBackend:
-    """Messages backend over the Anthropic SDK, the other half of the two-vendor
-    setup: Claude tends to hedge unsupported specifics rather than invent them,
-    which is the safer default when the transcript is a noisy auto-caption.
+    """Messages backend over the Anthropic SDK: Claude tends to hedge unsupported
+    specifics rather than invent them, which is the safer default when the
+    transcript is a noisy auto-caption.
 
     A class for the same reason as :class:`OpenAIBackend` -- client and model are
     configured once and reused across a summary's map-reduce calls.

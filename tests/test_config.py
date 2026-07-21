@@ -58,3 +58,9 @@ def test_api_key_returns_none_when_absent(monkeypatch):
     for name in ("ANTHROPIC_SECRET_KEY", "ANTHROPIC_API_KEY"):
         monkeypatch.delenv(name, raising=False)
     assert config.api_key("anthropic", config={}) is None
+
+
+def test_api_key_resolves_gemini(monkeypatch):
+    for name in ("GEMINI_SECRET_KEY", "GEMINI_API_KEY"):
+        monkeypatch.delenv(name, raising=False)
+    assert config.api_key("gemini", config={"GEMINI_SECRET_KEY": "sk-gem"}) == "sk-gem"
