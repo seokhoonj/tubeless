@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 from tubeless.channels import Channel
 from tubeless.errors import FeedError, TranscriptUnavailable
-from tubeless.feed import Upload, fetch_channel_uploads, resolve_channel_id
+from tubeless.feed import Upload, fetch_uploads
 from tubeless.importance import Importance, score_importance
 from tubeless.llm import LLMBackend
 from tubeless.source import Video
@@ -72,8 +72,7 @@ def build_digest(
 
     for channel in channels:
         try:
-            channel_id = resolve_channel_id(channel.source)
-            uploads    = fetch_channel_uploads(channel_id, limit=per_channel_limit)
+            uploads = fetch_uploads(channel.source, limit=per_channel_limit)
         except FeedError as err:
             skipped.append(f"{channel.label}: {err}")
             continue

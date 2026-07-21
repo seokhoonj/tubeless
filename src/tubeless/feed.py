@@ -10,21 +10,30 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from urllib.parse import parse_qs, urlparse
 from xml.etree import ElementTree
 
 import requests
 
 from tubeless.errors import FeedError
 
-__all__ = ["Upload", "fetch_channel_uploads", "resolve_channel_id"]
+__all__ = [
+    "Upload",
+    "fetch_channel_uploads",
+    "fetch_playlist_uploads",
+    "fetch_uploads",
+    "resolve_channel_id",
+]
 
 _FEED_URL = "https://www.youtube.com/feeds/videos.xml"
 _TIMEOUT_SECONDS = 15.0
 
-# A channel id is 'UC' + 22 chars of the base64url alphabet -- a stable observed
-# form of every channel feed URL, the one place to change if YouTube ever alters
-# it (same reasoning as source.py's video-id pattern).
-_CHANNEL_ID_PATTERN = re.compile(r"^UC[A-Za-z0-9_-]{22}$")
+# A channel id is 'UC' + 22 chars of the base64url alphabet; a user playlist id
+# is 'PL' + a longer run of the same alphabet. Both are stable observed forms of
+# the feed URLs -- the one place to change if YouTube ever alters them (same
+# reasoning as source.py's video-id pattern).
+_CHANNEL_ID_PATTERN  = re.compile(r"^UC[A-Za-z0-9_-]{22}$")
+_PLAYLIST_ID_PATTERN = re.compile(r"^PL[A-Za-z0-9_-]{10,}$")
 
 # Atom + YouTube feed namespaces, as declared on the feed root.
 _NS = {
@@ -44,6 +53,24 @@ class Upload:
     channel_title: str
 
 
+def fetch_uploads(source: str, *, limit: int = 15) -> tuple[Upload, ...]:
+    """Return recent uploads for a channel or a playlist ``source``, newest first.
+
+    ``source`` may be a channel (an ``@handle``, a channel URL, or a 'UC...' id)
+    or a playlist (a 'PL...' id, or any URL carrying a ``list=PL...`` parameter).
+    A playlist source narrows a channel down to a single series -- e.g. one daily
+    show among the many a channel posts.
+
+    Raises:
+        FeedError: the source could not be resolved, or its feed could not be
+            fetched or parsed.
+    """
+    playlist_id = _playlist_id_of(source)
+    if playlist_id is not None:
+        return _fetch_feed({"playlist_id": playlist_id}, limit=limit)
+    return fetch_channel_uploads(resolve_channel_id(source), limit=limit)
+
+
 def fetch_channel_uploads(channel_id: str, *, limit: int = 15) -> tuple[Upload, ...]:
     """Return up to ``limit`` most-recent uploads for a channel, newest first.
 
@@ -55,14 +82,41 @@ def fetch_channel_uploads(channel_id: str, *, limit: int = 15) -> tuple[Upload, 
             f"not a channel id: {channel_id!r} (expected 'UC...'); resolve a "
             "handle with resolve_channel_id() first"
         )
+    return _fetch_feed({"channel_id": channel_id}, limit=limit)
+
+
+def fetch_playlist_uploads(playlist_id: str, *, limit: int = 15) -> tuple[Upload, ...]:
+    """Return up to ``limit`` most-recent videos in a playlist, newest first.
+
+    Raises:
+        FeedError: the id is malformed, or the feed could not be fetched/parsed.
+    """
+    if not _PLAYLIST_ID_PATTERN.match(playlist_id):
+        raise FeedError(f"not a playlist id: {playlist_id!r} (expected 'PL...')")
+    return _fetch_feed({"playlist_id": playlist_id}, limit=limit)
+
+
+def _fetch_feed(params: dict[str, str], *, limit: int) -> tuple[Upload, ...]:
     try:
-        response = requests.get(
-            _FEED_URL, params={"channel_id": channel_id}, timeout=_TIMEOUT_SECONDS,
-        )
+        response = requests.get(_FEED_URL, params=params, timeout=_TIMEOUT_SECONDS)
         response.raise_for_status()
     except requests.RequestException as err:
-        raise FeedError(f"could not fetch feed for channel {channel_id!r}: {err}") from err
+        raise FeedError(f"could not fetch feed {params}: {err}") from err
     return _parse_feed(response.text, limit=limit)
+
+
+def _playlist_id_of(source: str) -> str | None:
+    """Return the 'PL...' id if ``source`` is a playlist (bare id or a URL with
+    a ``list=`` parameter); ``None`` if it names a channel instead."""
+    text = source.strip()
+    if _PLAYLIST_ID_PATTERN.match(text):
+        return text
+    if "list=" in text:
+        query = urlparse(text if "://" in text else "https://" + text).query
+        for value in parse_qs(query).get("list", []):
+            if _PLAYLIST_ID_PATTERN.match(value):
+                return value
+    return None
 
 
 def _parse_feed(xml_text: str, *, limit: int) -> tuple[Upload, ...]:

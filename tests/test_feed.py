@@ -3,7 +3,15 @@
 import pytest
 
 from tubeless.errors import FeedError
-from tubeless.feed import _parse_feed, fetch_channel_uploads, resolve_channel_id
+from tubeless.feed import (
+    _parse_feed,
+    _playlist_id_of,
+    fetch_channel_uploads,
+    fetch_playlist_uploads,
+    resolve_channel_id,
+)
+
+_PLAYLIST_ID = "PLQvqXcm97CTCf_tqMOL0QpTCoMNwjCje5"
 
 _CHANNEL_ID = "UCabcdefghijklmnopqrstuv"  # UC + 22 chars
 
@@ -51,3 +59,22 @@ def test_fetch_channel_uploads_rejects_a_non_channel_id():
 
 def test_resolve_channel_id_passes_through_a_bare_id():
     assert resolve_channel_id(_CHANNEL_ID) == _CHANNEL_ID
+
+
+def test_playlist_id_of_reads_a_bare_id():
+    assert _playlist_id_of(_PLAYLIST_ID) == _PLAYLIST_ID
+
+
+def test_playlist_id_of_extracts_from_a_watch_url_with_a_list_param():
+    url = f"https://www.youtube.com/watch?v=mUiN6qf_zes&list={_PLAYLIST_ID}"
+    assert _playlist_id_of(url) == _PLAYLIST_ID
+
+
+def test_playlist_id_of_returns_none_for_a_channel_source():
+    assert _playlist_id_of("@3protv") is None
+    assert _playlist_id_of(_CHANNEL_ID) is None
+
+
+def test_fetch_playlist_uploads_rejects_a_non_playlist_id():
+    with pytest.raises(FeedError):
+        fetch_playlist_uploads(_CHANNEL_ID)

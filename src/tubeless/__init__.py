@@ -14,7 +14,13 @@ from tubeless.errors import (
     TranscriptUnavailable,
     TubelessError,
 )
-from tubeless.feed import Upload, fetch_channel_uploads, resolve_channel_id
+from tubeless.feed import (
+    Upload,
+    fetch_channel_uploads,
+    fetch_playlist_uploads,
+    fetch_uploads,
+    resolve_channel_id,
+)
 from tubeless.importance import Importance, score_importance
 from tubeless.llm import AnthropicBackend, LLMBackend, OpenAIBackend
 from tubeless.render import to_markdown
@@ -43,6 +49,8 @@ __all__ = [
     "Video",
     "build_digest",
     "fetch_channel_uploads",
+    "fetch_playlist_uploads",
+    "fetch_uploads",
     "fetch_transcript",
     "fetch_video_meta",
     "load_channels",

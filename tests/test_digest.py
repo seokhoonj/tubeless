@@ -43,10 +43,9 @@ class ScoringBackend:
 
 @pytest.fixture
 def two_uploads(monkeypatch):
-    monkeypatch.setattr(digest_module, "resolve_channel_id", lambda source: _CHANNEL_ID)
-    monkeypatch.setattr(digest_module, "fetch_channel_uploads",
-                        lambda channel_id, limit: (_upload("aaaaaaaaaaa", "small note"),
-                                                   _upload("bbbbbbbbbbb", "big news")))
+    monkeypatch.setattr(digest_module, "fetch_uploads",
+                        lambda source, limit: (_upload("aaaaaaaaaaa", "small note"),
+                                               _upload("bbbbbbbbbbb", "big news")))
     monkeypatch.setattr(digest_module, "fetch_transcript", lambda video_id: _transcript(video_id))
 
 
@@ -72,9 +71,8 @@ def test_build_digest_skips_already_seen_videos(two_uploads):
 
 
 def test_build_digest_marks_captionless_videos_processed_but_drops_them(monkeypatch):
-    monkeypatch.setattr(digest_module, "resolve_channel_id", lambda source: _CHANNEL_ID)
-    monkeypatch.setattr(digest_module, "fetch_channel_uploads",
-                        lambda channel_id, limit: (_upload("ccccccccccc", "no captions"),))
+    monkeypatch.setattr(digest_module, "fetch_uploads",
+                        lambda source, limit: (_upload("ccccccccccc", "no captions"),))
 
     def no_transcript(video_id):
         raise TranscriptUnavailable("captions off")
@@ -88,10 +86,10 @@ def test_build_digest_marks_captionless_videos_processed_but_drops_them(monkeypa
 
 
 def test_build_digest_records_a_channel_whose_feed_fails(monkeypatch):
-    def feed_down(source):
+    def feed_down(source, limit):
         raise FeedError("feed unreachable")
 
-    monkeypatch.setattr(digest_module, "resolve_channel_id", feed_down)
+    monkeypatch.setattr(digest_module, "fetch_uploads", feed_down)
 
     digest, processed = build_digest(_ONE_CHANNEL, ScoringBackend(), date="d", seen=set())
 
