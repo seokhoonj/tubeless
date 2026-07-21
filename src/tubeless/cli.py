@@ -21,7 +21,7 @@ from pathlib import Path
 
 from tubeless.channels import CHANNELS_PATH, load_channels
 from tubeless.digest import build_digest
-from tubeless.errors import TubelessError
+from tubeless.errors import ConfigError, TubelessError
 from tubeless.llm import AnthropicBackend, LLMBackend, OllamaBackend, OpenAIBackend
 from tubeless.render import to_markdown
 from tubeless.source import fetch_video_meta
@@ -79,7 +79,11 @@ def _run_summarize(args: argparse.Namespace) -> int:
 
 
 def _run_digest(args: argparse.Namespace) -> int:
-    channels          = load_channels(args.channels)
+    channels = load_channels(args.channels)
+    if args.only:
+        channels = tuple(c for c in channels if args.only.lower() in c.label.lower())
+        if not channels:
+            raise ConfigError(f"no channel label contains {args.only!r} in {args.channels}")
     backend           = _make_backend(args.backend, args.model)
     seen              = read_seen(args.state)
     digest, processed = build_digest(
@@ -128,6 +132,8 @@ def _build_parser() -> argparse.ArgumentParser:
                                help=f"processed-id state file (default: {STATE_PATH})")
     digest_parser.add_argument("--out", type=Path, default=_DIGEST_DIR,
                                help=f"directory for the digest file (default: {_DIGEST_DIR})")
+    digest_parser.add_argument("--only", default=None,
+                               help="run only channels whose label contains this text")
     digest_parser.add_argument("--limit", type=int, default=5,
                                help="max recent uploads to check per channel (default: 5)")
     digest_parser.add_argument("--dry-run", action="store_true",

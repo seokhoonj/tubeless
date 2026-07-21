@@ -142,3 +142,36 @@ def test_digest_dry_run_prints_markdown_without_writing(
     assert "유튜브 다이제스트 — 2026-07-21" in captured.out
     # header uses the summary's video title (SAMPLE_VIDEO), tier from the score
     assert "🔴 수페TV — A talk about ducks" in captured.out
+
+
+def test_digest_only_filters_channels_by_label(monkeypatch: pytest.MonkeyPatch) -> None:
+    from tubeless.channels import Channel
+    from tubeless.digest import Digest
+
+    monkeypatch.setattr(cli_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(cli_module, "load_channels", lambda path: (
+        Channel(source="@a", label="Market Inside"),
+        Channel(source="@b", label="Closing Bell"),
+    ))
+    seen_channels = {}
+
+    def capture(channels, backend, **kw):
+        seen_channels["labels"] = [c.label for c in channels]
+        return Digest(date="2026-07-21", entries=(), skipped=()), set()
+
+    monkeypatch.setattr(cli_module, "build_digest", capture)
+
+    assert main(["digest", "--only", "closing", "--dry-run"]) == 0
+    assert seen_channels["labels"] == ["Closing Bell"]
+
+
+def test_digest_only_with_no_match_errors(monkeypatch: pytest.MonkeyPatch,
+                                          capsys: pytest.CaptureFixture[str]) -> None:
+    from tubeless.channels import Channel
+    monkeypatch.setattr(cli_module, "load_channels",
+                        lambda path: (Channel(source="@a", label="Market Inside"),))
+
+    exit_code = main(["digest", "--only", "nonexistent", "--dry-run"])
+
+    assert exit_code == 1
+    assert "tubeless:" in capsys.readouterr().err
