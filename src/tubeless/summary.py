@@ -25,7 +25,9 @@ CHUNK_WORD_LIMIT = 3000
 
 _SYSTEM_PROMPT = (
     "You are a precise video-transcript summarizer. Work only from the "
-    "transcript given; never invent facts that are not in it."
+    "transcript given; never invent facts that are not in it. Summarize the "
+    "video's content in the third person -- never address, thank, or comment on "
+    "the speaker, and never write as if replying to them."
 )
 
 # The model is asked for exactly this shape so parsing stays trivial:
