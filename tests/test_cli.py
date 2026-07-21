@@ -3,8 +3,9 @@ import json
 import pytest
 
 import tubeless.cli as cli_module
-from tubeless import Transcript, TranscriptSegment, TranscriptUnavailable, Video
-from tubeless.cli import main
+from tubeless import Transcript, TranscriptSegment, TranscriptUnavailable, Video, config
+from tubeless.cli import _default_backend, main
+from tubeless.errors import ConfigError
 
 SAMPLE_VIDEO = Video(
     video_id = "dQw4w9WgXcQ",
@@ -34,6 +35,50 @@ def pipeline_with_fakes(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(cli_module, "fetch_video_meta", lambda url: SAMPLE_VIDEO)
     monkeypatch.setattr(cli_module, "fetch_transcript", lambda video_id: SAMPLE_TRANSCRIPT)
     monkeypatch.setattr(cli_module, "OpenAIBackend", CannedBackend)
+
+
+@pytest.fixture
+def _no_config_file(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Blind the config-file read so a real ~/.tubeless/config.env cannot set the
+    default backend during these tests."""
+    monkeypatch.setattr(config, "read_config", lambda *a, **k: {})
+    monkeypatch.delenv("TUBELESS_BACKEND", raising=False)
+
+
+def test_default_backend_is_openai_without_configuration(_no_config_file) -> None:
+    assert _default_backend() == "openai"
+
+
+def test_default_backend_reads_tubeless_backend(_no_config_file, monkeypatch) -> None:
+    monkeypatch.setenv("TUBELESS_BACKEND", "gemini")
+    assert _default_backend() == "gemini"
+
+
+def test_default_backend_rejects_an_unknown_vendor(_no_config_file, monkeypatch) -> None:
+    monkeypatch.setenv("TUBELESS_BACKEND", "gpt")
+    with pytest.raises(ConfigError):
+        _default_backend()
+
+
+def test_tubeless_backend_env_routes_a_bare_run_to_that_vendor(
+    _no_config_file, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TUBELESS_BACKEND", "gemini")
+    monkeypatch.setattr(cli_module, "fetch_video_meta", lambda url: SAMPLE_VIDEO)
+    monkeypatch.setattr(cli_module, "fetch_transcript", lambda video_id: SAMPLE_TRANSCRIPT)
+    built = {}
+
+    class _RecordingGemini(CannedBackend):
+        def __init__(self, *, model: str = "unused") -> None:
+            built["model"] = model
+            super().__init__(model=model)
+
+    monkeypatch.setattr(cli_module, "GeminiBackend", _RecordingGemini)
+
+    exit_code = main([SAMPLE_VIDEO.url])   # no --backend flag
+
+    assert exit_code == 0
+    assert built["model"] == "gemini-flash-lite-latest"  # gemini's default model
 
 
 def test_main_prints_the_summary_and_returns_zero(

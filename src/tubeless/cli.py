@@ -19,6 +19,7 @@ import json
 import sys
 from pathlib import Path
 
+from tubeless import config
 from tubeless.channels import CHANNELS_PATH, load_channels
 from tubeless.digest import build_digest
 from tubeless.errors import ConfigError, TubelessError
@@ -39,6 +40,7 @@ _DEFAULT_MODEL = {
     "gemini":    "gemini-flash-lite-latest",
     "ollama":    "llama3.1",
 }
+_BACKENDS = tuple(_DEFAULT_MODEL)
 _SUBCOMMANDS = ("summarize", "digest")
 _DIGEST_DIR  = Path.home() / ".tubeless" / "digests"
 
@@ -46,8 +48,8 @@ _DIGEST_DIR  = Path.home() / ".tubeless" / "digests"
 def main(argv: list[str] | None = None) -> int:
     """Run the chosen subcommand; return the process exit code."""
     argv = list(sys.argv[1:] if argv is None else argv)
-    args = _build_parser().parse_args(_with_default_subcommand(argv))
     try:
+        args = _build_parser().parse_args(_with_default_subcommand(argv))
         return args.run(args)
     except TubelessError as err:
         print(f"tubeless: {err}", file=sys.stderr)
@@ -144,10 +146,21 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _add_backend_args(sub: argparse.ArgumentParser) -> None:
-    sub.add_argument("--backend", choices=("openai", "anthropic", "gemini", "ollama"), default="openai",
-                     help="LLM vendor (default: openai)")
+    sub.add_argument("--backend", choices=_BACKENDS, default=_default_backend(),
+                     help="LLM vendor (default: openai, or $TUBELESS_BACKEND)")
     sub.add_argument("--model", default=None,
                      help="model id; defaults to the backend's small-tier model")
+
+
+def _default_backend() -> str:
+    """The backend used when --backend is not given: ``TUBELESS_BACKEND`` (from the
+    environment or config.env) if it names a valid vendor, else ``openai``."""
+    configured = config.setting("TUBELESS_BACKEND")
+    if configured is None:
+        return "openai"
+    if configured not in _BACKENDS:
+        raise ConfigError(f"TUBELESS_BACKEND must be one of {_BACKENDS}, got {configured!r}")
+    return configured
 
 
 def _positive_int(text: str) -> int:

@@ -64,3 +64,18 @@ def test_api_key_resolves_gemini(monkeypatch):
     for name in ("GEMINI_SECRET_KEY", "GEMINI_API_KEY"):
         monkeypatch.delenv(name, raising=False)
     assert config.api_key("gemini", config={"GEMINI_SECRET_KEY": "sk-gem"}) == "sk-gem"
+
+
+def test_setting_reads_from_the_config_file(monkeypatch):
+    monkeypatch.delenv("TUBELESS_BACKEND", raising=False)
+    assert config.setting("TUBELESS_BACKEND", config={"TUBELESS_BACKEND": "gemini"}) == "gemini"
+
+
+def test_setting_env_overrides_the_config_file(monkeypatch):
+    monkeypatch.setenv("TUBELESS_BACKEND", "ollama")
+    assert config.setting("TUBELESS_BACKEND", config={"TUBELESS_BACKEND": "gemini"}) == "ollama"
+
+
+def test_setting_returns_none_when_absent(monkeypatch):
+    monkeypatch.delenv("TUBELESS_BACKEND", raising=False)
+    assert config.setting("TUBELESS_BACKEND", config={}) is None

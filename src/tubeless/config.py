@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 from typing import Literal
 
-__all__ = ["CONFIG_PATH", "Vendor", "api_key", "read_config"]
+__all__ = ["CONFIG_PATH", "Vendor", "api_key", "read_config", "setting"]
 
 CONFIG_PATH = Path.home() / ".tubeless" / "config.env"
 
@@ -72,3 +72,16 @@ def api_key(vendor: Vendor, *, config: dict[str, str] | None = None) -> str | No
         if found:
             return found
     return None
+
+
+def setting(name: str, *, config: dict[str, str] | None = None) -> str | None:
+    """Return an optional tubeless setting from the environment or config file
+    (environment wins), or ``None``.
+
+    Used for CLI defaults such as ``TUBELESS_BACKEND`` -- putting
+    ``TUBELESS_BACKEND=gemini`` in ``~/.tubeless/config.env`` makes a bare
+    ``tubeless <url>`` use Gemini, so a non-OpenAI user need not pass
+    ``--backend`` every time (an explicit flag still overrides it).
+    """
+    values = read_config() if config is None else config
+    return os.environ.get(name) or values.get(name)
