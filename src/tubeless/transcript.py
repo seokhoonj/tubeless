@@ -19,6 +19,7 @@ import requests
 from youtube_transcript_api import (
     CouldNotRetrieveTranscript,
     IpBlocked,
+    NoTranscriptFound,
     RequestBlocked,
     YouTubeRequestFailed,
     YouTubeTranscriptApi,
@@ -30,13 +31,19 @@ __all__ = ["TranscriptSegment", "Transcript", "fetch_transcript"]
 
 _FETCH_TIMEOUT_SECONDS = 30.0
 
+# Caption tracks to prefer, in order, when a video offers several. A video whose
+# only captions are in an unlisted language is still summarized -- fetch_transcript
+# falls back to whatever track exists, since the summary language is chosen
+# separately (--lang) and need not match the caption's language.
+_PREFERRED_LANGUAGES = ("en", "ko", "ja", "zh-Hans", "zh-Hant", "es", "fr", "de", "pt", "ru")
+
 
 class _TimeoutSession(requests.Session):
     """A ``requests`` session with a default per-request timeout. The transcript
     API exposes no timeout of its own, so without this a wedged fetch would hang
     the digest's per-video loop -- the same bound the other network calls carry."""
 
-    def request(self, *args, **kwargs):
+    def request(self, *args: object, **kwargs: object) -> requests.Response:
         kwargs.setdefault("timeout", _FETCH_TIMEOUT_SECONDS)
         return super().request(*args, **kwargs)
 
@@ -69,7 +76,7 @@ class Transcript:
 def fetch_transcript(
     video_id:   str,
     *,
-    languages:  tuple[str, ...] = ("ko", "en"),
+    languages:  tuple[str, ...] = _PREFERRED_LANGUAGES,
 ) -> Transcript:
     """Fetch the transcript, preferring the first requested language available.
 
@@ -89,9 +96,10 @@ def fetch_transcript(
             of the requested languages exist, or the video does not exist.
     """
     try:
-        listed  = YouTubeTranscriptApi(http_client=_TimeoutSession()).list(video_id)
-        chosen  = listed.find_transcript(list(languages))
-        fetched = chosen.fetch()
+        with _TimeoutSession() as http_client:
+            listed  = YouTubeTranscriptApi(http_client=http_client).list(video_id)
+            chosen  = _choose_transcript(listed, languages)
+            fetched = chosen.fetch()
     except (RequestBlocked, IpBlocked, YouTubeRequestFailed) as err:
         # Transient: the run's IP is blocked/throttled. Kept separate from the
         # permanent case so the digest aborts rather than marking the video
@@ -115,3 +123,20 @@ def fetch_transcript(
         is_auto_generated = chosen.is_generated,
         segments          = segments,
     )
+
+
+def _choose_transcript(listed, languages: tuple[str, ...]):
+    """Pick the best caption track: a preferred-language one if present, else any
+    available track (a manually created one before an auto-generated one).
+
+    Falling back to any language -- rather than failing -- means a video captioned
+    only in a language outside ``languages`` still summarizes; the summary language
+    is set separately (--lang), so the caption's own language need not match it.
+    """
+    try:
+        return listed.find_transcript(list(languages))
+    except NoTranscriptFound:
+        available = list(listed)
+        if not available:
+            raise   # no captions at all -> caller maps it to TranscriptUnavailable
+        return next((track for track in available if not track.is_generated), available[0])

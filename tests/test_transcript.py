@@ -50,7 +50,7 @@ class _FakeListedTranscript:
 
 class _FakeTranscriptList:
     def find_transcript(self, languages: list[str]) -> _FakeListedTranscript:
-        assert languages == ["ko", "en"]
+        assert languages == list(transcript_module._PREFERRED_LANGUAGES)
         return _FakeListedTranscript()
 
 
@@ -101,6 +101,49 @@ def test_timeout_session_supplies_a_default_timeout(monkeypatch: pytest.MonkeyPa
     seen.clear()
     session.request("GET", "https://example.test", timeout=5.0)
     assert seen["timeout"] == 5.0   # an explicit per-call timeout is not overridden
+
+
+class _VendorNoTranscriptForLanguage(Exception):
+    """Stands in for the vendor's NoTranscriptFound (the video has captions, but
+    none in the requested languages)."""
+
+
+class _UnpreferredOnlyTrack:
+    language_code = "ja"
+    is_generated  = True
+
+    def fetch(self) -> list[_FakeSnippet]:
+        return [_FakeSnippet("only caption", 0.0, 2.0)]
+
+
+class _ListWithoutPreferred:
+    def find_transcript(self, languages: list[str]) -> object:
+        raise _VendorNoTranscriptForLanguage()
+
+    def __iter__(self):
+        return iter([_UnpreferredOnlyTrack()])
+
+
+class _UnpreferredOnlyAPI:
+    def __init__(self, **_kwargs: object) -> None:
+        pass
+
+    def list(self, video_id: str) -> _ListWithoutPreferred:
+        return _ListWithoutPreferred()
+
+
+def test_fetch_transcript_falls_back_to_any_available_caption(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A video captioned only in a language outside the preferred list must still
+    # summarize -- the summary language is set separately, so any caption will do.
+    monkeypatch.setattr(transcript_module, "NoTranscriptFound", _VendorNoTranscriptForLanguage)
+    monkeypatch.setattr(transcript_module, "YouTubeTranscriptApi", _UnpreferredOnlyAPI)
+
+    fetched = fetch_transcript("dQw4w9WgXcQ")
+
+    assert fetched.language      == "ja"
+    assert fetched.segments[0].text == "only caption"
 
 
 class _VendorFetchFailure(Exception):
