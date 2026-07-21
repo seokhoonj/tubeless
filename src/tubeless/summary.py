@@ -52,7 +52,10 @@ _PRESERVE_FIGURES = (
     "unit -- the year, quarter, or date it applies to, and whether it is a past "
     "result or a forecast -- because a number without its timeframe is "
     "incomplete. Never fold two figures into one vague phrase, and never drop a "
-    "stated number. Add points beyond the cap only if needed to hold the figures."
+    "stated number. When the speaker walks through a list item by item -- each "
+    "with its own value or direction -- keep every item as its own point instead "
+    "of collapsing the list into one statement. Add points beyond the cap only "
+    "if needed to hold the figures."
 )
 
 
