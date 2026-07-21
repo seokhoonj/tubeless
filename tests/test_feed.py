@@ -2,6 +2,7 @@
 
 import pytest
 
+import tubeless.feed as feed_module
 from tubeless.errors import FeedError
 from tubeless.feed import (
     _parse_feed,
@@ -69,6 +70,31 @@ def test_fetch_channel_uploads_rejects_a_non_channel_id():
 
 def test_resolve_channel_id_passes_through_a_bare_id():
     assert resolve_channel_id(_CHANNEL_ID) == _CHANNEL_ID
+
+
+def test_resolve_channel_id_prefers_canonical_over_a_recommended_channel_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A channel page carries recommended channels' "channelId" values too, often
+    # BEFORE the page's own channel -- taking the first match resolved a handle to
+    # the wrong channel. Resolution must return the canonical channel link's id.
+    own       = "UC" + "o" * 22
+    recommended = "UC" + "r" * 22
+    page = (
+        f'<script>{{"channelId":"{recommended}"}}</script>'   # a recommended channel, earlier in the HTML
+        f'<link rel="canonical" href="https://www.youtube.com/channel/{own}">'
+    )
+
+    class _Response:
+        status_code = 200
+        text        = page
+
+        def raise_for_status(self) -> None:
+            pass
+
+    monkeypatch.setattr(feed_module.requests, "get", lambda *a, **k: _Response())
+
+    assert resolve_channel_id("@somehandle") == own
 
 
 def test_playlist_id_of_reads_a_bare_id():
