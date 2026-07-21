@@ -117,8 +117,8 @@ def _build_parser() -> argparse.ArgumentParser:
     summarize_parser = subparsers.add_parser("summarize", help="summarize one video")
     summarize_parser.add_argument("url", help="YouTube URL or bare 11-character video id")
     _add_backend_args(summarize_parser)
-    summarize_parser.add_argument("--lang", default=config.setting("TUBELESS_LANG") or "ko",
-                                  help="language of the summary (default: ko, or $TUBELESS_LANG)")
+    summarize_parser.add_argument("--lang", default=config.setting("TUBELESS_LANG") or "en",
+                                  help="language of the summary (default: en, or $TUBELESS_LANG)")
     summarize_parser.add_argument("--detail", choices=DETAIL_LEVELS,
                                   default=_configured_choice("TUBELESS_DETAIL", DETAIL_LEVELS, "normal"),
                                   help="summary depth: brief | normal | deep (default: normal, or $TUBELESS_DETAIL)")
@@ -131,8 +131,8 @@ def _build_parser() -> argparse.ArgumentParser:
 
     digest_parser = subparsers.add_parser("digest", help="build the daily multi-channel digest")
     _add_backend_args(digest_parser)
-    digest_parser.add_argument("--lang", default=config.setting("TUBELESS_LANG") or "ko",
-                               help="language of the summaries (default: ko, or $TUBELESS_LANG)")
+    digest_parser.add_argument("--lang", default=config.setting("TUBELESS_LANG") or "en",
+                               help="language of the summaries (default: en, or $TUBELESS_LANG)")
     digest_parser.add_argument("--channels", type=Path, default=CHANNELS_PATH,
                                help=f"channels TOML file (default: {CHANNELS_PATH})")
     digest_parser.add_argument("--state", type=Path, default=STATE_PATH,

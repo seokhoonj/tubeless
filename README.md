@@ -184,7 +184,7 @@ OPENAI_API_KEY=sk-...
 # TUBELESS_MODEL=...        # default --model
 # TUBELESS_DETAIL=deep      # default --detail (brief|normal|deep)
 # TUBELESS_MAX_POINTS=20    # default --max-points
-# TUBELESS_LANG=ko          # default --lang
+# TUBELESS_LANG=ko          # summary language (default: en; set ko for Korean)
 # TUBELESS_LIMIT=5          # default --limit (digest)
 EOF
 ```
@@ -226,7 +226,7 @@ You can pass a full URL (`watch?v=`, `youtu.be/`, `/shorts/`, `/embed/`,
 | `--max-points N` | Max key points. Overrides the per-detail default (brief 5 / normal 8 / deep 14). | per-detail |
 | `--backend openai\|claude\|gemini\|ollama` | Which LLM to use. | `openai` |
 | `--model NAME` | Model id. Defaults to the backend's small/cheap model. | per-backend |
-| `--lang CODE` | Language of the summary. Works across languages — an English video can be summarized in Korean. | `ko` |
+| `--lang CODE` | Language of the summary. Works across languages — a Korean video can be summarized in English (`--lang ko` for Korean). | `en` |
 | `--json` | Print machine-readable JSON instead of text. | off |
 
 **Does it keep the numbers?** For number-heavy videos (markets, earnings, sports
@@ -560,7 +560,7 @@ OPENAI_API_KEY=sk-...
 # TUBELESS_MODEL=...        # 기본 --model
 # TUBELESS_DETAIL=deep      # 기본 --detail (brief|normal|deep)
 # TUBELESS_MAX_POINTS=20    # 기본 --max-points
-# TUBELESS_LANG=ko          # 기본 --lang
+# TUBELESS_LANG=ko          # 요약 언어 (기본 en; 한국어 요약은 이 줄의 주석을 푸세요)
 # TUBELESS_LIMIT=5          # 기본 --limit (다이제스트)
 EOF
 ```
@@ -582,9 +582,12 @@ detail, 0 이하 숫자)은 한 줄 에러로 알려줍니다.
 ### 영상 한 개 요약
 
 ```sh
-tubeless "https://www.youtube.com/watch?v=VIDEO_ID_XX"
+tubeless "https://www.youtube.com/watch?v=VIDEO_ID_XX" --lang ko
 tubeless VIDEO_ID_XX --detail deep --lang ko --max-points 20
 ```
+
+> **기본 요약 언어는 영어입니다.** 한국어로 요약하려면 `--lang ko`를 붙이거나,
+> `~/.tubeless/config.env`에 `TUBELESS_LANG=ko`를 넣어 매번 안 쳐도 되게 하세요.
 
 전체 URL(`watch?v=`, `youtu.be/`, `/shorts/`, `/embed/`, `/live/`)이나 11자리
 영상 id만 줘도 됩니다.
@@ -601,7 +604,7 @@ tubeless VIDEO_ID_XX --detail deep --lang ko --max-points 20
 | `--max-points N` | 핵심 포인트 최대 개수. `--detail` 기본값(brief 5 / normal 8 / deep 14)을 덮어씀. | 깊이별 |
 | `--backend openai\|claude\|gemini\|ollama` | 어떤 LLM을 쓸지. | `openai` |
 | `--model NAME` | 모델 id. 미지정 시 백엔드의 소형·저가 모델. | 백엔드별 |
-| `--lang CODE` | 요약 언어. 언어 교차 가능 — 영어 영상을 한국어로 요약. | `ko` |
+| `--lang CODE` | 요약 언어. 언어 교차 가능 — 한국어 영상을 영어로 요약(한국어 요약은 `--lang ko`). | `en` |
 | `--json` | 텍스트 대신 기계용 JSON 출력. | 꺼짐 |
 
 **숫자를 살려주나?** 숫자가 핵심인 영상(증시·실적·스포츠 스코어·스펙표)에 바로

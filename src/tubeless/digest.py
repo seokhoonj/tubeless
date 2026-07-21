@@ -53,7 +53,7 @@ def build_digest(
     *,
     date:              str,
     seen:              Container[str],
-    language:          str = "ko",
+    language:          str = "en",
     per_channel_limit: int = 5,
 ) -> tuple[Digest, set[str]]:
     """Build the digest for ``date`` from the new uploads of ``channels``.

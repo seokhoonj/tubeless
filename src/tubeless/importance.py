@@ -67,7 +67,7 @@ class Importance:
         return "low"
 
 
-def score_importance(summary: Summary, backend: LLMBackend, *, language: str = "ko") -> Importance:
+def score_importance(summary: Summary, backend: LLMBackend, *, language: str = "en") -> Importance:
     """Ask ``backend`` to rate ``summary``'s importance from 0 to 1.
 
     A reply that cannot be parsed falls back to a neutral 0.5 with the reply's

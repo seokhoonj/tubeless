@@ -50,7 +50,7 @@ def test_summarize_parses_tldr_and_points_from_the_reply() -> None:
     assert summary.tldr   == "Ducks are covered end to end."
     assert summary.points == ("Ducks float.", "Ducks quack.", "Ducks migrate.")
     assert summary.video  == SAMPLE_VIDEO
-    assert summary.language == "ko"
+    assert summary.language == "en"
 
 
 def test_summarize_caps_points_at_max_points() -> None:

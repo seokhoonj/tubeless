@@ -142,7 +142,7 @@ def summarize(
     video:      Video,
     backend:    LLMBackend,
     *,
-    target_language: str = "ko",
+    target_language: str = "en",
     detail:          DetailLevel = "normal",
     max_points:      int | None = None,
 ) -> Summary:
