@@ -295,6 +295,13 @@ label  = "Example Channel"
 detail = "deep"
 
 [[channel]]
+# A bare 'UC...' id skips the handle-to-id lookup, so it is the most stable form
+# (find it in the channel page's URL, or via 'Share' on the channel).
+source = "UCxxxxxxxxxxxxxxxxxxxxxx"
+label  = "Another Channel"
+detail = "normal"
+
+[[channel]]
 # A playlist narrows a channel to one series; title_includes narrows it further
 # to uploads whose title contains every listed word (e.g. one recurring host).
 source         = "PLxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
@@ -698,6 +705,13 @@ tubeless VIDEO_ID_XX --detail deep --max-points 30
 source = "@examplechannel"      # 핸들 · 채널URL · 'UC...' id · 재생목록
 label  = "예시 채널"
 detail = "deep"
+
+[[channel]]
+# 'UC...' id를 직접 쓰면 핸들->id 조회를 건너뛰어 가장 안정적입니다
+# (채널 페이지 URL이나 '공유'에서 확인).
+source = "UCxxxxxxxxxxxxxxxxxxxxxx"
+label  = "다른 채널"
+detail = "normal"
 
 [[channel]]
 # 재생목록은 채널을 한 시리즈로 좁히고, title_includes는 제목에 나열된 단어를
