@@ -43,7 +43,10 @@ _PROMPT = (
     "Points:\n{points}"
 )
 
-_SCORE_PATTERN  = re.compile(r"(?i)score\s*[:=]\s*(1(?:\.0+)?|0?\.\d+|[01])")
+# Capture any number the model writes (e.g. "0.85", "1", a stray "1.5"); the
+# caller clamps it to 0..1, so an out-of-range reply is pulled to the nearest
+# bound instead of silently discarded.
+_SCORE_PATTERN  = re.compile(r"(?i)score\s*[:=]\s*(-?\d*\.?\d+)")
 _REASON_PATTERN = re.compile(r"(?i)reason\s*[:=]\s*(.+)")
 
 

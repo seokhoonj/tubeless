@@ -33,8 +33,11 @@ def test_parse_importance_reads_score_and_reason():
 
 
 def test_parse_importance_clamps_out_of_range_scores():
-    assert _parse_importance("SCORE: 1.0\nREASON: x").score == 1.0
-    assert _parse_importance("SCORE: 0\nREASON: y").score == 0.0
+    # The model occasionally overshoots the 0..1 range ("SCORE: 1.5") or writes a
+    # negative; the parser pulls each to the nearest bound rather than discarding.
+    assert _parse_importance("SCORE: 1.5\nREASON: x").score  == 1.0
+    assert _parse_importance("SCORE: -0.3\nREASON: y").score == 0.0
+    assert _parse_importance("SCORE: 42\nREASON: z").score   == 1.0
 
 
 def test_parse_importance_falls_back_to_neutral_when_unparseable():
