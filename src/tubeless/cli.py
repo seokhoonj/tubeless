@@ -47,6 +47,7 @@ def main(argv: list[str] | None = None) -> int:
         summary    = summarize(
             transcript, video, backend,
             target_language = args.lang,
+            detail          = args.detail,
             max_points      = args.points,
         )
     except TubelessError as err:
@@ -70,10 +71,12 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="LLM vendor (default: openai)")
     parser.add_argument("--lang", default="ko",
                         help="language of the summary (default: ko)")
+    parser.add_argument("--detail", choices=("brief", "normal", "deep"), default="normal",
+                        help="summary depth: brief | normal | deep (default: normal)")
     parser.add_argument("--model", default=None,
                         help="model id; defaults to the backend's small-tier model")
-    parser.add_argument("--points", type=int, default=7,
-                        help="maximum number of key points (default: 7)")
+    parser.add_argument("--points", type=int, default=None,
+                        help="max key points; overrides the per-detail default")
     parser.add_argument("--json", action="store_true",
                         help="print the summary as JSON instead of text")
     return parser

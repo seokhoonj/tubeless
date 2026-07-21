@@ -14,7 +14,7 @@ from tubeless.llm import LLMBackend
 from tubeless.source import Video
 from tubeless.transcript import Transcript
 
-__all__ = ["Summary", "summarize"]
+__all__ = ["DETAIL_LEVELS", "Summary", "summarize"]
 
 # One map-phase chunk is ~3000 words (~4000 tokens of English; Korean is
 # denser per word, still far inside any current chat model's context). Small
@@ -29,14 +29,51 @@ _SYSTEM_PROMPT = (
 )
 
 # The model is asked for exactly this shape so parsing stays trivial:
-# one "TLDR:" line, then "- " bullets.
+# one "TLDR:" line, then "- " bullets. The three "<...>" slots are filled from
+# the chosen detail level so the same skeleton yields a terse or a rich summary.
 _FORMAT_INSTRUCTION = (
     "Answer in {language}. Use exactly this format:\n"
-    "TLDR: <one- or two-sentence gist>\n"
+    "TLDR: <{tldr}>\n"
     "- <key point>\n"
     "- <key point>\n"
-    "Give at most {max_points} key points. No other text."
+    "Give at most {max_points} key points; each key point is {point}. "
+    "Keep each key point on its own single line. No other text."
 )
+
+
+@dataclass(frozen=True, slots=True)
+class _DetailSpec:
+    """How expansive one detail level is: TLDR length, per-point fullness, and
+    the default point cap a typical-length video warrants at this level."""
+
+    tldr:   str
+    point:  str
+    points: int
+
+
+# --detail chooses one of these. "normal" is the default: fuller than a bare
+# headline list, short of the exhaustive "deep" notes.
+_DETAIL = {
+    "brief": _DetailSpec(
+        tldr   = "one-sentence gist",
+        point  = "a single concise clause",
+        points = 5,
+    ),
+    "normal": _DetailSpec(
+        tldr   = "two- to three-sentence gist",
+        point  = "one full sentence that states the specific claim, not just its topic",
+        points = 8,
+    ),
+    "deep": _DetailSpec(
+        tldr   = "three- to four-sentence overview",
+        point  = (
+            "two to four sentences that spell out the specifics -- the names, "
+            "numbers, and reasoning the speaker actually gave, not just the topic"
+        ),
+        points = 14,
+    ),
+}
+DETAIL_LEVELS = tuple(_DETAIL)
 
 _AUTO_CAPTION_HEDGE = (
     "The captions are auto-generated and may mis-transcribe names, numbers, "
@@ -63,9 +100,15 @@ def summarize(
     backend:    LLMBackend,
     *,
     target_language: str = "ko",
-    max_points:      int = 7,
+    detail:          str = "normal",
+    max_points:      int | None = None,
 ) -> Summary:
-    """Summarize ``transcript`` into a TLDR plus at most ``max_points`` points.
+    """Summarize ``transcript`` into a TLDR plus key points.
+
+    ``detail`` ('brief' / 'normal' / 'deep') sets how fully the summary is
+    written -- the TLDR length, how many sentences each point carries, and the
+    default number of points. ``max_points`` overrides that default count when
+    given; ``None`` keeps the per-detail default.
 
     Long transcripts are map-reduced: each ~``CHUNK_WORD_LIMIT``-word chunk is
     summarized on its own, then the chunk summaries are combined into the
@@ -73,8 +116,14 @@ def summarize(
     the model to hedge uncertain names and numbers.
 
     Raises:
+        ValueError: ``detail`` is not one of ``DETAIL_LEVELS``.
         LLMError: propagated from the backend.
     """
+    spec = _DETAIL.get(detail)
+    if spec is None:
+        raise ValueError(f"detail must be one of {DETAIL_LEVELS}, got {detail!r}")
+    cap = spec.points if max_points is None else max_points
+
     hedge  = _AUTO_CAPTION_HEDGE if transcript.is_auto_generated else ""
     chunks = _split_into_chunks(transcript.text, word_limit=CHUNK_WORD_LIMIT)
 
@@ -82,7 +131,7 @@ def summarize(
         reply = backend.complete(
             _single_pass_prompt(
                 chunks[0], video, hedge=hedge,
-                language=target_language, max_points=max_points,
+                language=target_language, spec=spec, max_points=cap,
             ),
             system=_SYSTEM_PROMPT,
         )
@@ -97,12 +146,12 @@ def summarize(
         reply = backend.complete(
             _combine_prompt(
                 chunk_summaries, video, hedge=hedge,
-                language=target_language, max_points=max_points,
+                language=target_language, spec=spec, max_points=cap,
             ),
             system=_SYSTEM_PROMPT,
         )
 
-    tldr, points = _parse_reply(reply, max_points=max_points)
+    tldr, points = _parse_reply(reply, max_points=cap)
     return Summary(video=video, tldr=tldr, points=points, language=target_language)
 
 
@@ -123,12 +172,12 @@ def _split_into_chunks(text: str, *, word_limit: int) -> list[str]:
 
 
 def _single_pass_prompt(
-    chunk: str, video: Video, *, hedge: str, language: str, max_points: int
+    chunk: str, video: Video, *, hedge: str, language: str, spec: _DetailSpec, max_points: int
 ) -> str:
     return (
         f"Summarize the transcript of the video {video.title!r}.\n"
         f"{hedge}"
-        f"{_FORMAT_INSTRUCTION.format(language=language, max_points=max_points)}\n\n"
+        f"{_format_instruction(spec, language=language, max_points=max_points)}\n\n"
         f"Transcript:\n{chunk}"
     )
 
@@ -144,7 +193,8 @@ def _chunk_prompt(chunk: str, video: Video, *, hedge: str, language: str) -> str
 
 
 def _combine_prompt(
-    chunk_summaries: list[str], video: Video, *, hedge: str, language: str, max_points: int
+    chunk_summaries: list[str], video: Video, *,
+    hedge: str, language: str, spec: _DetailSpec, max_points: int,
 ) -> str:
     numbered = "\n\n".join(
         f"[part {part_number}]\n{part_summary}"
@@ -154,8 +204,14 @@ def _combine_prompt(
         f"Below are part-by-part summaries of the video {video.title!r}, in order. "
         "Combine them into one summary of the whole video.\n"
         f"{hedge}"
-        f"{_FORMAT_INSTRUCTION.format(language=language, max_points=max_points)}\n\n"
+        f"{_format_instruction(spec, language=language, max_points=max_points)}\n\n"
         f"{numbered}"
+    )
+
+
+def _format_instruction(spec: _DetailSpec, *, language: str, max_points: int) -> str:
+    return _FORMAT_INSTRUCTION.format(
+        language=language, max_points=max_points, tldr=spec.tldr, point=spec.point,
     )
 
 

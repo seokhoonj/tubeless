@@ -1,3 +1,5 @@
+import pytest
+
 from tubeless import Transcript, TranscriptSegment, Video, summarize
 from tubeless.summary import CHUNK_WORD_LIMIT
 
@@ -119,6 +121,43 @@ def test_summarize_manual_transcript_does_not_mention_auto_captions() -> None:
     summarize(make_transcript(n_words=50, is_auto_generated=False), SAMPLE_VIDEO, backend)
 
     assert "auto-generated" not in backend.prompts[0]
+
+
+def _reply_with_points(n: int) -> str:
+    return "TLDR: gist\n" + "\n".join(f"- point {i}" for i in range(n))
+
+
+def test_summarize_deep_detail_asks_for_fuller_points() -> None:
+    backend = RecordingBackend()
+
+    summarize(make_transcript(n_words=50), SAMPLE_VIDEO, backend, detail="deep")
+
+    assert "two to four sentences" in backend.prompts[0]
+
+
+def test_summarize_detail_sets_the_default_point_cap() -> None:
+    backend = RecordingBackend(reply=_reply_with_points(20))
+
+    brief = summarize(make_transcript(n_words=50), SAMPLE_VIDEO, backend, detail="brief")
+
+    assert len(brief.points) == 5  # brief caps at 5 without an explicit --points
+
+
+def test_summarize_explicit_max_points_overrides_the_detail_default() -> None:
+    backend = RecordingBackend(reply=_reply_with_points(20))
+
+    summary = summarize(
+        make_transcript(n_words=50), SAMPLE_VIDEO, backend, detail="deep", max_points=3
+    )
+
+    assert len(summary.points) == 3
+
+
+def test_summarize_rejects_an_unknown_detail_level() -> None:
+    backend = RecordingBackend()
+
+    with pytest.raises(ValueError):
+        summarize(make_transcript(n_words=50), SAMPLE_VIDEO, backend, detail="huge")
 
 
 def test_summarize_passes_the_target_language_into_the_prompt() -> None:
