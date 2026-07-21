@@ -2,7 +2,7 @@
 
 import pytest
 
-from tubeless.importance import _parse_importance, score_importance
+from tubeless.importance import Importance, _parse_importance, score_importance
 from tubeless.source import Video
 from tubeless.summary import Summary
 
@@ -42,6 +42,21 @@ def test_parse_importance_falls_back_to_neutral_when_unparseable():
 
     assert got.score  == 0.5
     assert got.reason == "I could not decide."
+
+
+@pytest.mark.parametrize(
+    "score, expected_tier",
+    [
+        (0.95, "high"),
+        (0.70, "high"),   # cutoff is inclusive
+        (0.69, "mid"),
+        (0.40, "mid"),    # cutoff is inclusive
+        (0.39, "low"),
+        (0.00, "low"),
+    ],
+)
+def test_importance_tier_classifies_the_score(score, expected_tier):
+    assert Importance(score=score, reason="r").tier == expected_tier
 
 
 def test_score_importance_calls_the_backend_and_returns_importance():

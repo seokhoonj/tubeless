@@ -10,10 +10,9 @@ from tubeless.digest import Digest, DigestEntry
 
 __all__ = ["to_markdown"]
 
-# Score -> tier marker. 0.7+ is a must-read, 0.4-0.7 worth a glance, below that
-# background. Thresholds are deliberately coarse; the score is also printed.
-_HIGH_TIER = 0.7
-_MID_TIER  = 0.4
+# The tier itself (the cutoffs) is domain judgment and lives in importance.py;
+# here we only map each tier to its display marker.
+_TIER_MARKER = {"high": "🔴", "mid": "🟡", "low": "⚪"}
 
 
 def to_markdown(digest: Digest) -> str:
@@ -32,8 +31,8 @@ def to_markdown(digest: Digest) -> str:
 
 def _entry_lines(entry: DigestEntry) -> list[str]:
     summary = entry.summary
-    tier    = _tier_marker(entry.importance.score)
-    lines   = [f"## {tier} {entry.channel} — {summary.video.title} (중요도 {entry.importance.score:.2f})"]
+    marker  = _TIER_MARKER[entry.importance.tier]
+    lines   = [f"## {marker} {entry.channel} — {summary.video.title} (중요도 {entry.importance.score:.2f})"]
     if entry.importance.reason:
         lines.append(f"> {entry.importance.reason}")
     lines.append(summary.video.url)
@@ -44,11 +43,3 @@ def _entry_lines(entry: DigestEntry) -> list[str]:
         lines.extend(f"- {point}" for point in summary.points)
     lines.append("")
     return lines
-
-
-def _tier_marker(score: float) -> str:
-    if score >= _HIGH_TIER:
-        return "🔴"
-    if score >= _MID_TIER:
-        return "🟡"
-    return "⚪"

@@ -11,11 +11,21 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import Literal
 
 from tubeless.llm import LLMBackend
 from tubeless.summary import Summary
 
-__all__ = ["Importance", "score_importance"]
+__all__ = ["Importance", "ImportanceTier", "score_importance"]
+
+# Score -> tier cutoffs. At or above _HIGH_TIER is a must-read; at or above
+# _MID_TIER is worth a glance; below that is background. Deliberately coarse (the
+# exact score is shown alongside). These live here, beside the score they
+# classify -- the renderer only maps a tier to its display marker.
+_HIGH_TIER = 0.7
+_MID_TIER  = 0.4
+
+ImportanceTier = Literal["high", "mid", "low"]
 
 _SYSTEM_PROMPT = (
     "You rate how important a video is for someone who follows this channel's "
@@ -43,6 +53,15 @@ class Importance:
 
     score:  float
     reason: str
+
+    @property
+    def tier(self) -> ImportanceTier:
+        """Coarse tier from ``score``: 'high' (must-read), 'mid', or 'low'."""
+        if self.score >= _HIGH_TIER:
+            return "high"
+        if self.score >= _MID_TIER:
+            return "mid"
+        return "low"
 
 
 def score_importance(summary: Summary, backend: LLMBackend, *, language: str = "ko") -> Importance:
