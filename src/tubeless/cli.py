@@ -115,20 +115,22 @@ def _build_parser() -> argparse.ArgumentParser:
     summarize_parser = subparsers.add_parser("summarize", help="summarize one video")
     summarize_parser.add_argument("url", help="YouTube URL or bare 11-character video id")
     _add_backend_args(summarize_parser)
-    summarize_parser.add_argument("--lang", default="ko",
-                                  help="language of the summary (default: ko)")
-    summarize_parser.add_argument("--detail", choices=DETAIL_LEVELS, default="normal",
-                                  help="summary depth: brief | normal | deep (default: normal)")
-    summarize_parser.add_argument("--points", type=_positive_int, default=None,
-                                  help="max key points; overrides the per-detail default")
+    summarize_parser.add_argument("--lang", default=config.setting("TUBELESS_LANG") or "ko",
+                                  help="language of the summary (default: ko, or $TUBELESS_LANG)")
+    summarize_parser.add_argument("--detail", choices=DETAIL_LEVELS,
+                                  default=_configured_choice("TUBELESS_DETAIL", DETAIL_LEVELS, "normal"),
+                                  help="summary depth: brief | normal | deep (default: normal, or $TUBELESS_DETAIL)")
+    summarize_parser.add_argument("--points", type=_positive_int,
+                                  default=_configured_positive_int("TUBELESS_POINTS", None),
+                                  help="max key points; overrides the per-detail default (or $TUBELESS_POINTS)")
     summarize_parser.add_argument("--json", action="store_true",
                                   help="print the summary as JSON instead of text")
     summarize_parser.set_defaults(run=_run_summarize)
 
     digest_parser = subparsers.add_parser("digest", help="build the daily multi-channel digest")
     _add_backend_args(digest_parser)
-    digest_parser.add_argument("--lang", default="ko",
-                               help="language of the summaries (default: ko)")
+    digest_parser.add_argument("--lang", default=config.setting("TUBELESS_LANG") or "ko",
+                               help="language of the summaries (default: ko, or $TUBELESS_LANG)")
     digest_parser.add_argument("--channels", type=Path, default=CHANNELS_PATH,
                                help=f"channels TOML file (default: {CHANNELS_PATH})")
     digest_parser.add_argument("--state", type=Path, default=STATE_PATH,
@@ -137,8 +139,9 @@ def _build_parser() -> argparse.ArgumentParser:
                                help=f"directory for the digest file (default: {_DIGEST_DIR})")
     digest_parser.add_argument("--only", default=None,
                                help="run only channels whose label contains this text")
-    digest_parser.add_argument("--limit", type=_positive_int, default=5,
-                               help="max recent uploads to check per channel (default: 5)")
+    digest_parser.add_argument("--limit", type=_positive_int,
+                               default=_configured_positive_int("TUBELESS_LIMIT", 5),
+                               help="max recent uploads to check per channel (default: 5, or $TUBELESS_LIMIT)")
     digest_parser.add_argument("--dry-run", action="store_true",
                                help="print the digest instead of writing it and updating state")
     digest_parser.set_defaults(run=_run_digest)
@@ -148,19 +151,38 @@ def _build_parser() -> argparse.ArgumentParser:
 def _add_backend_args(sub: argparse.ArgumentParser) -> None:
     sub.add_argument("--backend", choices=_BACKENDS, default=_default_backend(),
                      help="LLM vendor (default: openai, or $TUBELESS_BACKEND)")
-    sub.add_argument("--model", default=None,
-                     help="model id; defaults to the backend's small-tier model")
+    sub.add_argument("--model", default=config.setting("TUBELESS_MODEL"),
+                     help="model id; default is the backend's small-tier model (or $TUBELESS_MODEL)")
+
+
+def _configured_choice(name: str, choices: tuple[str, ...], fallback: str) -> str:
+    """A CLI default read from the environment/config.env, constrained to a closed
+    set. Unset -> ``fallback``; set-but-invalid -> a clean ConfigError."""
+    value = config.setting(name)
+    if value is None:
+        return fallback
+    if value not in choices:
+        raise ConfigError(f"{name} must be one of {choices}, got {value!r}")
+    return value
+
+
+def _configured_positive_int(name: str, fallback: int | None) -> int | None:
+    """A CLI default read from the environment/config.env, required positive."""
+    value = config.setting(name)
+    if value is None:
+        return fallback
+    try:
+        parsed = int(value)
+    except ValueError:
+        raise ConfigError(f"{name} must be an integer, got {value!r}") from None
+    if parsed < 1:
+        raise ConfigError(f"{name} must be a positive integer, got {parsed}")
+    return parsed
 
 
 def _default_backend() -> str:
-    """The backend used when --backend is not given: ``TUBELESS_BACKEND`` (from the
-    environment or config.env) if it names a valid vendor, else ``openai``."""
-    configured = config.setting("TUBELESS_BACKEND")
-    if configured is None:
-        return "openai"
-    if configured not in _BACKENDS:
-        raise ConfigError(f"TUBELESS_BACKEND must be one of {_BACKENDS}, got {configured!r}")
-    return configured
+    """The backend used when --backend is not given (``TUBELESS_BACKEND``, else openai)."""
+    return _configured_choice("TUBELESS_BACKEND", _BACKENDS, "openai")
 
 
 def _positive_int(text: str) -> int:

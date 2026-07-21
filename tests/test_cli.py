@@ -4,8 +4,14 @@ import pytest
 
 import tubeless.cli as cli_module
 from tubeless import Transcript, TranscriptSegment, TranscriptUnavailable, Video, config
-from tubeless.cli import _default_backend, main
+from tubeless.cli import (
+    _configured_choice,
+    _configured_positive_int,
+    _default_backend,
+    main,
+)
 from tubeless.errors import ConfigError
+from tubeless.summary import DETAIL_LEVELS
 
 SAMPLE_VIDEO = Video(
     video_id = "dQw4w9WgXcQ",
@@ -39,10 +45,12 @@ def pipeline_with_fakes(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture
 def _no_config_file(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Blind the config-file read so a real ~/.tubeless/config.env cannot set the
-    default backend during these tests."""
+    """Blind the config-file read and clear the TUBELESS_* env vars, so a real
+    ~/.tubeless/config.env or a stray export cannot set a default during tests."""
     monkeypatch.setattr(config, "read_config", lambda *a, **k: {})
-    monkeypatch.delenv("TUBELESS_BACKEND", raising=False)
+    for name in ("TUBELESS_BACKEND", "TUBELESS_MODEL", "TUBELESS_DETAIL",
+                 "TUBELESS_POINTS", "TUBELESS_LANG", "TUBELESS_LIMIT"):
+        monkeypatch.delenv(name, raising=False)
 
 
 def test_default_backend_is_openai_without_configuration(_no_config_file) -> None:
@@ -79,6 +87,47 @@ def test_tubeless_backend_env_routes_a_bare_run_to_that_vendor(
 
     assert exit_code == 0
     assert built["model"] == "gemini-flash-lite-latest"  # gemini's default model
+
+
+def test_configured_choice_falls_back_and_validates(_no_config_file, monkeypatch) -> None:
+    assert _configured_choice("TUBELESS_DETAIL", DETAIL_LEVELS, "normal") == "normal"
+    monkeypatch.setenv("TUBELESS_DETAIL", "deep")
+    assert _configured_choice("TUBELESS_DETAIL", DETAIL_LEVELS, "normal") == "deep"
+    monkeypatch.setenv("TUBELESS_DETAIL", "huge")
+    with pytest.raises(ConfigError):
+        _configured_choice("TUBELESS_DETAIL", DETAIL_LEVELS, "normal")
+
+
+def test_configured_positive_int_reads_and_validates(_no_config_file, monkeypatch) -> None:
+    assert _configured_positive_int("TUBELESS_POINTS", None) is None
+    monkeypatch.setenv("TUBELESS_POINTS", "20")
+    assert _configured_positive_int("TUBELESS_POINTS", None) == 20
+    monkeypatch.setenv("TUBELESS_POINTS", "0")
+    with pytest.raises(ConfigError):
+        _configured_positive_int("TUBELESS_POINTS", 5)
+    monkeypatch.setenv("TUBELESS_POINTS", "lots")
+    with pytest.raises(ConfigError):
+        _configured_positive_int("TUBELESS_POINTS", 5)
+
+
+def test_tubeless_detail_env_sets_the_default_detail(
+    _no_config_file, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TUBELESS_DETAIL", "deep")
+    monkeypatch.setattr(cli_module, "fetch_video_meta", lambda url: SAMPLE_VIDEO)
+    monkeypatch.setattr(cli_module, "fetch_transcript", lambda video_id: SAMPLE_TRANSCRIPT)
+    monkeypatch.setattr(cli_module, "OpenAIBackend", CannedBackend)
+    seen: dict[str, object] = {}
+    real_summarize = cli_module.summarize
+
+    def spy(*args, **kwargs):
+        seen.update(kwargs)
+        return real_summarize(*args, **kwargs)
+
+    monkeypatch.setattr(cli_module, "summarize", spy)
+
+    assert main([SAMPLE_VIDEO.url]) == 0   # no --detail flag
+    assert seen["detail"] == "deep"
 
 
 def test_main_prints_the_summary_and_returns_zero(
