@@ -2,7 +2,7 @@
 
 Fetch a YouTube video's transcript and summarize it with an LLM — one video from
 the command line, or a daily digest of the channels and series you follow.
-Works with OpenAI, Claude, or a local model via Ollama.
+Works with Gemini (free), OpenAI, Claude, or a local model via Ollama.
 
 **[English](#english) · [한국어](#한국어)**
 
@@ -51,9 +51,9 @@ py -m pipx ensurepath               # close and reopen PowerShell afterwards
 py -m pipx install git+https://github.com/seokhoonj/tubeless.git
 ```
 
-Add the Claude backend at install time with the `anthropic` extra:
+Add the Claude backend at install time with the `claude` extra (it pulls in the `anthropic` SDK):
 ```sh
-pipx install "git+https://github.com/seokhoonj/tubeless.git#egg=tubeless[claude]"
+pipx install "tubeless[claude] @ git+https://github.com/seokhoonj/tubeless.git"
 ```
 
 Confirm it works:
@@ -371,7 +371,7 @@ same tool works for a market recap, a lecture, or a match report.
 - **A video with no transcript can't be summarized.** tubeless reads captions; it
   does **not** transcribe audio itself (no speech-to-text fallback). Videos with
   captions disabled, or none in the requested languages, are skipped (in a digest
-  they're listed under "channels/videos not read").
+  they're listed under "Skipped channels").
 - **Auto-generated captions are noisy.** When the caption track is auto-generated,
   tubeless warns the model to hedge uncertain names and numbers rather than state
   them as fact — but a garbled caption can still produce a garbled point.
@@ -389,8 +389,8 @@ MIT — see [LICENSE](LICENSE).
 ## 한국어
 
 유튜브 영상의 자막을 받아 LLM으로 요약합니다 — 명령줄에서 영상 한 개를, 또는
-구독하는 채널·시리즈의 하루치 다이제스트를. OpenAI·Claude, 또는 Ollama로 로컬
-모델까지 씁니다.
+구독하는 채널·시리즈의 하루치 다이제스트를. Gemini(무료)·OpenAI·Claude, 또는
+Ollama로 로컬 모델까지 씁니다.
 
 - [설치](#설치) — macOS, Linux, Windows
 - [백엔드: Gemini(무료), Claude, OpenAI, Ollama — 그리고 결제](#백엔드)
@@ -433,9 +433,9 @@ py -m pipx ensurepath               # 끝나면 PowerShell 닫았다 다시 열�
 py -m pipx install git+https://github.com/seokhoonj/tubeless.git
 ```
 
-Claude 백엔드까지 함께 설치하려면 `anthropic` 추가옵션:
+Claude 백엔드까지 함께 설치하려면 `claude` 추가옵션(`anthropic` SDK를 끌어옵니다):
 ```sh
-pipx install "git+https://github.com/seokhoonj/tubeless.git#egg=tubeless[claude]"
+pipx install "tubeless[claude] @ git+https://github.com/seokhoonj/tubeless.git"
 ```
 
 동작 확인:
@@ -745,7 +745,7 @@ LLM 백엔드로 요약합니다(긴 자막은 map-reduce로 나눠 아무것도
 
 - **자막이 없는 영상은 요약할 수 없습니다.** tubeless는 자막을 읽을 뿐, 음성을
   직접 받아쓰지 **않습니다**(STT 폴백 없음). 자막이 꺼졌거나 요청 언어에 없는
-  영상은 건너뜁니다(다이제스트에서는 "읽지 못한 채널/영상"으로 표시).
+  영상은 건너뜁니다(다이제스트에서는 "Skipped channels"로 표시).
 - **자동 생성 자막은 노이즈가 있습니다.** 자막이 자동 생성일 때 tubeless는 모델
   에게 불확실한 이름·숫자를 단정하지 말고 유보하라고 경고하지만, 뭉개진 자막은
   여전히 뭉개진 포인트를 낳을 수 있습니다.
