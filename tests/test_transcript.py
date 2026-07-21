@@ -55,6 +55,13 @@ class _FakeTranscriptList:
 
 
 class _FakeTranscriptAPI:
+    last_http_client: object = None
+
+    def __init__(self, *, http_client: object = None) -> None:
+        # Record the client so a test can assert fetch_transcript wires in its
+        # timeout-bearing session rather than letting the vendor default hang.
+        type(self).last_http_client = http_client
+
     def list(self, video_id: str) -> _FakeTranscriptList:
         return _FakeTranscriptList()
 
@@ -66,6 +73,7 @@ def test_fetch_transcript_maps_vendor_snippets_to_segments(
 
     fetched = fetch_transcript("dQw4w9WgXcQ")
 
+    assert isinstance(_FakeTranscriptAPI.last_http_client, transcript_module._TimeoutSession)
     assert fetched.video_id == "dQw4w9WgXcQ"
     assert fetched.language == "ko"
     assert fetched.is_auto_generated is True
@@ -75,12 +83,35 @@ def test_fetch_transcript_maps_vendor_snippets_to_segments(
     )
 
 
+def test_timeout_session_supplies_a_default_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The vendor API exposes no timeout knob, so the session must default one in;
+    # without it a wedged fetch would hang the digest's per-video loop.
+    seen: dict[str, object] = {}
+
+    def fake_request(self: object, *args: object, **kwargs: object) -> str:
+        seen.update(kwargs)
+        return "ok"
+
+    monkeypatch.setattr(transcript_module.requests.Session, "request", fake_request)
+    session = transcript_module._TimeoutSession()
+
+    assert session.request("GET", "https://example.test") == "ok"
+    assert seen["timeout"] == transcript_module._FETCH_TIMEOUT_SECONDS
+
+    seen.clear()
+    session.request("GET", "https://example.test", timeout=5.0)
+    assert seen["timeout"] == 5.0   # an explicit per-call timeout is not overridden
+
+
 class _VendorFetchFailure(Exception):
     """Stands in for the vendor's CouldNotRetrieveTranscript, whose real
     constructor wants live objects we do not build in tests."""
 
 
 class _FailingTranscriptAPI:
+    def __init__(self, **_kwargs: object) -> None:
+        pass
+
     def list(self, video_id: str) -> None:
         raise _VendorFetchFailure("captions are disabled on this video")
 
@@ -103,6 +134,9 @@ class _VendorBlocked(Exception):
 
 
 class _BlockedTranscriptAPI:
+    def __init__(self, **_kwargs: object) -> None:
+        pass
+
     def list(self, video_id: str) -> None:
         raise _VendorBlocked("your IP has been blocked by YouTube")
 

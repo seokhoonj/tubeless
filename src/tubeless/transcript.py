@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import requests
 from youtube_transcript_api import (
     CouldNotRetrieveTranscript,
     IpBlocked,
@@ -26,6 +27,18 @@ from youtube_transcript_api import (
 from tubeless.errors import TranscriptFetchBlocked, TranscriptUnavailable
 
 __all__ = ["TranscriptSegment", "Transcript", "fetch_transcript"]
+
+_FETCH_TIMEOUT_SECONDS = 30.0
+
+
+class _TimeoutSession(requests.Session):
+    """A ``requests`` session with a default per-request timeout. The transcript
+    API exposes no timeout of its own, so without this a wedged fetch would hang
+    the digest's per-video loop -- the same bound the other network calls carry."""
+
+    def request(self, *args, **kwargs):
+        kwargs.setdefault("timeout", _FETCH_TIMEOUT_SECONDS)
+        return super().request(*args, **kwargs)
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,7 +89,7 @@ def fetch_transcript(
             of the requested languages exist, or the video does not exist.
     """
     try:
-        listed  = YouTubeTranscriptApi().list(video_id)
+        listed  = YouTubeTranscriptApi(http_client=_TimeoutSession()).list(video_id)
         chosen  = listed.find_transcript(list(languages))
         fetched = chosen.fetch()
     except (RequestBlocked, IpBlocked, YouTubeRequestFailed) as err:
