@@ -156,6 +156,30 @@ summaries held numbers and structure noticeably worse than the cloud backends.
 Treat Ollama as the free / offline / private option, not a quality match for
 OpenAI or Claude; when summary quality matters, use a cloud backend.
 
+**Choosing a Gemini model (`--model`).** The default `gemini-flash-lite-latest`
+is the cheapest tier and runs on the free tier. Pass `--model` to pick another —
+what actually runs depends on your key:
+
+- On the **free tier**, only models with free quota run. The `-latest` aliases
+  (`gemini-flash-lite-latest`, `gemini-flash-latest`) are the safe picks; pinned
+  names like `gemini-2.5-flash` can return **404** for a newly created key, and
+  some (e.g. `gemini-2.0-flash`) have **zero** free quota.
+- With **pay-as-you-go billing** enabled in AI Studio, the higher-quality and
+  pinned models open up, with much higher rate limits (fewer `429`/`503`):
+
+  | `--model` | tier |
+  |---|---|
+  | `gemini-flash-lite-latest` | default — cheapest & fastest (works free) |
+  | `gemini-flash-latest` | full flash — better summaries |
+  | `gemini-2.5-pro` / `gemini-pro-latest` | pro — most accurate, most expensive |
+
+A model your key can't call just returns a one-line `404`/`429` (no crash) —
+switch model or enable billing and retry. Example:
+
+```sh
+tubeless VIDEO_ID_XX --backend gemini --model gemini-flash-latest --detail deep
+```
+
 ### Summarize one video
 
 ```sh
@@ -478,6 +502,30 @@ tubeless VIDEO_ID_XX --backend ollama --model llama3.1
 숫자·구조 보존이 클라우드 백엔드보다 눈에 띄게 약했습니다. Ollama는 무료·오프
 라인·비공개 옵션으로 보고, OpenAI·Claude의 품질 대체재로는 보지 마세요. 요약
 품질이 중요하면 클라우드 백엔드를 쓰는 게 좋습니다.
+
+**Gemini 모델 고르기 (`--model`).** 기본 `gemini-flash-lite-latest`는 가장 싼
+등급이고 무료 티어로 돕니다. `--model`로 다른 걸 고를 수 있는데, 실제로 도는지는
+키에 달렸습니다:
+
+- **무료 티어**에서는 무료 할당이 있는 모델만 돕니다. `-latest` 별칭
+  (`gemini-flash-lite-latest`, `gemini-flash-latest`)이 안전하고, `gemini-2.5-flash`
+  같은 고정 이름은 새 키에서 **404**, `gemini-2.0-flash` 등은 무료 할당이 **0**일 수
+  있습니다.
+- AI Studio에서 **종량제 결제**를 켜면 상위·고정 모델이 열리고 한도도 크게 올라
+  갑니다(`429`/`503`이 줄어듦):
+
+  | `--model` | 등급 |
+  |---|---|
+  | `gemini-flash-lite-latest` | 기본 — 가장 싸고 빠름(무료로 됨) |
+  | `gemini-flash-latest` | 풀 flash — 요약 품질 더 좋음 |
+  | `gemini-2.5-pro` / `gemini-pro-latest` | pro — 가장 정확·가장 비쌈 |
+
+키가 못 부르는 모델은 크래시 없이 `404`/`429` 한 줄로 알려줍니다 — 모델을 바꾸거나
+결제를 켜고 다시 하면 됩니다. 예:
+
+```sh
+tubeless VIDEO_ID_XX --backend gemini --model gemini-flash-latest --detail deep
+```
 
 ### 영상 한 개 요약
 
