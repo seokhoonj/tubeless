@@ -51,7 +51,7 @@ tubeless "https://www.youtube.com/watch?v=iG9CE55wbtY" --backend claude
 tubeless "https://www.youtube.com/watch?v=iG9CE55wbtY" --backend ollama
 ```
 
-A TLDR and key points print to your terminal. Everything below is the detailed
+A TL;DR and key points print to your terminal. Everything below is the detailed
 version — full install (pipx, per-OS), what each backend costs and where to pay,
 a config file so you never retype a key or flag, and the daily multi-channel digest.
 
@@ -463,7 +463,7 @@ tubeless "https://www.youtube.com/watch?v=iG9CE55wbtY" --backend claude --lang k
 tubeless "https://www.youtube.com/watch?v=iG9CE55wbtY" --backend ollama --lang ko
 ```
 
-TLDR과 핵심 포인트가 터미널에 출력됩니다. 아래는 상세 버전 — OS별 전체 설치(pipx),
+TL;DR과 핵심 포인트가 터미널에 출력됩니다. 아래는 상세 버전 — OS별 전체 설치(pipx),
 각 백엔드 비용·결제처, 키·플래그를 매번 안 치게 하는 config 파일, 여러 채널 데일리 다이제스트.
 
 ### 설치
