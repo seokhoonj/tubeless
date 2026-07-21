@@ -22,7 +22,7 @@ from pathlib import Path
 from tubeless.channels import CHANNELS_PATH, load_channels
 from tubeless.digest import build_digest
 from tubeless.errors import TubelessError
-from tubeless.llm import AnthropicBackend, LLMBackend, OpenAIBackend
+from tubeless.llm import AnthropicBackend, LLMBackend, OllamaBackend, OpenAIBackend
 from tubeless.render import to_markdown
 from tubeless.source import fetch_video_meta
 from tubeless.state import STATE_PATH, read_seen, write_seen
@@ -36,6 +36,7 @@ __all__ = ["main"]
 _DEFAULT_MODEL = {
     "openai":    "gpt-4o-mini",
     "anthropic": "claude-haiku-4-5-20251001",
+    "ollama":    "llama3.1",
 }
 _SUBCOMMANDS = ("summarize", "digest")
 _DIGEST_DIR  = Path.home() / ".tubeless" / "digests"
@@ -136,7 +137,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _add_backend_args(sub: argparse.ArgumentParser) -> None:
-    sub.add_argument("--backend", choices=("openai", "anthropic"), default="openai",
+    sub.add_argument("--backend", choices=("openai", "anthropic", "ollama"), default="openai",
                      help="LLM vendor (default: openai)")
     sub.add_argument("--model", default=None,
                      help="model id; defaults to the backend's small-tier model")
@@ -147,6 +148,8 @@ def _make_backend(backend: str, model: str | None) -> LLMBackend:
     resolved = model or _DEFAULT_MODEL[backend]
     if backend == "anthropic":
         return AnthropicBackend(model=resolved)
+    if backend == "ollama":
+        return OllamaBackend(model=resolved)
     return OpenAIBackend(model=resolved)
 
 

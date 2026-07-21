@@ -13,7 +13,7 @@ import pytest
 from tubeless import config
 from tubeless.cli import _make_backend
 from tubeless.errors import LLMError
-from tubeless.llm import AnthropicBackend, OpenAIBackend
+from tubeless.llm import AnthropicBackend, OllamaBackend, OpenAIBackend
 
 
 def _no_keys_anywhere(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -111,3 +111,22 @@ def test_make_backend_defaults_the_model_per_vendor(monkeypatch: pytest.MonkeyPa
     assert _make_backend("openai", None).model == "gpt-4o-mini"
     assert _make_backend("anthropic", None).model == "claude-haiku-4-5-20251001"
     assert _make_backend("anthropic", "claude-sonnet-5").model == "claude-sonnet-5"
+
+
+# --- Ollama backend (local, no key) ---------------------------------------
+def test_ollama_backend_needs_no_key(monkeypatch: pytest.MonkeyPatch):
+    # A local backend must construct with no API key set anywhere.
+    for name in ("OPENAI_SECRET_KEY", "OPENAI_API_KEY"):
+        monkeypatch.delenv(name, raising=False)
+    assert OllamaBackend(model="llama3.1").model == "llama3.1"
+
+
+def test_ollama_backend_targets_the_local_host_by_default(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.delenv("OLLAMA_HOST", raising=False)
+    backend = OllamaBackend()
+    assert str(backend._client.base_url).startswith("http://localhost:11434")
+
+
+def test_make_backend_builds_ollama(monkeypatch: pytest.MonkeyPatch):
+    assert _make_backend("ollama", None).model == "llama3.1"
+    assert _make_backend("ollama", "qwen2.5").model == "qwen2.5"

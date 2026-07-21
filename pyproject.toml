@@ -5,9 +5,10 @@ build-backend = "hatchling.build"
 [project]
 name            = "tubeless"
 version         = "0.1.0"
-description     = "Fetch a YouTube video's transcript and summarize it with an LLM."
+description     = "Summarize YouTube videos with an LLM, one video or a daily digest."
 readme          = "README.md"
-requires-python = ">=3.10"
+# 3.11+ for the stdlib tomllib the digest's channels.toml parser uses.
+requires-python = ">=3.11"
 dependencies    = [
     "youtube-transcript-api>=1.0",
     "openai>=1.0",
@@ -32,7 +33,7 @@ packages = ["src/tubeless"]
 
 [tool.ruff]
 line-length    = 100
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]

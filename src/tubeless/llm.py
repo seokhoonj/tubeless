@@ -7,12 +7,13 @@ touching the summary logic.
 
 from __future__ import annotations
 
+import os
 from typing import Protocol
 
 from tubeless import config
 from tubeless.errors import LLMError
 
-__all__ = ["AnthropicBackend", "LLMBackend", "OpenAIBackend"]
+__all__ = ["AnthropicBackend", "LLMBackend", "OllamaBackend", "OpenAIBackend"]
 
 
 class LLMBackend(Protocol):
@@ -25,6 +26,30 @@ class LLMBackend(Protocol):
             LLMError: the backend could not produce a completion.
         """
         ...
+
+
+def _chat_complete(client, model: str, prompt: str, *, system: str | None, label: str) -> str:
+    """Run one chat completion against any OpenAI-style ``/v1`` client.
+
+    Shared by :class:`OpenAIBackend` and :class:`OllamaBackend`, which differ
+    only in how the client is constructed. ``label`` names the vendor in errors.
+    """
+    import openai
+
+    messages: list[dict[str, str]] = []
+    if system is not None:
+        messages.append({"role": "system", "content": system})
+    messages.append({"role": "user", "content": prompt})
+
+    try:
+        response = client.chat.completions.create(model=model, messages=messages)
+    except openai.OpenAIError as err:
+        raise LLMError(f"{label} completion failed for model {model!r}: {err}") from err
+
+    text = response.choices[0].message.content
+    if not text:
+        raise LLMError(f"{label} returned an empty completion for model {model!r}")
+    return text
 
 
 class OpenAIBackend:
@@ -54,25 +79,35 @@ class OpenAIBackend:
         return f"OpenAIBackend(model={self.model!r})"
 
     def complete(self, prompt: str, *, system: str | None = None) -> str:
-        import openai
+        return _chat_complete(self._client, self.model, prompt, system=system, label="OpenAI")
 
-        messages: list[dict[str, str]] = []
-        if system is not None:
-            messages.append({"role": "system", "content": system})
-        messages.append({"role": "user", "content": prompt})
 
-        try:
-            response = self._client.chat.completions.create(
-                model    = self.model,
-                messages = messages,
-            )
-        except openai.OpenAIError as err:
-            raise LLMError(f"OpenAI completion failed for model {self.model!r}: {err}") from err
+class OllamaBackend:
+    """Chat-completions backend against a local Ollama server.
 
-        text = response.choices[0].message.content
-        if not text:
-            raise LLMError(f"OpenAI returned an empty completion for model {self.model!r}")
-        return text
+    Ollama exposes an OpenAI-compatible ``/v1`` endpoint, so this reuses the
+    OpenAI SDK pointed at the local host -- no API key and no network egress, the
+    model runs on your machine. This is the private/offline/free option; pick the
+    model with ``model=`` (whatever you have ``ollama pull``-ed). The host comes
+    from ``host=`` or the ``OLLAMA_HOST`` environment variable.
+    """
+
+    def __init__(self, *, model: str = "llama3.1",
+                 host: str | None = None, api_key: str = "ollama") -> None:
+        from openai import OpenAI  # lazy, like OpenAIBackend (see above)
+
+        base_url     = (host or os.environ.get("OLLAMA_HOST") or "http://localhost:11434").rstrip("/")
+        if not base_url.endswith("/v1"):
+            base_url += "/v1"
+        self.model   = model
+        # Ollama ignores the key but the OpenAI SDK requires a non-empty one.
+        self._client = OpenAI(base_url=base_url, api_key=api_key)
+
+    def __repr__(self) -> str:
+        return f"OllamaBackend(model={self.model!r})"
+
+    def complete(self, prompt: str, *, system: str | None = None) -> str:
+        return _chat_complete(self._client, self.model, prompt, system=system, label="Ollama")
 
 
 class AnthropicBackend:
