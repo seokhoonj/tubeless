@@ -143,6 +143,20 @@ def test_summarize_deep_detail_asks_to_preserve_every_figure() -> None:
     assert "preserve EVERY specific figure" in backend.prompts[0]
 
 
+def test_summarize_deep_detail_preserves_figures_in_every_map_chunk() -> None:
+    # Regression: the figure-preservation instruction reached only the combine
+    # step, so long (map-reduced) videos dropped numbers the chunks had already
+    # discarded. Every chunk prompt must carry it too.
+    backend = RecordingBackend()
+
+    summarize(
+        make_transcript(n_words=CHUNK_WORD_LIMIT + 100), SAMPLE_VIDEO, backend, detail="deep"
+    )
+
+    assert len(backend.prompts) > 1  # map-reduced
+    assert all("preserve EVERY specific figure" in prompt for prompt in backend.prompts)
+
+
 def test_summarize_normal_detail_does_not_force_figure_preservation() -> None:
     backend = RecordingBackend()
 

@@ -163,7 +163,7 @@ def summarize(
     else:
         chunk_summaries = [
             backend.complete(
-                _chunk_prompt(chunk, video, hedge=hedge, language=target_language),
+                _chunk_prompt(chunk, video, hedge=hedge, language=target_language, spec=spec),
                 system=_SYSTEM_PROMPT,
             )
             for chunk in chunks
@@ -207,11 +207,15 @@ def _single_pass_prompt(
     )
 
 
-def _chunk_prompt(chunk: str, video: Video, *, hedge: str, language: str) -> str:
+def _chunk_prompt(chunk: str, video: Video, *, hedge: str, language: str, spec: _DetailSpec) -> str:
+    # spec.note (figure/period/enumeration preservation) MUST ride along here,
+    # not only in the combine step: a chunk summary that already dropped the
+    # numbers gives the reduce phase nothing to preserve. This is why long
+    # (map-reduced) videos lost figures that short single-pass ones kept.
     return (
         f"This is one part of the transcript of the video {video.title!r}. "
-        f"Summarize just this part in {language}, as short plain prose, "
-        "keeping every concrete claim you will need later.\n"
+        f"Summarize just this part in {language} as plain prose, keeping every "
+        f"concrete claim you will need later.{spec.note}\n"
         f"{hedge}\n"
         f"Transcript part:\n{chunk}"
     )
