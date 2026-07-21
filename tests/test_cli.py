@@ -90,3 +90,55 @@ def test_main_reports_a_missing_transcript_cleanly(
     assert exit_code == 1
     assert "no transcript" in captured.err
     assert "Traceback" not in captured.err
+
+
+def test_bare_url_still_routes_to_summarize(
+    pipeline_with_fakes: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # No 'summarize' token: the backward-compat shim must insert it.
+    exit_code = main([SAMPLE_VIDEO.url])
+
+    assert exit_code == 0
+    assert "TLDR: Ducks are great." in capsys.readouterr().out
+
+
+def test_explicit_summarize_subcommand_works(
+    pipeline_with_fakes: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    exit_code = main(["summarize", SAMPLE_VIDEO.url])
+
+    assert exit_code == 0
+    assert "A talk about ducks" in capsys.readouterr().out
+
+
+def test_digest_dry_run_prints_markdown_without_writing(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from tubeless.digest import Digest, DigestEntry
+    from tubeless.feed import Upload
+    from tubeless.importance import Importance
+    from tubeless.summary import Summary
+
+    entry = DigestEntry(
+        channel="수페TV",
+        upload=Upload(video_id="dQw4w9WgXcQ", title="버핏", published="",
+                      channel_id="UC", channel_title="수페TV"),
+        summary=Summary(video=SAMPLE_VIDEO, tldr="핵심", points=("a",), language="ko"),
+        importance=Importance(score=0.9, reason="큰 뉴스"),
+    )
+    monkeypatch.setattr(cli_module, "load_channels", lambda path: ())
+    monkeypatch.setattr(cli_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(
+        cli_module, "build_digest",
+        lambda channels, backend, **kw: (
+            Digest(date="2026-07-21", entries=(entry,), skipped=()), {"dQw4w9WgXcQ"}
+        ),
+    )
+
+    exit_code = main(["digest", "--dry-run"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "유튜브 다이제스트 — 2026-07-21" in captured.out
+    # header uses the summary's video title (SAMPLE_VIDEO), tier from the score
+    assert "🔴 수페TV — A talk about ducks" in captured.out

@@ -1,0 +1,80 @@
+"""Score how important a summarized video is, for ranking the daily digest.
+
+Importance is a judgement, so it is delegated to the LLM backend: given the
+finished summary, the model returns a 0..1 score and a one-line reason. The
+digest sorts by this so the most consequential videos lead. A neutral criterion
+is used on purpose ("important for a follower of this channel's topic"), so the
+scorer stays domain-agnostic like the rest of the core.
+"""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+
+from tubeless.llm import LLMBackend
+from tubeless.summary import Summary
+
+__all__ = ["Importance", "score_importance"]
+
+_SYSTEM_PROMPT = (
+    "You rate how important a video is for someone who follows this channel's "
+    "topic. Judge only from the summary you are given."
+)
+
+_PROMPT = (
+    "Rate the importance of this video from 0.0 (skippable) to 1.0 (must-see) "
+    "for a regular follower of its topic, weighing how consequential, "
+    "actionable, and time-sensitive it is. Reply in exactly two lines:\n"
+    "SCORE: <a number from 0.0 to 1.0>\n"
+    "REASON: <one short sentence in {language}>\n\n"
+    "Title: {title}\n"
+    "TLDR: {tldr}\n"
+    "Points:\n{points}"
+)
+
+_SCORE_PATTERN  = re.compile(r"(?i)score\s*[:=]\s*(1(?:\.0+)?|0?\.\d+|[01])")
+_REASON_PATTERN = re.compile(r"(?i)reason\s*[:=]\s*(.+)")
+
+
+@dataclass(frozen=True, slots=True)
+class Importance:
+    """A video's digest ranking: a 0..1 score and the reason the model gave."""
+
+    score:  float
+    reason: str
+
+
+def score_importance(summary: Summary, backend: LLMBackend, *, language: str = "ko") -> Importance:
+    """Ask ``backend`` to rate ``summary``'s importance from 0 to 1.
+
+    A reply that cannot be parsed falls back to a neutral 0.5 with the reply's
+    first line as the reason, so one unparseable score never sinks the digest.
+
+    Raises:
+        LLMError: propagated from the backend.
+    """
+    points = "\n".join(f"- {point}" for point in summary.points)
+    reply = backend.complete(
+        _PROMPT.format(
+            language = language,
+            title    = summary.video.title,
+            tldr     = summary.tldr,
+            points   = points,
+        ),
+        system=_SYSTEM_PROMPT,
+    )
+    return _parse_importance(reply)
+
+
+def _parse_importance(reply: str) -> Importance:
+    score_match = _SCORE_PATTERN.search(reply)
+    score = max(0.0, min(1.0, float(score_match.group(1)))) if score_match else 0.5
+
+    reason_match = _REASON_PATTERN.search(reply)
+    if reason_match:
+        reason = reason_match.group(1).strip()
+    else:
+        lines = [line.strip() for line in reply.splitlines() if line.strip()]
+        reason = lines[0] if lines else ""
+    return Importance(score=score, reason=reason)

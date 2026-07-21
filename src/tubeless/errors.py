@@ -10,6 +10,8 @@ __all__ = [
     "TranscriptUnavailable",
     "LLMError",
     "InvalidVideoURL",
+    "FeedError",
+    "ConfigError",
 ]
 
 
@@ -28,3 +30,12 @@ class LLMError(TubelessError):
 
 class InvalidVideoURL(TubelessError):
     """The input could not be parsed into a YouTube video id."""
+
+
+class FeedError(TubelessError):
+    """A channel feed could not be fetched or parsed, or a handle could not be
+    resolved to a channel id."""
+
+
+class ConfigError(TubelessError):
+    """A tubeless config file (channels list) is missing or malformed."""
