@@ -8,10 +8,13 @@ touching the summary logic.
 from __future__ import annotations
 
 import os
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from tubeless import config
 from tubeless.errors import LLMError
+
+if TYPE_CHECKING:
+    from openai import OpenAI  # only for the type hint below; imported lazily at runtime
 
 __all__ = ["AnthropicBackend", "GeminiBackend", "LLMBackend", "OllamaBackend", "OpenAIBackend"]
 
@@ -40,7 +43,7 @@ _TEMPERATURE = 0.2
 _LLM_TIMEOUT_SECONDS = 60.0
 
 
-def _chat_complete(client, model: str, prompt: str, *, system: str | None, label: str) -> str:
+def _chat_complete(client: OpenAI, model: str, prompt: str, *, system: str | None, label: str) -> str:
     """Run one chat completion against any OpenAI-style ``/v1`` client.
 
     Shared by :class:`OpenAIBackend` and :class:`OllamaBackend`, which differ

@@ -76,8 +76,11 @@ def test_tubeless_backend_env_routes_a_bare_run_to_that_vendor(
     monkeypatch.setattr(cli_module, "fetch_transcript", lambda video_id: SAMPLE_TRANSCRIPT)
     built = {}
 
+    # The fake mirrors GeminiBackend's real default model, so a bare run (model
+    # unset -> _make_backend calls the class with no model) proves both that
+    # TUBELESS_BACKEND routed to gemini and that the class default applies.
     class _RecordingGemini(CannedBackend):
-        def __init__(self, *, model: str = "unused") -> None:
+        def __init__(self, *, model: str = "gemini-flash-lite-latest") -> None:
             built["model"] = model
             super().__init__(model=model)
 
@@ -86,7 +89,7 @@ def test_tubeless_backend_env_routes_a_bare_run_to_that_vendor(
     exit_code = main([SAMPLE_VIDEO.url])   # no --backend flag
 
     assert exit_code == 0
-    assert built["model"] == "gemini-flash-lite-latest"  # gemini's default model
+    assert built["model"] == "gemini-flash-lite-latest"  # routed to gemini, default applied
 
 
 def test_configured_choice_falls_back_and_validates(_no_config_file, monkeypatch) -> None:

@@ -34,13 +34,7 @@ __all__ = ["main"]
 
 # Per-vendor default model, used when --model is not given. Kept cheap: the
 # summary map-reduce can be many calls, so the small-tier model is the default.
-_DEFAULT_MODEL = {
-    "openai":    "gpt-4o-mini",
-    "anthropic": "claude-haiku-4-5-20251001",
-    "gemini":    "gemini-flash-lite-latest",
-    "ollama":    "llama3.1",
-}
-_BACKENDS = tuple(_DEFAULT_MODEL)
+_BACKENDS = ("openai", "anthropic", "gemini", "ollama")
 _SUBCOMMANDS = ("summarize", "digest")
 _DIGEST_DIR  = Path.home() / ".tubeless" / "digests"
 
@@ -177,12 +171,9 @@ def _configured_positive_int(name: str, fallback: int | None) -> int | None:
     if value is None:
         return fallback
     try:
-        parsed = int(value)
-    except ValueError:
-        raise ConfigError(f"{name} must be an integer, got {value!r}") from None
-    if parsed < 1:
-        raise ConfigError(f"{name} must be a positive integer, got {parsed}")
-    return parsed
+        return _as_positive_int(value)
+    except ValueError as err:
+        raise ConfigError(f"{name} must be a positive integer: {err}") from None
 
 
 def _default_backend() -> str:
@@ -190,25 +181,41 @@ def _default_backend() -> str:
     return _configured_choice("TUBELESS_BACKEND", _BACKENDS, "openai")
 
 
-def _positive_int(text: str) -> int:
-    """An argparse type that rejects zero and negatives (see summary.summarize:
-    a non-positive point cap slices instead of capping)."""
+def _as_positive_int(text: str) -> int:
+    """Parse a positive int or raise ValueError. One home for the rule, shared by
+    the argparse type and the config-default reader, which wrap the failure in
+    their own error class."""
     value = int(text)
     if value < 1:
-        raise argparse.ArgumentTypeError(f"must be a positive integer, got {value}")
+        raise ValueError(f"must be a positive integer, got {value}")
     return value
 
 
+def _positive_int(text: str) -> int:
+    """argparse ``type=`` for --points/--limit (a non-positive cap slices instead
+    of capping -- see summary.summarize)."""
+    try:
+        return _as_positive_int(text)
+    except ValueError as err:
+        raise argparse.ArgumentTypeError(str(err)) from None
+
+
 def _make_backend(backend: str, model: str | None) -> LLMBackend:
-    """Construct the chosen vendor's backend, defaulting its model per vendor."""
-    resolved = model or _DEFAULT_MODEL[backend]
-    if backend == "anthropic":
-        return AnthropicBackend(model=resolved)
-    if backend == "gemini":
-        return GeminiBackend(model=resolved)
-    if backend == "ollama":
-        return OllamaBackend(model=resolved)
-    return OpenAIBackend(model=resolved)
+    """Construct the chosen vendor's backend; the model defaults to the backend
+    class's own small-tier default when not given.
+
+    Each class owns its default model (its constructor default), so a default
+    lives in one place; an unknown vendor is a loud KeyError, never a silent
+    fall-through to OpenAI. (The dict is built here, not at module load, so a test
+    that monkeypatches e.g. ``OpenAIBackend`` still takes effect.)
+    """
+    backend_class = {
+        "openai":    OpenAIBackend,
+        "anthropic": AnthropicBackend,
+        "gemini":    GeminiBackend,
+        "ollama":    OllamaBackend,
+    }[backend]
+    return backend_class() if model is None else backend_class(model=model)
 
 
 def _render_text(summary: Summary) -> str:

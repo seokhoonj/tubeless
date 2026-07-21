@@ -17,9 +17,10 @@ from tubeless.transcript import Transcript
 
 __all__ = ["DETAIL_LEVELS", "DetailLevel", "Summary", "summarize"]
 
-# The closed set of summary depths. `DETAIL_LEVELS` is the runtime tuple (still
-# used to validate a caller who bypasses the type checker); `DetailLevel` is the
-# static type. Both derive from `_DETAIL` below so the set lives in one place.
+# The closed set of summary depths, in two forms. `DETAIL_LEVELS` (below) is the
+# runtime tuple, derived from `_DETAIL`, and validates a caller who bypasses the
+# type checker. `DetailLevel` is the static mirror -- a Literal cannot be computed
+# from the dict, so it is hand-written and MUST be kept in sync with `_DETAIL`.
 DetailLevel = Literal["brief", "normal", "deep"]
 
 # One map-phase chunk is ~3000 words (~4000 tokens of English; Korean is

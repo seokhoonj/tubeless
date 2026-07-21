@@ -73,7 +73,7 @@ def load_channels(path: Path | None = None) -> tuple[Channel, ...]:
     return tuple(_channel_from(entry, path) for entry in entries)
 
 
-def _channel_from(entry: dict, path: Path) -> Channel:
+def _channel_from(entry: dict[str, object], path: Path) -> Channel:
     source = entry.get("source") or entry.get("handle") or entry.get("channel_id")
     if not source:
         raise ConfigError(f"a [[channel]] in {path} is missing 'source' (a handle, URL, or id)")
