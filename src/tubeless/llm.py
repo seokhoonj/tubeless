@@ -7,9 +7,9 @@ touching the summary logic.
 
 from __future__ import annotations
 
-import os
 from typing import Protocol
 
+from tubeless import config
 from tubeless.errors import LLMError
 
 __all__ = ["AnthropicBackend", "LLMBackend", "OpenAIBackend"]
@@ -36,11 +36,11 @@ class OpenAIBackend:
     """
 
     def __init__(self, *, model: str = "gpt-4o-mini", api_key: str | None = None) -> None:
-        resolved_key = api_key if api_key is not None else os.environ.get("OPENAI_API_KEY")
+        resolved_key = api_key if api_key is not None else config.api_key("openai")
         if not resolved_key:
             raise LLMError(
-                "no OpenAI API key: pass api_key= or set the OPENAI_API_KEY "
-                "environment variable"
+                "no OpenAI API key: pass api_key=, set OPENAI_SECRET_KEY in the "
+                "environment, or add it to ~/.tubeless/config.env"
             )
         # Imported here, not at module top: constructing a backend is the first
         # moment the SDK is genuinely needed, and this keeps `import tubeless`
@@ -89,11 +89,11 @@ class AnthropicBackend:
 
     def __init__(self, *, model: str = "claude-haiku-4-5-20251001",
                  api_key: str | None = None, max_tokens: int = 2048) -> None:
-        resolved_key = api_key if api_key is not None else os.environ.get("ANTHROPIC_API_KEY")
+        resolved_key = api_key if api_key is not None else config.api_key("anthropic")
         if not resolved_key:
             raise LLMError(
-                "no Anthropic API key: pass api_key= or set the ANTHROPIC_API_KEY "
-                "environment variable"
+                "no Anthropic API key: pass api_key=, set ANTHROPIC_SECRET_KEY in the "
+                "environment, or add it to ~/.tubeless/config.env"
             )
         from anthropic import Anthropic  # lazy, like OpenAIBackend (see above)
 

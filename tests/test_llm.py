@@ -10,20 +10,30 @@ import types
 
 import pytest
 
+from tubeless import config
 from tubeless.cli import _make_backend
 from tubeless.errors import LLMError
 from tubeless.llm import AnthropicBackend, OpenAIBackend
 
 
+def _no_keys_anywhere(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Blind the key resolver: an empty config file and no env variables, so a
+    real ~/.tubeless/config.env on the test machine cannot satisfy the lookup."""
+    monkeypatch.setattr(config, "read_config", lambda *a, **k: {})
+    for name in ("OPENAI_SECRET_KEY", "OPENAI_API_KEY",
+                 "ANTHROPIC_SECRET_KEY", "ANTHROPIC_API_KEY"):
+        monkeypatch.delenv(name, raising=False)
+
+
 # --- missing key ----------------------------------------------------------
 def test_openai_backend_without_a_key_raises(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    _no_keys_anywhere(monkeypatch)
     with pytest.raises(LLMError):
         OpenAIBackend()
 
 
 def test_anthropic_backend_without_a_key_raises(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    _no_keys_anywhere(monkeypatch)
     with pytest.raises(LLMError):
         AnthropicBackend()
 
