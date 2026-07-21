@@ -32,12 +32,14 @@ _SYSTEM_PROMPT = (
 # one "TLDR:" line, then "- " bullets. The three "<...>" slots are filled from
 # the chosen detail level so the same skeleton yields a terse or a rich summary.
 _FORMAT_INSTRUCTION = (
-    "Answer in {language}. Use exactly this format:\n"
+    "Answer in {language}. Write no greeting or preamble; the very first line "
+    "must start with 'TLDR:'. Use exactly this format:\n"
     "TLDR: <{tldr}>\n"
     "- <key point>\n"
     "- <key point>\n"
-    "Give at most {max_points} key points; each key point is {point}. "
-    "Keep each key point on its own single line.{note} No other text."
+    "Give at most {max_points} key points; each key point is {point}. Start "
+    "every key point with '- ', and keep it on its own single line.{note} No "
+    "other text before or after."
 )
 
 # Appended (via _DetailSpec.note) when the level wants data kept, not smoothed.

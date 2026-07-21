@@ -28,6 +28,13 @@ class LLMBackend(Protocol):
         ...
 
 
+# Summaries are extraction, not creative writing: a low temperature keeps the
+# model on the requested format and off invented preambles. It matters most for
+# smaller local models, which drift into greetings and numbered prose at the
+# vendor-default temperature.
+_TEMPERATURE = 0.2
+
+
 def _chat_complete(client, model: str, prompt: str, *, system: str | None, label: str) -> str:
     """Run one chat completion against any OpenAI-style ``/v1`` client.
 
@@ -42,7 +49,9 @@ def _chat_complete(client, model: str, prompt: str, *, system: str | None, label
     messages.append({"role": "user", "content": prompt})
 
     try:
-        response = client.chat.completions.create(model=model, messages=messages)
+        response = client.chat.completions.create(
+            model=model, messages=messages, temperature=_TEMPERATURE,
+        )
     except openai.OpenAIError as err:
         raise LLMError(f"{label} completion failed for model {model!r}: {err}") from err
 
