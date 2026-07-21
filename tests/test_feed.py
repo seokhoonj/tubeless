@@ -11,7 +11,7 @@ from tubeless.feed import (
     resolve_channel_id,
 )
 
-_PLAYLIST_ID = "PLQvqXcm97CTCf_tqMOL0QpTCoMNwjCje5"
+_PLAYLIST_ID = "PLexampleexampleexampleexample01"
 
 _CHANNEL_ID = "UCabcdefghijklmnopqrstuv"  # UC + 22 chars
 
@@ -19,15 +19,15 @@ SAMPLE_FEED = f"""<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns:yt="http://www.youtube.com/xml/schemas/2015"
       xmlns="http://www.w3.org/2005/Atom">
   <yt:channelId>{_CHANNEL_ID}</yt:channelId>
-  <title>수페TV</title>
+  <title>예시 채널</title>
   <entry>
-    <yt:videoId>LHyuRMkDol8</yt:videoId>
-    <title>버핏 이야기</title>
+    <yt:videoId>vid00000001</yt:videoId>
+    <title>첫 번째 영상</title>
     <published>2026-07-20T09:00:00+00:00</published>
   </entry>
   <entry>
-    <yt:videoId>0HM8M3K-2Oo</yt:videoId>
-    <title>코스닥 이야기</title>
+    <yt:videoId>vid00000002</yt:videoId>
+    <title>두 번째 영상</title>
     <published>2026-07-19T09:00:00+00:00</published>
   </entry>
 </feed>"""
@@ -36,10 +36,10 @@ SAMPLE_FEED = f"""<?xml version="1.0" encoding="UTF-8"?>
 def test_parse_feed_reads_entries_in_order():
     uploads = _parse_feed(SAMPLE_FEED, limit=15)
 
-    assert [u.video_id for u in uploads] == ["LHyuRMkDol8", "0HM8M3K-2Oo"]
-    assert uploads[0].title         == "버핏 이야기"
+    assert [u.video_id for u in uploads] == ["vid00000001", "vid00000002"]
+    assert uploads[0].title         == "첫 번째 영상"
     assert uploads[0].channel_id    == _CHANNEL_ID
-    assert uploads[0].channel_title == "수페TV"
+    assert uploads[0].channel_title == "예시 채널"
     assert uploads[0].published     == "2026-07-20T09:00:00+00:00"
 
 
@@ -66,12 +66,12 @@ def test_playlist_id_of_reads_a_bare_id():
 
 
 def test_playlist_id_of_extracts_from_a_watch_url_with_a_list_param():
-    url = f"https://www.youtube.com/watch?v=mUiN6qf_zes&list={_PLAYLIST_ID}"
+    url = f"https://www.youtube.com/watch?v=vid00000003&list={_PLAYLIST_ID}"
     assert _playlist_id_of(url) == _PLAYLIST_ID
 
 
 def test_playlist_id_of_returns_none_for_a_channel_source():
-    assert _playlist_id_of("@3protv") is None
+    assert _playlist_id_of("@examplechannel") is None
     assert _playlist_id_of(_CHANNEL_ID) is None
 
 

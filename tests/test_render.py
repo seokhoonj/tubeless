@@ -11,12 +11,12 @@ from tubeless.summary import Summary
 def _entry(*, title: str, score: float) -> DigestEntry:
     video = Video(
         video_id="vid00000001", title=title,
-        url="https://www.youtube.com/watch?v=vid00000001", channel="수페TV",
+        url="https://www.youtube.com/watch?v=vid00000001", channel="예시 채널",
     )
     return DigestEntry(
-        channel    = "수페TV",
+        channel    = "예시 채널",
         upload     = Upload(video_id="vid00000001", title=title, published="",
-                            channel_id="UC", channel_title="수페TV"),
+                            channel_id="UC", channel_title="예시 채널"),
         summary    = Summary(video=video, tldr="핵심 요약", points=("포인트 1", "포인트 2"),
                              language="ko"),
         importance = Importance(score=score, reason="큰 뉴스"),
@@ -24,7 +24,7 @@ def _entry(*, title: str, score: float) -> DigestEntry:
 
 
 def test_to_markdown_renders_header_score_and_points():
-    digest = Digest(date="2026-07-21", entries=(_entry(title="버핏", score=0.9),), skipped=())
+    digest = Digest(date="2026-07-21", entries=(_entry(title="예시 영상", score=0.9),), skipped=())
 
     md = to_markdown(digest)
 

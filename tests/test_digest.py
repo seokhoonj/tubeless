@@ -19,7 +19,7 @@ _CHANNEL_ID = "UCabcdefghijklmnopqrstuv"
 
 def _upload(video_id: str, title: str) -> Upload:
     return Upload(video_id=video_id, title=title, published="",
-                  channel_id=_CHANNEL_ID, channel_title="수페TV")
+                  channel_id=_CHANNEL_ID, channel_title="예시 채널")
 
 
 def _transcript(video_id: str) -> Transcript:
@@ -49,7 +49,7 @@ def two_uploads(monkeypatch):
     monkeypatch.setattr(digest_module, "fetch_transcript", lambda video_id: _transcript(video_id))
 
 
-_ONE_CHANNEL = (Channel(source="@x", label="수페TV", detail="normal"),)
+_ONE_CHANNEL = (Channel(source="@x", label="예시 채널", detail="normal"),)
 
 
 def test_build_digest_sorts_entries_by_importance(two_uploads):
@@ -114,4 +114,4 @@ def test_build_digest_records_a_channel_whose_feed_fails(monkeypatch):
     assert digest.entries == ()
     assert processed == set()
     assert len(digest.skipped) == 1
-    assert "수페TV" in digest.skipped[0]
+    assert "예시 채널" in digest.skipped[0]
