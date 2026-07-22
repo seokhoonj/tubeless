@@ -42,9 +42,15 @@ _PROMPT = (
     "{sources}"
 )
 
-_SECTION_LABEL = re.compile(r"(?i)^(TONE|OVERVIEW|AGREEMENT|DISAGREEMENT)\s*:?\s*(.*)$")
+# The model often decorates the label -- "**TONE:**", "## AGREEMENT", "1. TONE:"
+# -- especially on longer, non-English replies. Tolerate any leading markdown /
+# numbering before the keyword and any "**" around the colon, so a bold label is
+# still recognised instead of silently dropping the whole section.
+_SECTION_LABEL = re.compile(
+    r"(?i)^[\s>*#.\d()-]*(TONE|OVERVIEW|AGREEMENT|DISAGREEMENT)\**\s*:\s*\**\s*(.*)$"
+)
 _BULLET_PREFIXES = ("- ", "* ", "• ")
-_EMPTY_BULLETS = {"(none)", "none", "n/a", "-"}
+_EMPTY_BULLETS = {"(none)", "none", "n/a", "-", "(없음)", "없음", "해당 없음"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,6 +95,12 @@ def _sources_block(summaries: Sequence[tuple[str, Summary]]) -> str:
     return "\n\n".join(blocks)
 
 
+def _unwrap(text: str) -> str:
+    """Strip surrounding whitespace and markdown emphasis (``**`` / ``*``) the
+    model sometimes wraps a value or bullet in."""
+    return text.strip().strip("*").strip()
+
+
 def _parse_synthesis(reply: str) -> DailySynthesis:
     """Extract the four fields from the model's reply, tolerating drift.
 
@@ -110,14 +122,14 @@ def _parse_synthesis(reply: str) -> DailySynthesis:
         label_match = _SECTION_LABEL.match(line)
         if label_match:
             section = label_match.group(1).upper()
-            inline  = label_match.group(2).strip()
+            inline  = _unwrap(label_match.group(2))
             if section == "TONE":
                 tone = inline
             elif section == "OVERVIEW":
                 overview = inline
             continue
         if line.startswith(_BULLET_PREFIXES):
-            point = line[2:].strip()
+            point = _unwrap(line[2:])
             if section == "AGREEMENT":
                 agreements.append(point)
             elif section == "DISAGREEMENT" and point.lower() not in _EMPTY_BULLETS:

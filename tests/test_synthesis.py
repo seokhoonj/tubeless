@@ -44,11 +44,38 @@ def test_parse_synthesis_reads_all_four_fields():
     assert got.disagreements == ("A says the correction is enough; B still distrusts the rally",)
 
 
+def test_parse_synthesis_reads_markdown_decorated_labels():
+    # The model often bolds the labels ("**TONE:**"), especially on longer,
+    # non-English replies. These must still parse, not silently drop the section.
+    reply = (
+        "**TONE:** cautious optimism\n"
+        "**OVERVIEW:**\n"
+        "A rebound after a sharp drop.\n"
+        "**AGREEMENT:**\n"
+        "- Chips drove the index\n"
+        "**DISAGREEMENT:**\n"
+        "- A expects a rally; B stays wary\n"
+    )
+    got = _parse_synthesis(reply)
+
+    assert got.tone == "cautious optimism"
+    assert got.overview == "A rebound after a sharp drop."
+    assert got.agreements == ("Chips drove the index",)
+    assert got.disagreements == ("A expects a rally; B stays wary",)
+
+
 def test_parse_synthesis_drops_a_none_disagreement():
     got = _parse_synthesis("TONE: flat\nOVERVIEW: a quiet day\nDISAGREEMENT:\n- (none)")
 
     assert got.disagreements == ()
     assert got.agreements == ()
+
+
+def test_parse_synthesis_drops_a_korean_none_disagreement():
+    got = _parse_synthesis("**TONE:** 보합\n**DISAGREEMENT:**\n- (없음)")
+
+    assert got.tone == "보합"
+    assert got.disagreements == ()
 
 
 def test_synthesize_feeds_every_source_into_the_prompt():
