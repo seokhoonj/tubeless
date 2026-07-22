@@ -7,6 +7,7 @@ from tubeless.render import to_markdown
 from tubeless.source import Video
 from tubeless.summary import Summary
 from tubeless.synthesis import DailySynthesis
+from tubeless.transcript import Transcript
 
 
 def _entry(*, title: str, score: float) -> DigestEntry:
@@ -21,6 +22,8 @@ def _entry(*, title: str, score: float) -> DigestEntry:
         summary    = Summary(video=video, tldr="the gist", points=("point 1", "point 2"),
                              language="ko"),
         importance = Importance(score=score, reason="big news"),
+        transcript = Transcript(video_id="vid00000001", language="ko",
+                                is_auto_generated=False, segments=()),
     )
 
 

@@ -20,7 +20,7 @@ from tubeless.llm import LLMBackend
 from tubeless.source import Video
 from tubeless.summary import Summary, summarize
 from tubeless.synthesis import DailySynthesis, synthesize
-from tubeless.transcript import fetch_transcript
+from tubeless.transcript import Transcript, fetch_transcript
 
 __all__ = ["Digest", "DigestEntry", "build_digest"]
 
@@ -30,12 +30,16 @@ _FILTERED_FETCH_LIMIT = 15
 
 @dataclass(frozen=True, slots=True)
 class DigestEntry:
-    """One summarized, scored video in a digest."""
+    """One summarized, scored video in a digest. ``transcript`` is the source it
+    was summarized from -- kept so the caller can archive it to the corpus, since
+    the summary alone is lossy and the transcript cannot be refetched once a
+    video's captions are disabled or it is removed."""
 
     channel:    str
     upload:     Upload
     summary:    Summary
     importance: Importance
+    transcript: Transcript
 
 
 @dataclass(frozen=True, slots=True)
@@ -149,4 +153,7 @@ def _summarize_upload(
     )
     summary    = summarize(transcript, video, backend, target_language=language, detail=channel.detail)
     importance = score_importance(summary, backend, language=language)
-    return DigestEntry(channel=channel.label, upload=upload, summary=summary, importance=importance)
+    return DigestEntry(
+        channel=channel.label, upload=upload, summary=summary,
+        importance=importance, transcript=transcript,
+    )

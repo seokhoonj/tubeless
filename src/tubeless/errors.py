@@ -13,6 +13,7 @@ __all__ = [
     "InvalidVideoURL",
     "FeedError",
     "ConfigError",
+    "CorpusError",
 ]
 
 
@@ -53,3 +54,9 @@ class FeedError(TubelessError):
 
 class ConfigError(TubelessError):
     """A tubeless config file (channels list) is missing or malformed."""
+
+
+class CorpusError(TubelessError):
+    """The corpus (the on-disk archive of transcripts and summary records) could
+    not be read or written -- an I/O failure, kept distinct from a corrupt file,
+    which is treated as absent rather than raised."""

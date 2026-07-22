@@ -283,6 +283,7 @@ def test_digest_dry_run_prints_markdown_without_writing(
     from tubeless.feed import Upload
     from tubeless.importance import Importance
     from tubeless.summary import Summary
+    from tubeless.transcript import Transcript
 
     entry = DigestEntry(
         channel="Example Channel",
@@ -290,6 +291,8 @@ def test_digest_dry_run_prints_markdown_without_writing(
                       channel_id="UC", channel_title="Example Channel"),
         summary=Summary(video=SAMPLE_VIDEO, tldr="gist", points=("a",), language="ko"),
         importance=Importance(score=0.9, reason="big news"),
+        transcript=Transcript(video_id="dQw4w9WgXcQ", language="ko",
+                              is_auto_generated=False, segments=()),
     )
     monkeypatch.setattr(cli_module, "load_channels", lambda path: ())
     monkeypatch.setattr(cli_module, "OpenAIBackend", CannedBackend)
@@ -307,6 +310,53 @@ def test_digest_dry_run_prints_markdown_without_writing(
     assert "YouTube digest — 2026-07-21" in captured.out
     # header uses the summary's video title (SAMPLE_VIDEO), tier from the score
     assert "🔴 Example Channel — A talk about ducks" in captured.out
+
+
+def test_digest_records_summaries_and_transcripts_to_the_corpus(
+    _no_config_file, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    from tubeless.corpus import load_summaries, load_transcript
+    from tubeless.digest import Digest, DigestEntry
+    from tubeless.feed import Upload
+    from tubeless.importance import Importance
+    from tubeless.summary import Summary
+
+    entry = DigestEntry(
+        channel    = "Duck Channel",
+        upload     = Upload(video_id="dQw4w9WgXcQ", title="A talk about ducks",
+                            published="2026-07-21T09:00:00+00:00",
+                            channel_id="UC", channel_title="Duck Channel"),
+        summary    = Summary(video=SAMPLE_VIDEO, tldr="gist", points=("a", "b"), language="en"),
+        importance = Importance(score=0.8, reason="quacks"),
+        transcript = SAMPLE_TRANSCRIPT,
+    )
+    monkeypatch.setattr(cli_module, "load_channels", lambda path: ())
+    monkeypatch.setattr(cli_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(
+        cli_module, "build_digest",
+        lambda channels, backend, **kw: (
+            Digest(date="2026-07-21", entries=(entry,), skipped=()), {"dQw4w9WgXcQ"}
+        ),
+    )
+    corpus_dir = tmp_path / "corpus"
+
+    exit_code = main([
+        "digest",
+        "--out",    str(tmp_path / "digests"),
+        "--state",  str(tmp_path / "state.json"),
+        "--corpus", str(corpus_dir),
+    ])
+
+    assert exit_code == 0
+    records = load_summaries("Duck Channel", root=corpus_dir)
+    assert len(records) == 1
+    assert records[0].video.video_id == "dQw4w9WgXcQ"
+    assert records[0].tldr           == "gist"
+    assert records[0].importance.score == 0.8
+    assert records[0].captured       == "2026-07-21"
+    archived = load_transcript("dQw4w9WgXcQ", root=corpus_dir)
+    assert archived is not None
+    assert archived.text == "ducks are great"
 
 
 def test_digest_only_filters_channels_by_label(_no_config_file, monkeypatch: pytest.MonkeyPatch) -> None:
