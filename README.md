@@ -383,11 +383,19 @@ If you use [Claude Code](https://claude.com/claude-code), you can summarize a
 video with a slash command without leaving your editor. The skill just shells out
 to the `tubeless` command, so install the CLI first (`pip install tubeless`).
 
-**Install as a plugin** — this repo doubles as a plugin marketplace:
+**Install as a plugin** — this repo doubles as a plugin marketplace. From inside
+a session with slash commands:
 
 ```
 /plugin marketplace add seokhoonj/tubeless
 /plugin install tubeless@tubeless
+```
+
+or, equivalently, from your terminal before launching `claude`:
+
+```
+claude plugin marketplace add seokhoonj/tubeless
+claude plugin install tubeless@tubeless
 ```
 
 Then paste a YouTube URL (the skill triggers on its own), or run it explicitly:
@@ -426,9 +434,6 @@ Run the installed `tubeless` CLI on the URL the user gave and show the result:
 
 Show the TL;DR and key points back to the user.
 ```
-
-The same hand-wired idea works for Gemini CLI (`GEMINI.md`) — point it at the
-`tubeless` command.
 
 ### Use it as a Python library
 
@@ -841,11 +846,19 @@ cron은 명령을 정해진 시각에 실행합니다. 매일 밤 22:00에 다�
 명령으로 영상을 요약할 수 있습니다. 스킬은 `tubeless` 명령을 그대로 호출할 뿐이니 CLI를
 먼저 설치하세요(`pip install tubeless`).
 
-**플러그인으로 설치** — 이 저장소가 곧 플러그인 마켓플레이스입니다:
+**플러그인으로 설치** — 이 저장소가 곧 플러그인 마켓플레이스입니다. 세션 안에서
+slash 명령으로:
 
 ```
 /plugin marketplace add seokhoonj/tubeless
 /plugin install tubeless@tubeless
+```
+
+또는, `claude`를 실행하기 전에 터미널에서 동일하게:
+
+```
+claude plugin marketplace add seokhoonj/tubeless
+claude plugin install tubeless@tubeless
 ```
 
 이후 유튜브 URL을 붙여넣으면 스킬이 알아서 발동하거나, 직접 호출할 수 있습니다:
@@ -882,8 +895,6 @@ description: 유튜브 영상을 요약. 유튜브 URL이나 "이 영상 요약�
 
 TL;DR과 핵심 포인트를 사용자에게 돌려준다.
 ```
-
-Gemini CLI(`GEMINI.md`)도 같은 방식으로 `tubeless` 명령을 가리키게 하면 됩니다.
 
 ### 파이썬 라이브러리로 쓰기
 
