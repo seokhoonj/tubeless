@@ -135,6 +135,13 @@ def test_make_backend_defaults_the_model_per_vendor(monkeypatch: pytest.MonkeyPa
     assert make_backend("claude", model="claude-sonnet-5").model == "claude-sonnet-5"
 
 
+def test_make_backend_rejects_an_unknown_vendor():
+    # An out-of-roster name must raise a domain LLMError (catchable via the
+    # documented TubelessError hierarchy), not a bare, uncatchable KeyError.
+    with pytest.raises(LLMError):
+        make_backend("gpt")
+
+
 # --- Ollama backend (local, no key) ---------------------------------------
 def test_ollama_backend_needs_no_key(monkeypatch: pytest.MonkeyPatch):
     # A local backend must construct with no API key set anywhere.

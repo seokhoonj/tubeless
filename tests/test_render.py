@@ -1,13 +1,21 @@
 """Digest -> Markdown rendering: tiers, content, empty and skipped notes."""
 
+from typing import get_args
+
 from tubeless.digest import Digest, DigestEntry
 from tubeless.feed import Upload
-from tubeless.importance import Importance
-from tubeless.render import to_markdown
+from tubeless.importance import Importance, ImportanceTier
+from tubeless.render import _TIER_MARKER, to_markdown
 from tubeless.source import Video
 from tubeless.summary import Summary
 from tubeless.synthesis import DailySynthesis
 from tubeless.transcript import Transcript
+
+
+def test_tier_marker_covers_every_importance_tier():
+    # render._TIER_MARKER is asserted exhaustive over ImportanceTier at import; lock
+    # that here so adding a tier without a marker fails a test, not a live render.
+    assert set(_TIER_MARKER) == set(get_args(ImportanceTier))
 
 
 def _entry(*, title: str, score: float) -> DigestEntry:

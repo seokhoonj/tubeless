@@ -250,18 +250,19 @@ def make_backend(name: str, *, model: str | None = None) -> LLMBackend:
     overrides the backend class's own small-tier default when given.
 
     Each class owns its default model (its constructor default), so a default
-    lives in one place, and an unknown name is a loud ``KeyError`` rather than a
-    silent fall-through to one vendor. The name->class map is built on call, not
-    at import, so a test that monkeypatches e.g. ``OpenAIBackend`` still takes
-    effect.
+    lives in one place. The name->class map is built on call, not at import, so a
+    test that monkeypatches e.g. ``OpenAIBackend`` still takes effect.
 
     Raises:
-        LLMError: the chosen backend has no usable API key / SDK.
+        LLMError: ``name`` is not one of ``BACKENDS``, or the chosen backend has
+            no usable API key / SDK.
     """
-    backend_class = {
+    backend_classes = {
         "claude": ClaudeBackend,
         "openai": OpenAIBackend,
         "gemini": GeminiBackend,
         "ollama": OllamaBackend,
-    }[name]
-    return backend_class() if model is None else backend_class(model=model)
+    }
+    if name not in backend_classes:
+        raise LLMError(f"unknown backend {name!r}; choose one of {BACKENDS}")
+    return backend_classes[name]() if model is None else backend_classes[name](model=model)
