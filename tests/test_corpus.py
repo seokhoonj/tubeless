@@ -177,6 +177,40 @@ def test_load_summaries_skips_a_scalar_points_line(tmp_path):
     assert [entry.video.video_id for entry in loaded] == ["aaaaaaaaaaa", "bbbbbbbbbbb"]
 
 
+def test_load_summaries_skips_a_wrong_type_scalar_line(tmp_path):
+    # A line matching the channel filter but whose "tldr" is a number, not a
+    # string: the scalar type guard must reject it rather than build a
+    # CorpusEntry(tldr=456) that lies about its declared str field.
+    append_entry(_entry("aaaaaaaaaaa", published="2026-07-01T08:00:00+00:00"), root=tmp_path)
+    with (tmp_path / "summaries.jsonl").open("a", encoding="utf-8") as file:
+        file.write(
+            '{"channel": "Channel A", "captured": "2026-07-02", "published": "",'
+            ' "video": {"video_id": "x", "title": "t", "url": "u", "channel": "c"},'
+            ' "tldr": 456, "points": ["p"],'
+            ' "importance": {"score": 0.5, "reason": "r"}, "language": "en"}\n'
+        )
+    append_entry(_entry("bbbbbbbbbbb", published="2026-07-03T08:00:00+00:00"), root=tmp_path)
+
+    loaded = load_summaries("Channel A", root=tmp_path)
+
+    assert [entry.video.video_id for entry in loaded] == ["aaaaaaaaaaa", "bbbbbbbbbbb"]
+
+
+def test_load_transcript_wrong_shape_file_is_none(tmp_path):
+    # Valid JSON but "segments" is a string, not a list: the shape guard must read
+    # it as corrupt (None), mirroring the summaries-side scalar guard, rather than
+    # the invalid-JSON path the other transcript test covers.
+    path = tmp_path / "transcripts" / "aaaaaaaaaaa.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        '{"video_id": "aaaaaaaaaaa", "language": "en",'
+        ' "is_auto_generated": false, "segments": "abc"}',
+        encoding="utf-8",
+    )
+
+    assert load_transcript("aaaaaaaaaaa", root=tmp_path) is None
+
+
 def test_record_entry_appends_the_summary_and_archives_the_transcript(tmp_path):
     upload = Upload(
         video_id      = "aaaaaaaaaaa",

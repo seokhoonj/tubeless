@@ -41,7 +41,7 @@ __all__ = [
 ]
 
 
-class _MalformedRecord(ValueError):
+class _MalformedRecordError(ValueError):
     """A corpus line decoded as JSON but did not have a CorpusEntry/Transcript
     shape. The ``_*_from_dict`` decoders raise it and the loaders catch it, so a
     genuinely malformed line is skipped while an unrelated ``KeyError`` /
@@ -132,7 +132,7 @@ def load_summaries(
                     continue
                 try:
                     entry = _entry_from_dict(json.loads(line.decode("utf-8")))
-                except (UnicodeDecodeError, json.JSONDecodeError, _MalformedRecord):
+                except (UnicodeDecodeError, json.JSONDecodeError, _MalformedRecordError):
                     continue   # a garbled or misshaped line is skipped, never fatal
                 if entry.channel != channel:
                     continue
@@ -202,7 +202,7 @@ def load_transcript(video_id: str, *, root: Path | None = None) -> Transcript | 
         raise CorpusError(f"could not read archived transcript {path}: {err}") from err
     try:
         return _transcript_from_dict(json.loads(text))
-    except (json.JSONDecodeError, _MalformedRecord):
+    except (json.JSONDecodeError, _MalformedRecordError):
         return None
 
 
@@ -255,28 +255,45 @@ def _entry_to_dict(entry: CorpusEntry) -> dict[str, object]:
 
 
 def _entry_from_dict(record: dict[str, object]) -> CorpusEntry:
-    # A missing or misshapen field is a malformed *line*, not a program bug, so
-    # wrap it in _MalformedRecord for the loader to skip -- while a KeyError or
-    # TypeError from anywhere else still propagates as itself. The isinstance
-    # guards reject a scalar where a container is expected (e.g. a JSON string
-    # "points": "abc", which tuple() would silently split into ('a','b','c')).
+    # Extract, validate types, then construct -- in that order, so the three error
+    # classes stay distinct: a missing field (KeyError) or a wrong JSON type is a
+    # malformed *line* (-> _MalformedRecordError, skipped by the loader); a wrong
+    # sub-object shape is likewise malformed *data*; but the CorpusEntry
+    # construction is our own code, so a TypeError there (a field we renamed and
+    # forgot to update) propagates as the real defect it is rather than being
+    # swallowed as "malformed". The isinstance guards also reject a scalar where a
+    # container is expected (a JSON string "points": "abc" that tuple() would
+    # otherwise split into ('a','b','c')).
     try:
-        if not isinstance(record["points"], list):
-            raise _MalformedRecord(f"'points' is not a list: {record['points']!r}")
-        if not isinstance(record["video"], dict) or not isinstance(record["importance"], dict):
-            raise _MalformedRecord("'video' and 'importance' must be JSON objects")
-        return CorpusEntry(
-            channel    = record["channel"],
-            captured   = record["captured"],
-            published  = record["published"],
-            video      = Video(**record["video"]),
-            tldr       = record["tldr"],
-            points     = tuple(record["points"]),
-            importance = Importance(**record["importance"]),
-            language   = record["language"],
-        )
-    except (KeyError, TypeError) as err:
-        raise _MalformedRecord(f"corpus record has a missing/misshaped field: {err}") from err
+        channel    = record["channel"]
+        captured   = record["captured"]
+        published  = record["published"]
+        video      = record["video"]
+        tldr       = record["tldr"]
+        points     = record["points"]
+        importance = record["importance"]
+        language   = record["language"]
+    except KeyError as err:
+        raise _MalformedRecordError(f"corpus record is missing field {err}") from err
+    if not (isinstance(channel, str) and isinstance(captured, str) and isinstance(published, str)
+            and isinstance(tldr, str) and isinstance(language, str)
+            and isinstance(points, list) and isinstance(video, dict) and isinstance(importance, dict)):
+        raise _MalformedRecordError("corpus record has a field of the wrong JSON type")
+    try:
+        video_obj      = Video(**video)
+        importance_obj = Importance(**importance)
+    except TypeError as err:
+        raise _MalformedRecordError(f"corpus record sub-object is malformed: {err}") from err
+    return CorpusEntry(
+        channel    = channel,
+        captured   = captured,
+        published  = published,
+        video      = video_obj,
+        tldr       = tldr,
+        points     = tuple(points),
+        importance = importance_obj,
+        language   = language,
+    )
 
 
 def _transcript_to_dict(transcript: Transcript) -> dict[str, object]:
@@ -289,17 +306,25 @@ def _transcript_to_dict(transcript: Transcript) -> dict[str, object]:
 
 
 def _transcript_from_dict(record: dict[str, object]) -> Transcript:
-    # Same strictness as _entry_from_dict: a misshapen dict raises _MalformedRecord
-    # so the caller treats the file as corrupt and returns None, while an unrelated
-    # error propagates.
+    # Same extract -> validate -> construct order as _entry_from_dict, for the same
+    # reason: a malformed line is skipped, a real Transcript field rename propagates.
     try:
-        if not isinstance(record["segments"], list):
-            raise _MalformedRecord(f"'segments' is not a list: {record['segments']!r}")
-        return Transcript(
-            video_id          = record["video_id"],
-            language          = record["language"],
-            is_auto_generated = record["is_auto_generated"],
-            segments          = tuple(TranscriptSegment(**segment) for segment in record["segments"]),
-        )
-    except (KeyError, TypeError) as err:
-        raise _MalformedRecord(f"transcript record has a missing/misshaped field: {err}") from err
+        video_id          = record["video_id"]
+        language          = record["language"]
+        is_auto_generated = record["is_auto_generated"]
+        segments          = record["segments"]
+    except KeyError as err:
+        raise _MalformedRecordError(f"transcript record is missing field {err}") from err
+    if not (isinstance(video_id, str) and isinstance(language, str)
+            and isinstance(is_auto_generated, bool) and isinstance(segments, list)):
+        raise _MalformedRecordError("transcript record has a field of the wrong JSON type")
+    try:
+        segment_objs = tuple(TranscriptSegment(**segment) for segment in segments)
+    except TypeError as err:
+        raise _MalformedRecordError(f"transcript segment is malformed: {err}") from err
+    return Transcript(
+        video_id          = video_id,
+        language          = language,
+        is_auto_generated = is_auto_generated,
+        segments          = segment_objs,
+    )
