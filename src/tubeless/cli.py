@@ -23,9 +23,16 @@ from tubeless import config
 from tubeless.channels import CHANNELS_PATH, load_channels
 from tubeless.corpus import CORPUS_ROOT
 from tubeless.digest import DEFAULT_PER_CHANNEL_LIMIT, Digest, build_digest, record_entry
-from tubeless.errors import ConfigError, CorpusError, TubelessError
+from tubeless.errors import ConfigError, CorpusError, ScheduleError, TubelessError
 from tubeless.llm import BACKENDS, make_backend
 from tubeless.render import to_markdown
+from tubeless.schedule import (
+    DEFAULT_DAILY_TIME,
+    DigestSchedule,
+    parse_daily_time,
+    resolve_digest_command,
+    scheduler_for_platform,
+)
 from tubeless.source import fetch_video_meta
 from tubeless.state import STATE_PATH, read_seen, write_seen
 from tubeless.summary import DEFAULT_DETAIL, DEFAULT_LANGUAGE, DETAIL_LEVELS, Summary, summarize
@@ -33,7 +40,7 @@ from tubeless.transcript import fetch_transcript
 
 __all__ = ["main"]
 
-_SUBCOMMANDS = ("summarize", "digest")
+_SUBCOMMANDS = ("summarize", "digest", "schedule")
 _DIGEST_DIR  = Path.home() / ".tubeless" / "digests"
 
 
@@ -127,6 +134,28 @@ def _record_to_corpus(digest: Digest, *, root: Path) -> None:
                   file=sys.stderr)
 
 
+def _run_schedule_install(args: argparse.Namespace) -> int:
+    schedule = DigestSchedule(command=resolve_digest_command(), daily_time=args.at)
+    status   = scheduler_for_platform().install(schedule)
+    print(f"scheduled: {' '.join(schedule.command)}  daily at {args.at:%H:%M}")
+    print(f"  {status.description}")
+    print("Backend, language, and synthesis come from ~/.tubeless/config.env.")
+    return 0
+
+
+def _run_schedule_uninstall(args: argparse.Namespace) -> int:
+    removed = scheduler_for_platform().uninstall()
+    print("removed the daily digest schedule" if removed else "nothing was scheduled")
+    return 0
+
+
+def _run_schedule_status(args: argparse.Namespace) -> int:
+    status = scheduler_for_platform().status()
+    print(f"scheduled: {status.description}" if status.installed
+          else f"not scheduled ({status.description})")
+    return 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser     = argparse.ArgumentParser(prog="tubeless", description="Summarize YouTube videos.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -173,6 +202,21 @@ def _build_parser() -> argparse.ArgumentParser:
     digest_parser.add_argument("--dry-run", action="store_true",
                                help="print the digest instead of writing it and updating state")
     digest_parser.set_defaults(run=_run_digest)
+
+    schedule_parser  = subparsers.add_parser("schedule",
+                                             help="install/remove the daily digest in your OS scheduler (Linux cron)")
+    schedule_actions = schedule_parser.add_subparsers(dest="action", required=True)
+
+    schedule_install = schedule_actions.add_parser("install", help="register the daily digest job")
+    schedule_install.add_argument("--at", type=_daily_time, default=DEFAULT_DAILY_TIME,
+                                  help=f"daily run time, HH:MM 24-hour (default: {DEFAULT_DAILY_TIME:%H:%M})")
+    schedule_install.set_defaults(run=_run_schedule_install)
+
+    schedule_uninstall = schedule_actions.add_parser("uninstall", help="remove the daily digest job")
+    schedule_uninstall.set_defaults(run=_run_schedule_uninstall)
+
+    schedule_status = schedule_actions.add_parser("status", help="show whether the daily digest is scheduled")
+    schedule_status.set_defaults(run=_run_schedule_status)
     return parser
 
 
@@ -225,6 +269,15 @@ def _as_positive_int(text: str) -> int:
     if value < 1:
         raise ValueError(f"must be a positive integer, got {value}")
     return value
+
+
+def _daily_time(text: str) -> datetime.time:
+    """argparse ``type=`` for --at: parse an ``HH:MM`` time, reporting a bad value
+    the argparse way (a usage error) like --max-points/--limit do."""
+    try:
+        return parse_daily_time(text)
+    except ScheduleError as err:
+        raise argparse.ArgumentTypeError(str(err)) from None
 
 
 def _positive_int(text: str) -> int:

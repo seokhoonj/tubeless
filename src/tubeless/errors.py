@@ -14,6 +14,7 @@ __all__ = [
     "FeedError",
     "ConfigError",
     "CorpusError",
+    "ScheduleError",
 ]
 
 
@@ -60,3 +61,9 @@ class CorpusError(TubelessError):
     """The corpus (the on-disk archive of transcripts and summary records) could
     not be read or written -- an I/O failure, kept distinct from a corrupt file,
     which is treated as absent rather than raised."""
+
+
+class ScheduleError(TubelessError):
+    """The OS scheduler could not be queried or changed: no supported scheduler
+    on this platform, the scheduler command (crontab / launchctl / schtasks) is
+    missing, or a register/remove call returned an error."""
