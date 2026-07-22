@@ -11,10 +11,14 @@ from tubeless.corpus import (
     archive_transcript,
     load_summaries,
     load_transcript,
+    record_entry,
 )
+from tubeless.digest import DigestEntry
 from tubeless.errors import CorpusError
+from tubeless.feed import Upload
 from tubeless.importance import Importance
 from tubeless.source import Video
+from tubeless.summary import Summary
 from tubeless.transcript import Transcript, TranscriptSegment
 
 
@@ -152,6 +156,62 @@ def test_load_summaries_skips_a_wrong_shape_line(tmp_path):
     loaded = load_summaries("Channel A", root=tmp_path)
 
     assert [entry.video.video_id for entry in loaded] == ["aaaaaaaaaaa", "bbbbbbbbbbb"]
+
+
+def test_load_summaries_skips_a_scalar_points_line(tmp_path):
+    # Valid JSON with the right keys but a string where "points" should be a list:
+    # tuple("abc") would silently split it into ('a','b','c'), so the shape guard
+    # must reject the line as malformed rather than store a bogus 3-point entry.
+    append_entry(_entry("aaaaaaaaaaa", published="2026-07-01T08:00:00+00:00"), root=tmp_path)
+    with (tmp_path / "summaries.jsonl").open("a", encoding="utf-8") as file:
+        file.write(
+            '{"channel": "Channel A", "captured": "2026-07-02", "published": "",'
+            ' "video": {"video_id": "x", "title": "t", "url": "u", "channel": "c"},'
+            ' "tldr": "g", "points": "abc",'
+            ' "importance": {"score": 0.5, "reason": "r"}, "language": "en"}\n'
+        )
+    append_entry(_entry("bbbbbbbbbbb", published="2026-07-03T08:00:00+00:00"), root=tmp_path)
+
+    loaded = load_summaries("Channel A", root=tmp_path)
+
+    assert [entry.video.video_id for entry in loaded] == ["aaaaaaaaaaa", "bbbbbbbbbbb"]
+
+
+def test_record_entry_appends_the_summary_and_archives_the_transcript(tmp_path):
+    upload = Upload(
+        video_id      = "aaaaaaaaaaa",
+        title         = "Video aaaaaaaaaaa",
+        published     = "2026-07-21T09:00:00+00:00",
+        channel_id    = "UC00000000000000000000",
+        channel_title = "Uploader",
+    )
+    summary = Summary(
+        video    = Video(
+            video_id = "aaaaaaaaaaa",
+            title    = "Video aaaaaaaaaaa",
+            url      = "https://www.youtube.com/watch?v=aaaaaaaaaaa",
+            channel  = "Uploader",
+        ),
+        tldr     = "One-line gist.",
+        points   = ("first point", "second point"),
+        language = "en",
+    )
+    entry = DigestEntry(
+        channel    = "Channel A",
+        upload     = upload,
+        summary    = summary,
+        importance = Importance(score=0.8, reason="consequential"),
+        transcript = _transcript(),
+    )
+
+    record_entry(entry, "2026-07-22", root=tmp_path)
+
+    loaded = load_summaries("Channel A", root=tmp_path)
+    assert len(loaded) == 1
+    assert loaded[0].captured  == "2026-07-22"   # the digest date, not the publish date
+    assert loaded[0].published == "2026-07-21T09:00:00+00:00"
+    assert loaded[0].points    == ("first point", "second point")
+    assert load_transcript("aaaaaaaaaaa", root=tmp_path) == _transcript()
 
 
 def test_load_summaries_with_a_single_bound(tmp_path):

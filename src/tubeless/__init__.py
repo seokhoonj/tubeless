@@ -5,9 +5,18 @@ happens inside the functions the caller invokes.
 """
 
 from tubeless.channels import Channel, load_channels
+from tubeless.corpus import (
+    CorpusEntry,
+    append_entry,
+    archive_transcript,
+    load_summaries,
+    load_transcript,
+    record_entry,
+)
 from tubeless.digest import Digest, DigestEntry, build_digest
 from tubeless.errors import (
     ConfigError,
+    CorpusError,
     FeedError,
     InvalidVideoURL,
     LLMError,
@@ -34,6 +43,8 @@ __all__ = [
     "Channel",
     "ClaudeBackend",
     "ConfigError",
+    "CorpusEntry",
+    "CorpusError",
     "DailySynthesis",
     "DETAIL_LEVELS",
     "DetailLevel",
@@ -56,6 +67,8 @@ __all__ = [
     "TubelessError",
     "Upload",
     "Video",
+    "append_entry",
+    "archive_transcript",
     "build_digest",
     "fetch_channel_uploads",
     "fetch_playlist_uploads",
@@ -63,7 +76,10 @@ __all__ = [
     "fetch_transcript",
     "fetch_video_meta",
     "load_channels",
+    "load_summaries",
+    "load_transcript",
     "parse_video_id",
+    "record_entry",
     "resolve_channel_id",
     "score_importance",
     "summarize",

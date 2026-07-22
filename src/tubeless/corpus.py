@@ -17,20 +17,35 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from tubeless.errors import CorpusError
 from tubeless.importance import Importance
 from tubeless.source import Video
 from tubeless.transcript import Transcript, TranscriptSegment
 
+if TYPE_CHECKING:
+    # Type-only: corpus is the lower storage layer, so it must not import the
+    # digest orchestration layer at runtime. record_entry reads a DigestEntry
+    # structurally.
+    from tubeless.digest import DigestEntry
+
 __all__ = [
     "CORPUS_ROOT",
     "CorpusEntry",
     "append_entry",
-    "load_summaries",
     "archive_transcript",
+    "load_summaries",
     "load_transcript",
+    "record_entry",
 ]
+
+
+class _MalformedRecord(ValueError):
+    """A corpus line decoded as JSON but did not have a CorpusEntry/Transcript
+    shape. The ``_*_from_dict`` decoders raise it and the loaders catch it, so a
+    genuinely malformed line is skipped while an unrelated ``KeyError`` /
+    ``TypeError`` (a real defect) still propagates instead of being swallowed."""
 
 CORPUS_ROOT = Path.home() / ".tubeless" / "corpus"
 
@@ -117,8 +132,8 @@ def load_summaries(
                     continue
                 try:
                     entry = _entry_from_dict(json.loads(line.decode("utf-8")))
-                except (UnicodeDecodeError, ValueError, KeyError, TypeError):
-                    continue   # a malformed line is skipped, never fatal
+                except (UnicodeDecodeError, json.JSONDecodeError, _MalformedRecord):
+                    continue   # a garbled or misshaped line is skipped, never fatal
                 if entry.channel != channel:
                     continue
                 date = _entry_date(entry)
@@ -187,8 +202,37 @@ def load_transcript(video_id: str, *, root: Path | None = None) -> Transcript | 
         raise CorpusError(f"could not read archived transcript {path}: {err}") from err
     try:
         return _transcript_from_dict(json.loads(text))
-    except (ValueError, KeyError, TypeError):
+    except (json.JSONDecodeError, _MalformedRecord):
         return None
+
+
+def record_entry(entry: DigestEntry, captured: str, *, root: Path | None = None) -> None:
+    """Archive one digest entry: append its summary as a corpus record (under the
+    channel it was captured for, dated ``captured``) and archive its source
+    transcript once.
+
+    This owns the projection from a digest entry to a durable record -- which of
+    the summary/importance/upload fields make up a ``CorpusEntry`` -- so a caller
+    only orchestrates the loop over the entries and decides how to report a
+    failure.
+
+    Raises:
+        CorpusError: the summary record or the transcript could not be written.
+    """
+    append_entry(
+        CorpusEntry(
+            channel    = entry.channel,
+            captured   = captured,
+            published  = entry.upload.published,
+            video      = entry.summary.video,
+            tldr       = entry.summary.tldr,
+            points     = entry.summary.points,
+            importance = entry.importance,
+            language   = entry.summary.language,
+        ),
+        root=root,
+    )
+    archive_transcript(entry.transcript, root=root)
 
 
 def _entry_date(entry: CorpusEntry) -> str:
@@ -210,19 +254,29 @@ def _entry_to_dict(entry: CorpusEntry) -> dict[str, object]:
     }
 
 
-def _entry_from_dict(data: dict[str, object]) -> CorpusEntry:
-    # Deliberately strict: a missing or misshapen field raises (KeyError /
-    # TypeError / ValueError) so the caller can skip that line as malformed.
-    return CorpusEntry(
-        channel    = data["channel"],
-        captured   = data["captured"],
-        published  = data["published"],
-        video      = Video(**data["video"]),
-        tldr       = data["tldr"],
-        points     = tuple(data["points"]),
-        importance = Importance(**data["importance"]),
-        language   = data["language"],
-    )
+def _entry_from_dict(record: dict[str, object]) -> CorpusEntry:
+    # A missing or misshapen field is a malformed *line*, not a program bug, so
+    # wrap it in _MalformedRecord for the loader to skip -- while a KeyError or
+    # TypeError from anywhere else still propagates as itself. The isinstance
+    # guards reject a scalar where a container is expected (e.g. a JSON string
+    # "points": "abc", which tuple() would silently split into ('a','b','c')).
+    try:
+        if not isinstance(record["points"], list):
+            raise _MalformedRecord(f"'points' is not a list: {record['points']!r}")
+        if not isinstance(record["video"], dict) or not isinstance(record["importance"], dict):
+            raise _MalformedRecord("'video' and 'importance' must be JSON objects")
+        return CorpusEntry(
+            channel    = record["channel"],
+            captured   = record["captured"],
+            published  = record["published"],
+            video      = Video(**record["video"]),
+            tldr       = record["tldr"],
+            points     = tuple(record["points"]),
+            importance = Importance(**record["importance"]),
+            language   = record["language"],
+        )
+    except (KeyError, TypeError) as err:
+        raise _MalformedRecord(f"corpus record has a missing/misshaped field: {err}") from err
 
 
 def _transcript_to_dict(transcript: Transcript) -> dict[str, object]:
@@ -234,12 +288,18 @@ def _transcript_to_dict(transcript: Transcript) -> dict[str, object]:
     }
 
 
-def _transcript_from_dict(data: dict[str, object]) -> Transcript:
-    # Same strictness as _entry_from_dict: raise on a misshapen dict so the
-    # caller can treat the file as corrupt and return None.
-    return Transcript(
-        video_id          = data["video_id"],
-        language          = data["language"],
-        is_auto_generated = data["is_auto_generated"],
-        segments          = tuple(TranscriptSegment(**segment) for segment in data["segments"]),
-    )
+def _transcript_from_dict(record: dict[str, object]) -> Transcript:
+    # Same strictness as _entry_from_dict: a misshapen dict raises _MalformedRecord
+    # so the caller treats the file as corrupt and returns None, while an unrelated
+    # error propagates.
+    try:
+        if not isinstance(record["segments"], list):
+            raise _MalformedRecord(f"'segments' is not a list: {record['segments']!r}")
+        return Transcript(
+            video_id          = record["video_id"],
+            language          = record["language"],
+            is_auto_generated = record["is_auto_generated"],
+            segments          = tuple(TranscriptSegment(**segment) for segment in record["segments"]),
+        )
+    except (KeyError, TypeError) as err:
+        raise _MalformedRecord(f"transcript record has a missing/misshaped field: {err}") from err

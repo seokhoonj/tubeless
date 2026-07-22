@@ -21,7 +21,7 @@ from pathlib import Path
 
 from tubeless import config
 from tubeless.channels import CHANNELS_PATH, load_channels
-from tubeless.corpus import CORPUS_ROOT, CorpusEntry, append_entry, archive_transcript
+from tubeless.corpus import CORPUS_ROOT, record_entry
 from tubeless.digest import DEFAULT_PER_CHANNEL_LIMIT, Digest, build_digest
 from tubeless.errors import ConfigError, CorpusError, TubelessError
 from tubeless.llm import ClaudeBackend, GeminiBackend, LLMBackend, OllamaBackend, OpenAIBackend
@@ -114,28 +114,17 @@ def _run_digest(args: argparse.Namespace) -> int:
 
 
 def _record_to_corpus(digest: Digest, *, root: Path) -> None:
-    """Append each summarized video to the on-disk corpus -- the summary record,
-    and its source transcript archived once -- so a later analysis can reload a
-    channel's history over time without refetching.
+    """Archive each summarized video to the on-disk corpus (see
+    ``corpus.record_entry`` for the record it builds).
 
-    Best-effort per entry: the corpus is a secondary archive, and the digest
-    file and seen-set are already persisted, so one entry's I/O failure is
+    Best-effort per entry: the corpus is a secondary archive, and the digest file
+    and seen-set are already persisted by now, so one entry's I/O failure is
     reported and skipped rather than aborting the loop and dropping every entry
     that follows -- those are already marked seen and would never be retried.
     """
     for entry in digest.entries:
         try:
-            append_entry(CorpusEntry(
-                channel    = entry.channel,
-                captured   = digest.date,
-                published  = entry.upload.published,
-                video      = entry.summary.video,
-                tldr       = entry.summary.tldr,
-                points     = entry.summary.points,
-                importance = entry.importance,
-                language   = entry.summary.language,
-            ), root=root)
-            archive_transcript(entry.transcript, root=root)
+            record_entry(entry, digest.date, root=root)
         except CorpusError as err:
             print(f"tubeless: corpus not updated for {entry.upload.video_id} ({err})",
                   file=sys.stderr)
