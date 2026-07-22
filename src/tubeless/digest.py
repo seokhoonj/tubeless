@@ -21,7 +21,7 @@ from tubeless.importance import Importance, score_importance
 from tubeless.llm import LLMBackend
 from tubeless.source import Video
 from tubeless.summary import DEFAULT_LANGUAGE, Summary, summarize
-from tubeless.synthesis import DailySynthesis, synthesize
+from tubeless.synthesis import Synthesis, synthesize
 from tubeless.transcript import Transcript, fetch_transcript
 
 __all__ = ["DEFAULT_PER_CHANNEL_LIMIT", "Digest", "DigestEntry", "build_digest", "record_entry"]
@@ -57,7 +57,7 @@ class Digest:
     date:      str
     entries:   tuple[DigestEntry, ...]
     skipped:   tuple[str, ...]
-    synthesis: DailySynthesis | None = None
+    synthesis: Synthesis | None = None
 
 
 def build_digest(

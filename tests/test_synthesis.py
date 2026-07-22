@@ -1,6 +1,6 @@
 """Cross-source synthesis: reply parsing and prompt assembly, no network."""
 
-from tubeless import DailySynthesis
+from tubeless import Synthesis
 from tubeless.source import Video
 from tubeless.summary import Summary
 from tubeless.synthesis import _parse_synthesis, synthesize
@@ -96,7 +96,7 @@ def test_synthesize_feeds_every_source_into_the_prompt():
 
     got = synthesize(summaries, backend, language="en")
 
-    assert isinstance(got, DailySynthesis)
+    assert isinstance(got, Synthesis)
     # each source's label, title, and tldr reached the model
     for token in ("Channel A", "Video A", "gist A", "a1", "Channel B", "Video B", "gist B"):
         assert token in backend.prompt

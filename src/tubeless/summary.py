@@ -22,6 +22,7 @@ __all__ = [
     "DetailLevel",
     "Summary",
     "language_name",
+    "summarise",
     "summarize",
 ]
 
@@ -241,6 +242,10 @@ def summarize(
 
     tldr, points = _parse_reply(reply, max_points=cap)
     return Summary(video=video, tldr=tldr, points=points, language=target_language)
+
+
+# British spelling, same function: one implementation, two accepted names.
+summarise = summarize
 
 
 def _split_into_chunks(text: str, *, word_limit: int) -> list[str]:

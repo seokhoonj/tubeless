@@ -10,7 +10,7 @@ from typing import get_args
 
 from tubeless.digest import Digest, DigestEntry
 from tubeless.importance import ImportanceTier
-from tubeless.synthesis import DailySynthesis
+from tubeless.synthesis import Synthesis
 
 __all__ = ["to_markdown"]
 
@@ -40,7 +40,7 @@ def to_markdown(digest: Digest) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def _synthesis_lines(synthesis: DailySynthesis) -> list[str]:
+def _synthesis_lines(synthesis: Synthesis) -> list[str]:
     """The cross-source briefing that leads the digest: overall tone, a short
     synthesis, and where the sources agree and differ."""
     lines = ["## Today — across the sources", ""]

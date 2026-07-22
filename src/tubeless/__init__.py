@@ -42,8 +42,8 @@ from tubeless.llm import (
 )
 from tubeless.render import to_markdown
 from tubeless.source import Video, fetch_video_meta, parse_video_id
-from tubeless.summary import DETAIL_LEVELS, DetailLevel, Summary, summarize
-from tubeless.synthesis import DailySynthesis, synthesize
+from tubeless.summary import DETAIL_LEVELS, DetailLevel, Summary, summarise, summarize
+from tubeless.synthesis import Synthesis, synthesize
 from tubeless.transcript import Transcript, TranscriptSegment, fetch_transcript
 
 __all__ = [
@@ -53,7 +53,6 @@ __all__ = [
     "ConfigError",
     "CorpusEntry",
     "CorpusError",
-    "DailySynthesis",
     "DETAIL_LEVELS",
     "DetailLevel",
     "Digest",
@@ -68,6 +67,7 @@ __all__ = [
     "OllamaBackend",
     "OpenAIBackend",
     "Summary",
+    "Synthesis",
     "Transcript",
     "TranscriptFetchBlocked",
     "TranscriptSegment",
@@ -91,6 +91,7 @@ __all__ = [
     "record_entry",
     "resolve_channel_id",
     "score_importance",
+    "summarise",
     "summarize",
     "synthesize",
     "to_markdown",

@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from tubeless.llm import LLMBackend
 from tubeless.summary import DEFAULT_LANGUAGE, Summary, language_name
 
-__all__ = ["DailySynthesis", "synthesize"]
+__all__ = ["Synthesis", "synthesize"]
 
 _SYSTEM_PROMPT = (
     "You synthesize several video summaries from one day into a single briefing. "
@@ -54,7 +54,7 @@ _EMPTY_BULLETS = {"(none)", "none", "n/a", "-", "(없음)", "없음", "해당 �
 
 
 @dataclass(frozen=True, slots=True)
-class DailySynthesis:
+class Synthesis:
     """A cross-source read of one day: the overall tone, a short synthesis, the
     points the sources agree on, and where they diverge (with attribution)."""
 
@@ -69,9 +69,9 @@ def synthesize(
     backend:   LLMBackend,
     *,
     language:  str = DEFAULT_LANGUAGE,
-) -> DailySynthesis:
+) -> Synthesis:
     """Combine ``summaries`` (each an ``(source_label, Summary)`` pair) into one
-    ``DailySynthesis``.
+    ``Synthesis``.
 
     Meant for two or more summaries -- one source cannot agree or disagree with
     itself -- but it does not enforce that; the caller (the digest) decides when a
@@ -101,7 +101,7 @@ def _unwrap(text: str) -> str:
     return text.strip().strip("*").strip()
 
 
-def _parse_synthesis(reply: str) -> DailySynthesis:
+def _parse_synthesis(reply: str) -> Synthesis:
     """Extract the four fields from the model's reply, tolerating drift.
 
     The TONE/OVERVIEW lines carry their text inline; AGREEMENT/DISAGREEMENT own
@@ -143,7 +143,7 @@ def _parse_synthesis(reply: str) -> DailySynthesis:
             # A wrapped OVERVIEW: join the continuation onto what we have.
             overview = f"{overview} {line}".strip()
 
-    return DailySynthesis(
+    return Synthesis(
         tone          = tone,
         overview      = overview,
         agreements    = tuple(agreements),

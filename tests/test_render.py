@@ -8,7 +8,7 @@ from tubeless.importance import Importance, ImportanceTier
 from tubeless.render import _TIER_MARKER, to_markdown
 from tubeless.source import Video
 from tubeless.summary import Summary
-from tubeless.synthesis import DailySynthesis
+from tubeless.synthesis import Synthesis
 from tubeless.transcript import Transcript
 
 
@@ -59,7 +59,7 @@ def test_to_markdown_tiers_track_the_score():
 
 
 def test_to_markdown_leads_with_the_synthesis_when_present():
-    synthesis = DailySynthesis(
+    synthesis = Synthesis(
         tone          = "cautious",
         overview      = "a corrective day",
         agreements    = ("chips fell",),
