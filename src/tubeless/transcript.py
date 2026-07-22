@@ -112,6 +112,16 @@ def fetch_transcript(
         raise TranscriptUnavailable(
             f"no transcript for video {video_id!r} in languages {languages!r}: {err}"
         ) from err
+    except requests.RequestException as err:
+        # Our _TimeoutSession adds a timeout the vendor library has none of, so a
+        # slow or dropped fetch surfaces as a raw requests.Timeout/ConnectionError
+        # -- not a CouldNotRetrieveTranscript subclass, so it would otherwise
+        # escape this boundary as a bare stack trace. A transport failure is
+        # transient (retry later), so map it to TranscriptFetchBlocked, not the
+        # permanent TranscriptUnavailable.
+        raise TranscriptFetchBlocked(
+            f"transcript fetch failed for video {video_id!r}: {err}"
+        ) from err
 
     segments = tuple(
         TranscriptSegment(text=snippet.text, start=snippet.start, duration=snippet.duration)

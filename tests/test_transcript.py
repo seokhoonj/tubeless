@@ -198,3 +198,65 @@ def test_fetch_transcript_reraises_a_transient_block_as_fetch_blocked(
     assert not isinstance(raised.value, TranscriptUnavailable)
     assert isinstance(raised.value.__cause__, _VendorBlocked)
     assert "dQw4w9WgXcQ" in str(raised.value)
+
+
+class _FakeCouldNotRetrieve(Exception):
+    """Stands in for the vendor's CouldNotRetrieveTranscript base class."""
+
+
+class _VendorBlockedSubclass(_FakeCouldNotRetrieve):
+    """A transient block that -- like the real RequestBlocked/IpBlocked -- IS a
+    subclass of CouldNotRetrieveTranscript, so only the ORDER of the two except
+    arms decides which handler catches it."""
+
+
+class _BlockedSubclassAPI:
+    def __init__(self, **_kwargs: object) -> None:
+        pass
+
+    def list(self, video_id: str) -> None:
+        raise _VendorBlockedSubclass("IP temporarily blocked")
+
+
+def test_fetch_transcript_prefers_the_blocked_arm_over_its_permanent_parent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # RequestBlocked/IpBlocked/YouTubeRequestFailed really DO subclass
+    # CouldNotRetrieveTranscript, so if the two except arms were reordered a
+    # transient block would be caught as the permanent TranscriptUnavailable and
+    # the digest would drop the video forever. Mirror that subclassing here so the
+    # test fails the moment the arms are swapped (the plain _VendorBlocked above
+    # cannot catch a reorder because it is not a CouldNotRetrieveTranscript).
+    monkeypatch.setattr(transcript_module, "CouldNotRetrieveTranscript", _FakeCouldNotRetrieve)
+    monkeypatch.setattr(transcript_module, "RequestBlocked", _VendorBlockedSubclass)
+    monkeypatch.setattr(transcript_module, "YouTubeTranscriptApi", _BlockedSubclassAPI)
+
+    with pytest.raises(TranscriptFetchBlocked) as raised:
+        fetch_transcript("dQw4w9WgXcQ")
+
+    assert not isinstance(raised.value, TranscriptUnavailable)
+    assert isinstance(raised.value.__cause__, _VendorBlockedSubclass)
+
+
+class _TimingOutAPI:
+    def __init__(self, **_kwargs: object) -> None:
+        pass
+
+    def list(self, video_id: str) -> None:
+        raise transcript_module.requests.Timeout("read timed out")
+
+
+def test_fetch_transcript_maps_a_transport_timeout_to_fetch_blocked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The _TimeoutSession adds a timeout the vendor library lacks, so a slow or
+    # dropped fetch raises a raw requests.Timeout -- not a CouldNotRetrieveTranscript
+    # subclass. It must be translated to the transient TranscriptFetchBlocked (retry
+    # later), not escape fetch_transcript as a bare network stack trace.
+    monkeypatch.setattr(transcript_module, "YouTubeTranscriptApi", _TimingOutAPI)
+
+    with pytest.raises(TranscriptFetchBlocked) as raised:
+        fetch_transcript("dQw4w9WgXcQ")
+
+    assert not isinstance(raised.value, TranscriptUnavailable)
+    assert "dQw4w9WgXcQ" in str(raised.value)
