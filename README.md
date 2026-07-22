@@ -21,7 +21,7 @@ Works with Gemini (free), OpenAI, Claude, or a local model via Ollama.
 - [Summarize one video](#summarize-one-video) (`--detail` / `--max-points` / `--backend` / `--model` / `--lang`)
 - [Daily digest](#daily-digest)
 - [Run it every day with cron (Linux)](#run-it-every-day-with-cron-linux)
-- [Use it from Claude Code](#use-it-from-claude-code) (plugin: `/tubeless:summarize`)
+- [Use it from an AI coding agent](#use-it-from-an-ai-coding-agent) — Claude Code, Codex
 - [Use it as a Python library](#use-it-as-a-python-library)
 - [Limits](#limits)
 
@@ -125,9 +125,15 @@ to start** (no card needed). OpenAI is the built-in default; change it once with
 | **OpenAI** | `--backend openai` (default) | `OPENAI_API_KEY` | `gpt-4o-mini` | OpenAI's servers | paid, prepaid credits |
 | **Ollama** | `--backend ollama` | none | `llama3.1` | your own machine | free |
 
-**Models per backend (`--model`).** Each backend uses a cheap small model by
-default; pass `--model NAME` to pick another. Model names shift often, so the
-linked list is the authoritative one.
+**Which to choose?** Gemini's free tier is the easiest way to start without
+paying. Claude tends to *hedge* an uncertain specific rather than invent one;
+OpenAI `gpt-4o-mini` is a cheap cloud all-rounder. Ollama is the
+private/offline/free option.
+
+#### Models
+
+Each backend uses a cheap small model by default; pass `--model NAME` to pick
+another. Model names shift often, so the linked list is the authoritative one.
 
 | backend | default `--model` | other options | full list |
 |---|---|---|---|
@@ -141,7 +147,9 @@ linked list is the authoritative one.
 > similar one it knows (e.g. a brand-new model name → an older one it was trained
 > on). A larger, more recent model does this far less.
 
-**Where to pay, and how much.**
+#### Pricing
+
+Where to pay, and how much:
 
 - **Gemini** — get a key at [aistudio.google.com](https://aistudio.google.com).
   Gemini has a **genuine free tier** (rate-limited) — enough to try tubeless
@@ -160,13 +168,9 @@ linked list is the authoritative one.
 Prepaid credits (Claude, OpenAI) **expire one year** after purchase and are
 non-refundable — so top up small.
 
-**Which to choose?** Gemini's free tier is the easiest way to start without
-paying. Claude tends to *hedge* an uncertain specific rather than invent one;
-OpenAI `gpt-4o-mini` is a cheap cloud all-rounder. Ollama is the
-private/offline/free option.
+#### Ollama
 
-**Using Ollama (local, free).** Install the server, pull a model, then point
-tubeless at it:
+Install the server, pull a model, then point tubeless at it:
 ```sh
 # macOS:   brew install ollama          (or download from https://ollama.com)
 # Linux:   curl -fsSL https://ollama.com/install.sh | sh
@@ -177,7 +181,7 @@ tubeless VIDEO_ID_XX --backend ollama --model llama3.1
 Point at a non-default host with the `OLLAMA_HOST` environment variable
 (e.g. `OLLAMA_HOST=http://192.168.0.10:11434`).
 
-**Ollama in practice — quality depends on your machine and model.** Tested on a
+**Quality depends on your machine and model.** Tested on a
 Ryzen 3700X / 128 GB RAM / RTX 2070 SUPER (8 GB VRAM): a small model like
 `llama3.1` (8B) runs fast and is fine for a quick gist, but a 14B model such as
 **Qwen 14B did not perform that well** for summarization here — a 14B only partly
@@ -186,8 +190,10 @@ summaries held numbers and structure noticeably worse than the cloud backends.
 Treat Ollama as the free / offline / private option, not a quality match for
 OpenAI or Claude; when summary quality matters, use a cloud backend.
 
-**Choosing a Gemini model (`--model`).** The default `gemini-flash-lite-latest`
-is the cheapest tier and runs on the free tier. Pass `--model` to pick another —
+#### Gemini
+
+The default `gemini-flash-lite-latest` is the cheapest tier and runs on the free
+tier. Pass `--model` to pick another —
 what actually runs depends on your key:
 
 - On the **free tier**, only models with free quota run. The `-latest` aliases
@@ -377,14 +383,18 @@ uploads. Read the result each morning at `~/.tubeless/digests/`.
 > **macOS** has cron too, but `launchd` / a Calendar-triggered Automator action
 > is the native way. **Windows**: use Task Scheduler to run `tubeless digest`.
 
-### Use it from Claude Code
+### Use it from an AI coding agent
 
-If you use [Claude Code](https://claude.com/claude-code), you can summarize a
-video with a slash command without leaving your editor. The skill just shells out
-to the `tubeless` command, so install the CLI first (`pip install tubeless`).
+tubeless is also an installable plugin for **Claude Code** and **Codex**, so you
+can summarize a video without leaving your editor. The plugin only shells out to
+the `tubeless` command, so **install the CLI first** (`pip install tubeless`);
+your keys stay in your own `~/.tubeless/config.env` — the plugin ships only the
+instructions, never a key.
 
-**Install as a plugin** — this repo doubles as a plugin marketplace. From inside
-a session with slash commands:
+#### Claude Code
+
+This repo doubles as a plugin marketplace. Register and install it from inside a
+session with slash commands:
 
 ```
 /plugin marketplace add seokhoonj/tubeless
@@ -398,29 +408,29 @@ claude plugin marketplace add seokhoonj/tubeless
 claude plugin install tubeless@tubeless
 ```
 
-Then paste a YouTube URL (the skill triggers on its own), or run it explicitly:
+Then paste a YouTube URL (the skill triggers on its own), or run it explicitly —
+picking a backend the same way as the CLI (`--backend claude`, `--backend ollama`, ...):
 
 ```
 /tubeless:summarize https://youtu.be/VIDEO_ID_XX
 ```
 
-Pick a backend the same way as the CLI (`--backend claude`, `--backend ollama`,
-...). Your keys stay in your own `~/.tubeless/config.env` — the plugin ships only
-the instructions, never a key.
+#### Codex
 
-**Use it from Codex** — the same repo also ships a Codex plugin:
+The same repo also ships a Codex plugin:
 
 ```
 codex plugin marketplace add seokhoonj/tubeless
 codex plugin add tubeless@tubeless
 ```
 
-Install the CLI first the same way (`pip install tubeless`); the plugin only wraps
-it. The `summarize` skill triggers on a YouTube URL, or run `tubeless summarize
-<url>` directly.
+The `summarize` skill triggers on a YouTube URL, or run `tubeless summarize <url>`
+directly.
 
-**Or wire it up by hand** — drop a `SKILL.md` in `~/.claude/skills/tubeless/`
-(local to your machine, not tracked) that shells out to the CLI:
+#### By hand (any agent)
+
+Or wire it up yourself — drop a `SKILL.md` in `~/.claude/skills/tubeless/` (local
+to your machine, not tracked) that shells out to the CLI:
 
 ```markdown
 ---
@@ -494,7 +504,7 @@ Ollama로 로컬 모델까지 씁니다.
 - [영상 한 개 요약](#영상-한-개-요약) (`--detail` / `--max-points` / `--backend` / `--model` / `--lang`)
 - [데일리 다이제스트](#데일리-다이제스트)
 - [cron으로 매일 자동 실행 (Linux)](#cron으로-매일-자동-실행-linux)
-- [Claude Code에서 쓰기](#claude-code에서-쓰기) (플러그인: `/tubeless:summarize`)
+- [AI 코딩 에이전트에서 쓰기](#ai-코딩-에이전트에서-쓰기) — Claude Code, Codex
 - [파이썬 라이브러리로 쓰기](#파이썬-라이브러리로-쓰기)
 - [한계](#한계)
 
@@ -594,8 +604,14 @@ tubeless --help
 | **OpenAI** | `--backend openai` (기본) | `OPENAI_API_KEY` | `gpt-4o-mini` | OpenAI 서버 | 유료, 선불 크레딧 |
 | **Ollama** | `--backend ollama` | 불필요 | `llama3.1` | 내 컴퓨터 | 무료 |
 
-**백엔드별 모델 (`--model`).** 각 백엔드는 기본으로 싼 소형 모델을 씁니다.
-`--model NAME`으로 다른 걸 고르세요. 모델명은 자주 바뀌니 링크의 목록이 정본입니다.
+**뭘 고를까?** Gemini는 무료 티어라 결제 없이 가장 쉽게 시작합니다. Claude는
+불확실한 값을 지어내기보다 *유보*하는 경향이고, OpenAI `gpt-4o-mini`는 싼 클라우드
+올라운더입니다. Ollama는 비공개·오프라인·무료 옵션입니다.
+
+#### 모델
+
+각 백엔드는 기본으로 싼 소형 모델을 씁니다. `--model NAME`으로 다른 걸 고르세요.
+모델명은 자주 바뀌니 링크의 목록이 정본입니다.
 
 | 백엔드 | 기본 `--model` | 다른 선택지 | 전체 목록 |
 |---|---|---|---|
@@ -609,7 +625,9 @@ tubeless --help
 > 있습니다(예: 갓 나온 모델명 → 학습 때 아는 옛 이름). 크고 최신인 모델은 이런
 > 실수가 훨씬 적습니다.
 
-**어디서, 얼마부터 결제하나.**
+#### 요금
+
+어디서, 얼마부터 결제하나:
 
 - **Gemini** — [aistudio.google.com](https://aistudio.google.com)에서 키 발급.
   **진짜 무료 티어**(요율 제한)가 있어 결제 없이도 tubeless를 시험해볼 수 있습니다.
@@ -626,12 +644,9 @@ tubeless --help
 
 Claude·OpenAI 크레딧은 구매 **1년 뒤 만료**되고 환불되지 않으니 조금씩 충전하세요.
 
-**뭘 고를까?** Gemini는 무료 티어라 결제 없이 가장 쉽게 시작합니다. Claude는
-불확실한 값을 지어내기보다 *유보*하는 경향이고, OpenAI `gpt-4o-mini`는 싼 클라우드
-올라운더입니다. Ollama는 비공개·오프라인·무료 옵션입니다.
+#### Ollama
 
-**Ollama 쓰기(로컬, 무료).** 서버를 설치하고 모델을 받은 뒤 tubeless를 가리키게
-합니다:
+서버를 설치하고 모델을 받은 뒤 tubeless를 가리키게 합니다:
 ```sh
 # macOS:   brew install ollama          (또는 https://ollama.com 에서 다운로드)
 # Linux:   curl -fsSL https://ollama.com/install.sh | sh
@@ -642,7 +657,7 @@ tubeless VIDEO_ID_XX --backend ollama --model llama3.1
 기본이 아닌 호스트는 `OLLAMA_HOST` 환경변수로 지정합니다
 (예: `OLLAMA_HOST=http://192.168.0.10:11434`).
 
-**Ollama 실사용 — 품질은 머신·모델에 좌우됩니다.** 실제 테스트 환경
+**품질은 머신·모델에 좌우됩니다.** 실제 테스트 환경
 (Ryzen 3700X / 128GB RAM / RTX 2070 SUPER, VRAM 8GB): `llama3.1`(8B) 같은 소형
 모델은 빠르고 대략적인 요지엔 무난했지만, 14B급인 **Qwen 14B는 요약 성능이 그리
 좋지 못했습니다** — 14B는 8GB VRAM에 일부만 올라가 CPU/RAM으로 넘치며 느려지고,
@@ -650,9 +665,10 @@ tubeless VIDEO_ID_XX --backend ollama --model llama3.1
 라인·비공개 옵션으로 보고, OpenAI·Claude의 품질 대체재로는 보지 마세요. 요약
 품질이 중요하면 클라우드 백엔드를 쓰는 게 좋습니다.
 
-**Gemini 모델 고르기 (`--model`).** 기본 `gemini-flash-lite-latest`는 가장 싼
-등급이고 무료 티어로 돕니다. `--model`로 다른 걸 고를 수 있는데, 실제로 도는지는
-키에 달렸습니다:
+#### Gemini
+
+기본 `gemini-flash-lite-latest`는 가장 싼 등급이고 무료 티어로 돕니다. `--model`로
+다른 걸 고를 수 있는데, 실제로 도는지는 키에 달렸습니다:
 
 - **무료 티어**에서는 무료 할당이 있는 모델만 돕니다. `-latest` 별칭
   (`gemini-flash-lite-latest`, `gemini-flash-latest`)이 안전하고, `gemini-2.5-flash`
@@ -840,14 +856,16 @@ cron은 명령을 정해진 시각에 실행합니다. 매일 밤 22:00에 다�
 > **macOS**도 cron이 있지만 `launchd` / 캘린더로 트리거하는 Automator가 더
 > 네이티브합니다. **Windows**: 작업 스케줄러로 `tubeless digest`를 실행하세요.
 
-### Claude Code에서 쓰기
+### AI 코딩 에이전트에서 쓰기
 
-[Claude Code](https://claude.com/claude-code)를 쓴다면, 에디터를 떠나지 않고 슬래시
-명령으로 영상을 요약할 수 있습니다. 스킬은 `tubeless` 명령을 그대로 호출할 뿐이니 CLI를
-먼저 설치하세요(`pip install tubeless`).
+tubeless는 **Claude Code**와 **Codex**용 설치형 플러그인이기도 해서, 에디터를
+떠나지 않고 영상을 요약할 수 있습니다. 플러그인은 `tubeless` 명령을 그대로 호출할
+뿐이니 **CLI를 먼저 설치하세요**(`pip install tubeless`). 키는 각자
+`~/.tubeless/config.env`에 두며, 플러그인은 지시문만 나르고 키는 절대 담지 않습니다.
 
-**플러그인으로 설치** — 이 저장소가 곧 플러그인 마켓플레이스입니다. 세션 안에서
-slash 명령으로:
+#### Claude Code
+
+이 저장소가 곧 플러그인 마켓플레이스입니다. 세션 안에서 slash 명령으로 등록·설치:
 
 ```
 /plugin marketplace add seokhoonj/tubeless
@@ -861,27 +879,29 @@ claude plugin marketplace add seokhoonj/tubeless
 claude plugin install tubeless@tubeless
 ```
 
-이후 유튜브 URL을 붙여넣으면 스킬이 알아서 발동하거나, 직접 호출할 수 있습니다:
+이후 유튜브 URL을 붙여넣으면 스킬이 알아서 발동하거나, 직접 호출합니다(백엔드는
+CLI와 동일하게 `--backend claude` 등으로 지정):
 
 ```
 /tubeless:summarize https://youtu.be/VIDEO_ID_XX
 ```
 
-백엔드는 CLI와 동일하게 지정합니다(`--backend claude`, `--backend ollama` 등). 키는
-각자 `~/.tubeless/config.env`에 두며, 플러그인은 지시문만 나르고 키는 절대 담지 않습니다.
+#### Codex
 
-**Codex에서 쓰기** — 같은 저장소가 Codex 플러그인도 함께 배포합니다:
+같은 저장소가 Codex 플러그인도 함께 배포합니다:
 
 ```
 codex plugin marketplace add seokhoonj/tubeless
 codex plugin add tubeless@tubeless
 ```
 
-CLI를 먼저 설치하고(`pip install tubeless`) — 플러그인은 그걸 감쌀 뿐입니다. `summarize`
-스킬이 유튜브 URL에 발동하거나, `tubeless summarize <url>`을 직접 실행하면 됩니다.
+`summarize` 스킬이 유튜브 URL에 발동하거나, `tubeless summarize <url>`을 직접
+실행하면 됩니다.
 
-**직접 엮고 싶다면** — `~/.claude/skills/tubeless/SKILL.md`를 만들어(내 머신에만 남는
-로컬 파일, 추적 안 됨) CLI를 호출하게 합니다:
+#### 직접 엮기 (아무 에이전트나)
+
+`~/.claude/skills/tubeless/SKILL.md`를 만들어(내 머신에만 남는 로컬 파일, 추적 안 됨)
+CLI를 호출하게 합니다:
 
 ```markdown
 ---
