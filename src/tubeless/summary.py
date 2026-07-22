@@ -15,7 +15,27 @@ from tubeless.llm import LLMBackend
 from tubeless.source import Video
 from tubeless.transcript import Transcript
 
-__all__ = ["DETAIL_LEVELS", "DetailLevel", "Summary", "summarize"]
+__all__ = ["DETAIL_LEVELS", "DetailLevel", "Summary", "language_name", "summarize"]
+
+# YouTube's ISO codes are what --lang carries; a model follows a full language
+# name ("Korean") far more reliably than a bare code ("ko"), which it sometimes
+# ignores on long or English-associated content -- summarizing in English despite
+# a Korean transcript and a `ko` request. Map the codes we use into names; pass an
+# unrecognised value through unchanged, so a full name given directly ("Korean")
+# or an unlisted code still works. Shared by summary, synthesis, and importance.
+_LANGUAGE_NAMES = {
+    "en": "English",  "ko": "Korean",   "ja": "Japanese",
+    "zh": "Chinese",  "zh-hans": "Simplified Chinese", "zh-hant": "Traditional Chinese",
+    "es": "Spanish",  "fr": "French",   "de": "German",
+    "pt": "Portuguese", "ru": "Russian",
+}
+
+
+def language_name(language: str) -> str:
+    """Map a language code ('ko') to the English language name ('Korean') a model
+    follows reliably in a prompt. An unrecognised value (already a name, or an
+    unlisted code) is returned unchanged."""
+    return _LANGUAGE_NAMES.get(language.strip().lower(), language)
 
 # The closed set of summary depths, in two forms. `DETAIL_LEVELS` (below) is the
 # runtime tuple, derived from `_DETAIL`, and validates a caller who bypasses the
@@ -173,21 +193,22 @@ def summarize(
         raise ValueError(f"max_points must be >= 1, got {max_points}")
     cap = spec.max_points if max_points is None else max_points
 
-    hedge  = _AUTO_CAPTION_HEDGE if transcript.is_auto_generated else ""
-    chunks = _split_into_chunks(transcript.text, word_limit=CHUNK_WORD_LIMIT)
+    hedge    = _AUTO_CAPTION_HEDGE if transcript.is_auto_generated else ""
+    chunks   = _split_into_chunks(transcript.text, word_limit=CHUNK_WORD_LIMIT)
+    language = language_name(target_language)   # a name, not a bare code, in the prompt
 
     if len(chunks) == 1:
         reply = backend.complete(
             _single_pass_prompt(
                 chunks[0], video, hedge=hedge,
-                language=target_language, spec=spec, max_points=cap,
+                language=language, spec=spec, max_points=cap,
             ),
             system=_SYSTEM_PROMPT,
         )
     else:
         chunk_summaries = [
             backend.complete(
-                _chunk_prompt(chunk, video, hedge=hedge, language=target_language, spec=spec),
+                _chunk_prompt(chunk, video, hedge=hedge, language=language, spec=spec),
                 system=_SYSTEM_PROMPT,
             )
             for chunk in chunks
@@ -195,7 +216,7 @@ def summarize(
         reply = backend.complete(
             _combine_prompt(
                 chunk_summaries, video, hedge=hedge,
-                language=target_language, spec=spec, max_points=cap,
+                language=language, spec=spec, max_points=cap,
             ),
             system=_SYSTEM_PROMPT,
         )

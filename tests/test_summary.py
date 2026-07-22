@@ -1,7 +1,7 @@
 import pytest
 
 from tubeless import Transcript, TranscriptSegment, Video, summarize
-from tubeless.summary import CHUNK_WORD_LIMIT
+from tubeless.summary import CHUNK_WORD_LIMIT, language_name
 
 SAMPLE_VIDEO = Video(
     video_id = "dQw4w9WgXcQ",
@@ -40,6 +40,24 @@ def make_transcript(*, n_words: int, is_auto_generated: bool = False) -> Transcr
         is_auto_generated = is_auto_generated,
         segments          = (TranscriptSegment(text=words, start=0.0, duration=60.0),),
     )
+
+
+def test_language_name_maps_codes_and_passes_names_through() -> None:
+    assert language_name("ko") == "Korean"
+    assert language_name("EN") == "English"
+    assert language_name("Korean") == "Korean"   # already a name -> unchanged
+    assert language_name("xx") == "xx"            # unknown code -> unchanged
+
+
+def test_summarize_prompt_uses_the_language_name_not_the_code() -> None:
+    backend = RecordingBackend()
+    summary = summarize(make_transcript(n_words=10), SAMPLE_VIDEO, backend, target_language="ko")
+
+    # the model is told "Korean", not the bare "ko" it tends to ignore
+    assert "Answer in Korean" in backend.prompts[0]
+    assert "Answer in ko." not in backend.prompts[0]
+    # the stored Summary keeps the original code, not the name
+    assert summary.language == "ko"
 
 
 def test_summarize_parses_tldr_and_points_from_the_reply() -> None:
@@ -255,4 +273,4 @@ def test_summarize_passes_the_target_language_into_the_prompt() -> None:
     )
 
     assert summary.language == "en"
-    assert "Answer in en." in backend.prompts[0]
+    assert "Answer in English." in backend.prompts[0]

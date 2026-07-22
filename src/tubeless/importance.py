@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from tubeless.llm import LLMBackend
-from tubeless.summary import Summary
+from tubeless.summary import Summary, language_name
 
 __all__ = ["Importance", "ImportanceTier", "score_importance"]
 
@@ -79,7 +79,7 @@ def score_importance(summary: Summary, backend: LLMBackend, *, language: str = "
     points = "\n".join(f"- {point}" for point in summary.points)
     reply = backend.complete(
         _PROMPT.format(
-            language = language,
+            language = language_name(language),
             title    = summary.video.title,
             tldr     = summary.tldr,
             points   = points,

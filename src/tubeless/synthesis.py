@@ -15,7 +15,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from tubeless.llm import LLMBackend
-from tubeless.summary import Summary
+from tubeless.summary import Summary, language_name
 
 __all__ = ["DailySynthesis", "synthesize"]
 
@@ -81,7 +81,7 @@ def synthesize(
         LLMError: propagated from the backend.
     """
     reply = backend.complete(
-        _PROMPT.format(language=language, sources=_sources_block(summaries)),
+        _PROMPT.format(language=language_name(language), sources=_sources_block(summaries)),
         system=_SYSTEM_PROMPT,
     )
     return _parse_synthesis(reply)
