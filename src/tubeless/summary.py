@@ -336,5 +336,12 @@ def _parse_reply(reply: str, *, max_points: int) -> tuple[str, tuple[str, ...]]:
         elif not tldr and not points:
             # Unlabelled leading prose before any bullet: treat as the TL;DR.
             tldr = unbolded
+        elif points:
+            # A key point wrapped onto a second physical line (common for long,
+            # non-English points despite the "single line" instruction): the
+            # continuation is neither a bullet nor a label, so attach it to the
+            # last point rather than drop it, which would truncate the point to a
+            # half-sentence. Mirrors the OVERVIEW rejoin in synthesis._parse_synthesis.
+            points[-1] = f"{points[-1]} {line}".strip()
 
     return tldr, tuple(points[:max_points])

@@ -265,6 +265,22 @@ def test_summarize_with_negative_max_points_is_rejected() -> None:
         summarize(make_transcript(n_words=50), SAMPLE_VIDEO, backend, max_points=-2)
 
 
+def test_summarize_rejoins_a_point_wrapped_onto_a_second_line() -> None:
+    # A long point the model wrapped onto a second physical line: the continuation
+    # is neither a bullet nor a label, so it must attach to the last point instead
+    # of being dropped, which truncated the point to a half-sentence.
+    backend = RecordingBackend(
+        reply="TLDR: gist\n- A long point that runs\non into a second line.\n- Second point\n"
+    )
+
+    summary = summarize(make_transcript(n_words=50), SAMPLE_VIDEO, backend)
+
+    assert summary.points == (
+        "A long point that runs on into a second line.",
+        "Second point",
+    )
+
+
 def test_summarize_passes_the_target_language_into_the_prompt() -> None:
     backend = RecordingBackend()
 

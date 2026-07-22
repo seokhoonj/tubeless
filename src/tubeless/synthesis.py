@@ -130,9 +130,14 @@ def _parse_synthesis(reply: str) -> DailySynthesis:
             continue
         if line.startswith(_BULLET_PREFIXES):
             point = _unwrap(line[2:])
+            if point.lower() in _EMPTY_BULLETS:
+                # A "- (none)" placeholder under either section: the model was
+                # told to write it when a section is empty, so drop it rather
+                # than render it as a real shared or contested point.
+                continue
             if section == "AGREEMENT":
                 agreements.append(point)
-            elif section == "DISAGREEMENT" and point.lower() not in _EMPTY_BULLETS:
+            elif section == "DISAGREEMENT":
                 disagreements.append(point)
         elif section == "OVERVIEW":
             # A wrapped OVERVIEW: join the continuation onto what we have.

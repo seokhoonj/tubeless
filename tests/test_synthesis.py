@@ -71,6 +71,15 @@ def test_parse_synthesis_drops_a_none_disagreement():
     assert got.agreements == ()
 
 
+def test_parse_synthesis_drops_a_none_agreement():
+    # '(none)' under AGREEMENT must be filtered too, not rendered as a real shared
+    # point; the filter previously applied only to the DISAGREEMENT section.
+    got = _parse_synthesis("TONE: flat\nAGREEMENT:\n- (none)\nDISAGREEMENT:\n- (none)")
+
+    assert got.agreements == ()
+    assert got.disagreements == ()
+
+
 def test_parse_synthesis_drops_a_korean_none_disagreement():
     got = _parse_synthesis("**TONE:** 보합\n**DISAGREEMENT:**\n- (없음)")
 
