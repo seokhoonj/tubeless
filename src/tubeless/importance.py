@@ -114,4 +114,3 @@ def _parse_importance(reply: str) -> Importance:
         else:
             reason = ""            # an empty reply
     return Importance(score=score, reason=reason)
-    return Importance(score=score, reason=reason)
