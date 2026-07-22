@@ -15,10 +15,13 @@ Example ``channels.toml``::
     [[channel]]
     # a playlist narrows a channel to one series; title_includes narrows it
     # further to uploads whose title contains every listed word (e.g. one host).
+    # title_excludes drops uploads carrying any listed word -- e.g. a channel
+    # that posts a "LIVE" broadcast and an edited replay of the same episode.
     source         = "PLxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
     label          = "A Daily Show"
     detail         = "deep"
     title_includes = ["Some Host"]
+    title_excludes = ["LIVE"]
 """
 
 from __future__ import annotations
@@ -40,14 +43,18 @@ class Channel:
     """One followed channel and how to summarize it. ``source`` is whatever the
     user wrote (handle / URL / id / playlist); ``feed.fetch_uploads`` resolves it
     at digest time. ``title_includes`` keeps only uploads whose title contains
-    every listed word (case-insensitive) -- empty means keep all. ``preset`` is
-    reserved for a future domain profile and is unused by the neutral core."""
+    every listed word (case-insensitive) -- empty means keep all.
+    ``title_excludes`` then drops any upload whose title contains any listed word
+    (e.g. ``"LIVE"`` to skip a live broadcast kept alongside its edited replay) --
+    empty means drop none. ``preset`` is reserved for a future domain profile and
+    is unused by the neutral core."""
 
     source:         str
     label:          str
     detail:         DetailLevel = "deep"
     preset:         str | None = None
     title_includes: tuple[str, ...] = ()
+    title_excludes: tuple[str, ...] = ()
 
 
 def load_channels(path: Path | None = None) -> tuple[Channel, ...]:
@@ -82,18 +89,24 @@ def _channel_from(entry: dict[str, object], path: Path) -> Channel:
         raise ConfigError(
             f"channel {source!r}: detail must be one of {DETAIL_LEVELS}, got {detail!r}"
         )
-    raw_filter = entry.get("title_includes", ())
-    if isinstance(raw_filter, str):   # a bare string is a one-word filter
-        raw_filter = [raw_filter]
-    elif not isinstance(raw_filter, (list, tuple)):
-        raise ConfigError(
-            f"channel {source!r}: title_includes must be a string or a list, "
-            f"got {type(raw_filter).__name__}"
-        )
     return Channel(
         source         = source,
         label          = entry.get("label") or source,
         detail         = detail,
         preset         = entry.get("preset"),
-        title_includes = tuple(str(word) for word in raw_filter),
+        title_includes = _keywords(entry.get("title_includes", ()), "title_includes", source),
+        title_excludes = _keywords(entry.get("title_excludes", ()), "title_excludes", source),
     )
+
+
+def _keywords(raw: object, field: str, source: object) -> tuple[str, ...]:
+    """Normalise a title-filter field to a tuple: a bare string is a one-word
+    filter, a list/tuple is taken as-is; anything else is a config error."""
+    if isinstance(raw, str):
+        raw = [raw]
+    elif not isinstance(raw, (list, tuple)):
+        raise ConfigError(
+            f"channel {source!r}: {field} must be a string or a list, "
+            f"got {type(raw).__name__}"
+        )
+    return tuple(str(word) for word in raw)

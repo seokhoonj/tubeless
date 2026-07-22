@@ -305,10 +305,13 @@ detail = "normal"
 [[channel]]
 # A playlist narrows a channel to one series; title_includes narrows it further
 # to uploads whose title contains every listed word (e.g. one recurring host).
+# title_excludes then drops uploads carrying any listed word -- e.g. skip the
+# "LIVE" broadcast a channel keeps alongside an edited replay of the same episode.
 source         = "PLxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 label          = "A Daily Show"
 detail         = "deep"
 title_includes = ["Some Host"]
+title_excludes = ["LIVE"]
 ```
 
 Then run:
@@ -724,11 +727,14 @@ detail = "normal"
 
 [[channel]]
 # 재생목록은 채널을 한 시리즈로 좁히고, title_includes는 제목에 나열된 단어를
-# 모두 포함하는 영상만 남깁니다(예: 특정 진행자 회차만).
+# 모두 포함하는 영상만 남깁니다(예: 특정 진행자 회차만). title_excludes는 나열된
+# 단어가 하나라도 든 영상을 제외합니다 -- 예: 같은 회차의 편집본과 함께 올라오는
+# "LIVE" 생방송을 건너뜁니다.
 source         = "PLxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 label          = "어떤 데일리 쇼"
 detail         = "deep"
 title_includes = ["진행자이름"]
+title_excludes = ["LIVE"]
 ```
 
 그리고:

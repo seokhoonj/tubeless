@@ -84,13 +84,14 @@ def build_digest(
     for channel in channels:
         # A filtered channel scans the full feed window, not just the first few:
         # the wanted uploads (e.g. one host's episodes) are sparse among the rest.
-        fetch_limit = _FILTERED_FETCH_LIMIT if channel.title_includes else per_channel_limit
+        filtered    = bool(channel.title_includes or channel.title_excludes)
+        fetch_limit = _FILTERED_FETCH_LIMIT if filtered else per_channel_limit
         try:
             uploads = fetch_uploads(channel.source, limit=fetch_limit)
         except FeedError as err:
             skipped.append(f"{channel.label}: {err}")
             continue
-        uploads = _matching_titles(uploads, channel.title_includes)
+        uploads = _matching_titles(uploads, channel.title_includes, channel.title_excludes)
 
         for upload in uploads:
             if upload.video_id in seen or upload.video_id in processed:
@@ -113,13 +114,23 @@ def build_digest(
     return digest, processed
 
 
-def _matching_titles(uploads: tuple[Upload, ...], keywords: tuple[str, ...]) -> tuple[Upload, ...]:
-    """Keep uploads whose title contains every keyword (case-insensitive); with
-    no keywords, keep all."""
-    if not keywords:
+def _matching_titles(
+    uploads:  tuple[Upload, ...],
+    includes: tuple[str, ...],
+    excludes: tuple[str, ...],
+) -> tuple[Upload, ...]:
+    """Keep uploads whose title contains every ``includes`` keyword and none of
+    the ``excludes`` keywords (case-insensitive). Empty ``includes`` keeps all;
+    empty ``excludes`` drops none."""
+    if not includes and not excludes:
         return uploads
-    lowered = [word.lower() for word in keywords]
-    return tuple(u for u in uploads if all(word in u.title.lower() for word in lowered))
+    wanted   = [word.lower() for word in includes]
+    unwanted = [word.lower() for word in excludes]
+    return tuple(
+        u for u in uploads
+        if all(word in u.title.lower() for word in wanted)
+        and not any(word in u.title.lower() for word in unwanted)
+    )
 
 
 def _summarize_upload(

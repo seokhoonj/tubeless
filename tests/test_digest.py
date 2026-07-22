@@ -192,6 +192,24 @@ def test_build_digest_applies_a_title_filter(monkeypatch):
     assert processed == {"aaaaaaaaaaa"}
 
 
+def test_build_digest_drops_titles_matching_an_exclude(monkeypatch):
+    # A channel posts a LIVE broadcast and an edited replay of the same episode;
+    # title_excludes=["LIVE"] keeps only the replay.
+    monkeypatch.setattr(
+        digest_module, "fetch_uploads",
+        lambda source, limit: (_upload("aaaaaaaaaaa", "[7/22 Market] recap"),
+                               _upload("bbbbbbbbbbb", "[LIVE 7/22 Market] recap")),
+    )
+    monkeypatch.setattr(digest_module, "fetch_transcript", lambda video_id: _transcript(video_id))
+    channels = (Channel(source="@x", label="Show", detail="normal",
+                        title_includes=("Market",), title_excludes=("live",)),)  # case-insensitive
+
+    digest, processed = build_digest(channels, ScoringBackend(), date="d", seen=set())
+
+    assert [e.upload.video_id for e in digest.entries] == ["aaaaaaaaaaa"]
+    assert processed == {"aaaaaaaaaaa"}
+
+
 def test_build_digest_records_a_channel_whose_feed_fails(monkeypatch):
     def feed_down(source, limit):
         raise FeedError("feed unreachable")
