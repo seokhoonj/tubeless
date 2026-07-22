@@ -19,7 +19,7 @@ _CHANNEL_ID = "UCabcdefghijklmnopqrstuv"
 
 def _upload(video_id: str, title: str) -> Upload:
     return Upload(video_id=video_id, title=title, published="",
-                  channel_id=_CHANNEL_ID, channel_title="Example Channel")
+                  channel_id=_CHANNEL_ID, channel="Example Channel")
 
 
 def _transcript(video_id: str) -> Transcript:

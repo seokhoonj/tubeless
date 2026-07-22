@@ -40,7 +40,7 @@ def test_parse_feed_reads_entries_in_order():
     assert [u.video_id for u in uploads] == ["vid00000001", "vid00000002"]
     assert uploads[0].title         == "First Video"
     assert uploads[0].channel_id    == _CHANNEL_ID
-    assert uploads[0].channel_title == "Example Channel"
+    assert uploads[0].channel == "Example Channel"
     assert uploads[0].published     == "2026-07-20T09:00:00+00:00"
 
 

@@ -56,11 +56,11 @@ _NS = {
 class Upload:
     """One video as listed in a channel feed (identity + when it was posted)."""
 
-    video_id:      str
-    title:         str
-    published:     str   # ISO 8601, exactly as the feed gives it
-    channel_id:    str
-    channel_title: str
+    video_id:   str
+    title:      str
+    published:  str   # ISO 8601, exactly as the feed gives it
+    channel_id: str
+    channel:    str
 
 
 def fetch_uploads(source: str, *, limit: int = 15) -> tuple[Upload, ...]:
@@ -135,8 +135,8 @@ def _parse_feed(xml_text: str, *, limit: int) -> tuple[Upload, ...]:
     except ElementTree.ParseError as err:
         raise FeedError(f"could not parse channel feed: {err}") from err
 
-    channel_id    = _text(root.find("yt:channelId", _NS)) or ""
-    channel_title = _text(root.find("atom:title", _NS)) or ""
+    channel_id = _text(root.find("yt:channelId", _NS)) or ""
+    channel    = _text(root.find("atom:title", _NS)) or ""
 
     uploads: list[Upload] = []
     for entry in root.findall("atom:entry", _NS)[:limit]:
@@ -148,7 +148,7 @@ def _parse_feed(xml_text: str, *, limit: int) -> tuple[Upload, ...]:
             title         = _text(entry.find("atom:title", _NS)) or video_id,
             published     = _text(entry.find("atom:published", _NS)) or "",
             channel_id    = channel_id,
-            channel_title = channel_title,
+            channel = channel,
         ))
     return tuple(uploads)
 

@@ -157,7 +157,7 @@ def _summarize_upload(
         video_id = upload.video_id,
         title    = upload.title,
         url      = f"https://www.youtube.com/watch?v={upload.video_id}",
-        channel  = upload.channel_title or channel.label,
+        channel  = upload.channel or channel.label,
     )
     summary    = summarize(transcript, video, backend, target_language=language, detail=channel.detail)
     importance = score_importance(summary, backend, language=language)

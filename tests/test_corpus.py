@@ -216,7 +216,7 @@ def test_record_entry_appends_the_summary_and_archives_the_transcript(tmp_path):
         title         = "Video aaaaaaaaaaa",
         published     = "2026-07-21T09:00:00+00:00",
         channel_id    = "UC00000000000000000000",
-        channel_title = "Uploader",
+        channel = "Uploader",
     )
     summary = Summary(
         video    = Video(

@@ -26,7 +26,7 @@ def _entry(*, title: str, score: float) -> DigestEntry:
     return DigestEntry(
         channel    = "Example Channel",
         upload     = Upload(video_id="vid00000001", title=title, published="",
-                            channel_id="UC", channel_title="Example Channel"),
+                            channel_id="UC", channel="Example Channel"),
         summary    = Summary(video=video, tldr="the gist", points=("point 1", "point 2"),
                              language="ko"),
         importance = Importance(score=score, reason="big news"),
