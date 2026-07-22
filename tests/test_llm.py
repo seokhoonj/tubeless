@@ -11,7 +11,6 @@ import types
 import pytest
 
 from tubeless import config
-from tubeless.cli import _make_backend
 from tubeless.errors import LLMError
 from tubeless.llm import (
     _LLM_TIMEOUT_SECONDS,
@@ -20,6 +19,7 @@ from tubeless.llm import (
     OllamaBackend,
     OpenAIBackend,
     _chat_complete,
+    make_backend,
 )
 
 
@@ -122,7 +122,7 @@ def test_claude_backend_rejects_an_empty_completion(monkeypatch: pytest.MonkeyPa
         ClaudeBackend().complete("hi")
 
 
-# --- CLI backend selection ------------------------------------------------
+# --- backend selection (make_backend) -------------------------------------
 def test_make_backend_defaults_the_model_per_vendor(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     monkeypatch.setenv("CLAUDE_API_KEY", "test-key")
@@ -130,9 +130,9 @@ def test_make_backend_defaults_the_model_per_vendor(monkeypatch: pytest.MonkeyPa
     monkeypatch.setitem(sys.modules, "anthropic",
                         _fake_anthropic_module(create=lambda **k: None))
 
-    assert _make_backend("openai", None).model == "gpt-4o-mini"
-    assert _make_backend("claude", None).model == "claude-haiku-4-5-20251001"
-    assert _make_backend("claude", "claude-sonnet-5").model == "claude-sonnet-5"
+    assert make_backend("openai").model == "gpt-4o-mini"
+    assert make_backend("claude").model == "claude-haiku-4-5-20251001"
+    assert make_backend("claude", model="claude-sonnet-5").model == "claude-sonnet-5"
 
 
 # --- Ollama backend (local, no key) ---------------------------------------
@@ -149,15 +149,15 @@ def test_ollama_backend_targets_the_local_host_by_default(monkeypatch: pytest.Mo
 
 
 def test_make_backend_builds_ollama(monkeypatch: pytest.MonkeyPatch):
-    assert _make_backend("ollama", None).model == "llama3.1"
-    assert _make_backend("ollama", "qwen2.5").model == "qwen2.5"
+    assert make_backend("ollama").model == "llama3.1"
+    assert make_backend("ollama", model="qwen2.5").model == "qwen2.5"
 
 
 # --- Gemini backend (OpenAI-compatible cloud endpoint) --------------------
 def test_make_backend_builds_gemini(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
-    assert _make_backend("gemini", None).model == "gemini-flash-lite-latest"
-    assert _make_backend("gemini", "gemini-2.5-pro").model == "gemini-2.5-pro"
+    assert make_backend("gemini").model == "gemini-flash-lite-latest"
+    assert make_backend("gemini", model="gemini-2.5-pro").model == "gemini-2.5-pro"
 
 
 def test_gemini_backend_targets_the_openai_compatible_host(monkeypatch: pytest.MonkeyPatch):

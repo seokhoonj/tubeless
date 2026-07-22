@@ -24,7 +24,7 @@ from tubeless.channels import CHANNELS_PATH, load_channels
 from tubeless.corpus import CORPUS_ROOT, record_entry
 from tubeless.digest import DEFAULT_PER_CHANNEL_LIMIT, Digest, build_digest
 from tubeless.errors import ConfigError, CorpusError, TubelessError
-from tubeless.llm import ClaudeBackend, GeminiBackend, LLMBackend, OllamaBackend, OpenAIBackend
+from tubeless.llm import BACKENDS, make_backend
 from tubeless.render import to_markdown
 from tubeless.source import fetch_video_meta
 from tubeless.state import STATE_PATH, read_seen, write_seen
@@ -33,9 +33,6 @@ from tubeless.transcript import fetch_transcript
 
 __all__ = ["main"]
 
-# The LLM vendors --backend accepts. Each backend class owns its own default
-# model (see _make_backend); this is only the choice set for the flag.
-_BACKENDS = ("claude", "openai", "gemini", "ollama")
 _SUBCOMMANDS = ("summarize", "digest")
 _DIGEST_DIR  = Path.home() / ".tubeless" / "digests"
 
@@ -67,7 +64,7 @@ def _with_default_subcommand(argv: list[str]) -> list[str]:
 def _run_summarize(args: argparse.Namespace) -> int:
     video      = fetch_video_meta(args.url)
     transcript = fetch_transcript(video.video_id)
-    backend    = _make_backend(args.backend, args.model)
+    backend    = make_backend(args.backend, model=args.model)
     _print_run_settings(args.backend, backend.model,
                         detail=args.detail, max_points=args.max_points, lang=args.lang)
     summary    = summarize(
@@ -89,7 +86,7 @@ def _run_digest(args: argparse.Namespace) -> int:
         channels = tuple(c for c in channels if args.only.lower() in c.label.lower())
         if not channels:
             raise ConfigError(f"no channel label contains {args.only!r} in {args.channels}")
-    backend           = _make_backend(args.backend, args.model)
+    backend           = make_backend(args.backend, model=args.model)
     _print_run_settings(args.backend, backend.model, lang=args.lang, limit=args.limit)
     seen              = read_seen(args.state)
     digest, processed = build_digest(
@@ -180,7 +177,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _add_backend_args(sub: argparse.ArgumentParser) -> None:
-    sub.add_argument("--backend", choices=_BACKENDS, default=_default_backend(),
+    sub.add_argument("--backend", choices=BACKENDS, default=_default_backend(),
                      help="LLM vendor (default: openai, or $TUBELESS_BACKEND)")
     sub.add_argument("--model", default=config.setting("TUBELESS_MODEL"),
                      help="model id; default is the backend's small-tier model (or $TUBELESS_MODEL)")
@@ -217,7 +214,7 @@ def _configured_flag(name: str) -> bool:
 
 def _default_backend() -> str:
     """The backend used when --backend is not given (``TUBELESS_BACKEND``, else openai)."""
-    return _configured_choice("TUBELESS_BACKEND", _BACKENDS, "openai")
+    return _configured_choice("TUBELESS_BACKEND", BACKENDS, "openai")
 
 
 def _as_positive_int(text: str) -> int:
@@ -237,24 +234,6 @@ def _positive_int(text: str) -> int:
         return _as_positive_int(text)
     except ValueError as err:
         raise argparse.ArgumentTypeError(str(err)) from None
-
-
-def _make_backend(backend: str, model: str | None) -> LLMBackend:
-    """Construct the chosen vendor's backend; the model defaults to the backend
-    class's own small-tier default when not given.
-
-    Each class owns its default model (its constructor default), so a default
-    lives in one place; an unknown vendor is a loud KeyError, never a silent
-    fall-through to OpenAI. (The dict is built here, not at module load, so a test
-    that monkeypatches e.g. ``OpenAIBackend`` still takes effect.)
-    """
-    backend_class = {
-        "claude": ClaudeBackend,
-        "openai": OpenAIBackend,
-        "gemini": GeminiBackend,
-        "ollama": OllamaBackend,
-    }[backend]
-    return backend_class() if model is None else backend_class(model=model)
 
 
 def _print_run_settings(backend: str, model: str, **fields: object) -> None:

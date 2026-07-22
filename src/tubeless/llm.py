@@ -16,7 +16,22 @@ from tubeless.errors import LLMError
 if TYPE_CHECKING:
     from openai import OpenAI  # only for the type hint below; imported lazily at runtime
 
-__all__ = ["ClaudeBackend", "GeminiBackend", "LLMBackend", "OllamaBackend", "OpenAIBackend"]
+__all__ = [
+    "BACKENDS",
+    "ClaudeBackend",
+    "GeminiBackend",
+    "LLMBackend",
+    "OllamaBackend",
+    "OpenAIBackend",
+    "make_backend",
+]
+
+# The LLM vendors tubeless ships, and the string that names each on the command
+# line / in config. The roster lives here, beside the classes it maps to, so a
+# consumer (the CLI, a scheduled job, another front end) asks the package for a
+# backend by name instead of re-authoring the name->class map -- add a vendor
+# here and every consumer picks it up.
+BACKENDS = ("claude", "openai", "gemini", "ollama")
 
 
 class LLMBackend(Protocol):
@@ -223,8 +238,30 @@ class ClaudeBackend:
         except anthropic.AnthropicError as err:
             raise LLMError(f"Anthropic completion failed for model {self.model!r}: {err}") from err
 
-        blocks = [b.text for b in response.content if getattr(b, "type", None) == "text"]
+        blocks = [block.text for block in response.content if getattr(block, "type", None) == "text"]
         text = "".join(blocks).strip()
         if not text:
             raise LLMError(f"Anthropic returned an empty completion for model {self.model!r}")
         return text
+
+
+def make_backend(name: str, *, model: str | None = None) -> LLMBackend:
+    """Construct the backend named ``name`` (one of ``BACKENDS``); ``model``
+    overrides the backend class's own small-tier default when given.
+
+    Each class owns its default model (its constructor default), so a default
+    lives in one place, and an unknown name is a loud ``KeyError`` rather than a
+    silent fall-through to one vendor. The name->class map is built on call, not
+    at import, so a test that monkeypatches e.g. ``OpenAIBackend`` still takes
+    effect.
+
+    Raises:
+        LLMError: the chosen backend has no usable API key / SDK.
+    """
+    backend_class = {
+        "claude": ClaudeBackend,
+        "openai": OpenAIBackend,
+        "gemini": GeminiBackend,
+        "ollama": OllamaBackend,
+    }[name]
+    return backend_class() if model is None else backend_class(model=model)

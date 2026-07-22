@@ -3,6 +3,7 @@ import json
 import pytest
 
 import tubeless.cli as cli_module
+import tubeless.llm as llm_module
 from tubeless import Transcript, TranscriptSegment, TranscriptUnavailable, Video, config
 from tubeless.cli import (
     _configured_choice,
@@ -41,7 +42,7 @@ class CannedBackend:
 def pipeline_with_fakes(monkeypatch: pytest.MonkeyPatch, _no_config_file) -> None:
     monkeypatch.setattr(cli_module, "fetch_video_meta", lambda url: SAMPLE_VIDEO)
     monkeypatch.setattr(cli_module, "fetch_transcript", lambda video_id: SAMPLE_TRANSCRIPT)
-    monkeypatch.setattr(cli_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
 
 
 @pytest.fixture
@@ -78,14 +79,14 @@ def test_tubeless_backend_env_routes_a_bare_run_to_that_vendor(
     built = {}
 
     # The fake mirrors GeminiBackend's real default model, so a bare run (model
-    # unset -> _make_backend calls the class with no model) proves both that
+    # unset -> make_backend calls the class with no model) proves both that
     # TUBELESS_BACKEND routed to gemini and that the class default applies.
     class _RecordingGemini(CannedBackend):
         def __init__(self, *, model: str = "gemini-flash-lite-latest") -> None:
             built["model"] = model
             super().__init__(model=model)
 
-    monkeypatch.setattr(cli_module, "GeminiBackend", _RecordingGemini)
+    monkeypatch.setattr(llm_module, "GeminiBackend", _RecordingGemini)
 
     exit_code = main([SAMPLE_VIDEO.url])   # no --backend flag
 
@@ -128,7 +129,7 @@ def test_digest_synthesize_flag_reaches_build_digest(
     from tubeless.digest import Digest
     seen_kwargs: dict[str, object] = {}
     monkeypatch.setattr(cli_module, "load_channels", lambda path: ())
-    monkeypatch.setattr(cli_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
 
     def fake_build(channels, backend, **kwargs):
         seen_kwargs.update(kwargs)
@@ -146,7 +147,7 @@ def test_tubeless_detail_env_sets_the_default_detail(
     monkeypatch.setenv("TUBELESS_DETAIL", "deep")
     monkeypatch.setattr(cli_module, "fetch_video_meta", lambda url: SAMPLE_VIDEO)
     monkeypatch.setattr(cli_module, "fetch_transcript", lambda video_id: SAMPLE_TRANSCRIPT)
-    monkeypatch.setattr(cli_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
     seen: dict[str, object] = {}
     real_summarize = cli_module.summarize
 
@@ -166,7 +167,7 @@ def test_tubeless_max_points_env_caps_points(
     monkeypatch.setenv("TUBELESS_MAX_POINTS", "3")
     monkeypatch.setattr(cli_module, "fetch_video_meta", lambda url: SAMPLE_VIDEO)
     monkeypatch.setattr(cli_module, "fetch_transcript", lambda video_id: SAMPLE_TRANSCRIPT)
-    monkeypatch.setattr(cli_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
     seen: dict[str, object] = {}
     real_summarize = cli_module.summarize
 
@@ -295,7 +296,7 @@ def test_digest_dry_run_prints_markdown_without_writing(
                               is_auto_generated=False, segments=()),
     )
     monkeypatch.setattr(cli_module, "load_channels", lambda path: ())
-    monkeypatch.setattr(cli_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
     monkeypatch.setattr(
         cli_module, "build_digest",
         lambda channels, backend, **kw: (
@@ -331,7 +332,7 @@ def test_digest_records_summaries_and_transcripts_to_the_corpus(
         transcript = SAMPLE_TRANSCRIPT,
     )
     monkeypatch.setattr(cli_module, "load_channels", lambda path: ())
-    monkeypatch.setattr(cli_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
     monkeypatch.setattr(
         cli_module, "build_digest",
         lambda channels, backend, **kw: (
@@ -363,7 +364,7 @@ def test_digest_only_filters_channels_by_label(_no_config_file, monkeypatch: pyt
     from tubeless.channels import Channel
     from tubeless.digest import Digest
 
-    monkeypatch.setattr(cli_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
     monkeypatch.setattr(cli_module, "load_channels", lambda path: (
         Channel(source="@a", label="Market Inside"),
         Channel(source="@b", label="Closing Bell"),

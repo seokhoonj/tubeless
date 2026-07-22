@@ -32,7 +32,15 @@ from tubeless.feed import (
     resolve_channel_id,
 )
 from tubeless.importance import Importance, ImportanceTier, score_importance
-from tubeless.llm import ClaudeBackend, GeminiBackend, LLMBackend, OllamaBackend, OpenAIBackend
+from tubeless.llm import (
+    BACKENDS,
+    ClaudeBackend,
+    GeminiBackend,
+    LLMBackend,
+    OllamaBackend,
+    OpenAIBackend,
+    make_backend,
+)
 from tubeless.render import to_markdown
 from tubeless.source import Video, fetch_video_meta, parse_video_id
 from tubeless.summary import DETAIL_LEVELS, DetailLevel, Summary, summarize
@@ -40,6 +48,7 @@ from tubeless.synthesis import DailySynthesis, synthesize
 from tubeless.transcript import Transcript, TranscriptSegment, fetch_transcript
 
 __all__ = [
+    "BACKENDS",
     "Channel",
     "ClaudeBackend",
     "ConfigError",
@@ -78,6 +87,7 @@ __all__ = [
     "load_channels",
     "load_summaries",
     "load_transcript",
+    "make_backend",
     "parse_video_id",
     "record_entry",
     "resolve_channel_id",
