@@ -6,6 +6,7 @@ import tubeless.cli as cli_module
 from tubeless import Transcript, TranscriptSegment, TranscriptUnavailable, Video, config
 from tubeless.cli import (
     _configured_choice,
+    _configured_flag,
     _configured_positive_int,
     _default_backend,
     main,
@@ -111,6 +112,32 @@ def test_configured_positive_int_reads_and_validates(_no_config_file, monkeypatc
     monkeypatch.setenv("TUBELESS_MAX_POINTS", "lots")
     with pytest.raises(ConfigError):
         _configured_positive_int("TUBELESS_MAX_POINTS", 5)
+
+
+def test_configured_flag_reads_a_boolean(_no_config_file, monkeypatch) -> None:
+    assert _configured_flag("TUBELESS_SYNTHESIZE") is False
+    monkeypatch.setenv("TUBELESS_SYNTHESIZE", "1")
+    assert _configured_flag("TUBELESS_SYNTHESIZE") is True
+    monkeypatch.setenv("TUBELESS_SYNTHESIZE", "no")
+    assert _configured_flag("TUBELESS_SYNTHESIZE") is False
+
+
+def test_digest_synthesize_flag_reaches_build_digest(
+    _no_config_file, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tubeless.digest import Digest
+    seen_kwargs: dict[str, object] = {}
+    monkeypatch.setattr(cli_module, "load_channels", lambda path: ())
+    monkeypatch.setattr(cli_module, "OpenAIBackend", CannedBackend)
+
+    def fake_build(channels, backend, **kwargs):
+        seen_kwargs.update(kwargs)
+        return Digest(date="d", entries=(), skipped=()), set()
+
+    monkeypatch.setattr(cli_module, "build_digest", fake_build)
+
+    assert main(["digest", "--synthesize", "--dry-run"]) == 0
+    assert seen_kwargs["with_synthesis"] is True
 
 
 def test_tubeless_detail_env_sets_the_default_detail(

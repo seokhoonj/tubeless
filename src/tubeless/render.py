@@ -7,6 +7,7 @@ score tier gets an emoji so the eye lands on the important items first.
 from __future__ import annotations
 
 from tubeless.digest import Digest, DigestEntry
+from tubeless.synthesis import DailySynthesis
 
 __all__ = ["to_markdown"]
 
@@ -18,6 +19,8 @@ _TIER_MARKER = {"high": "🔴", "mid": "🟡", "low": "⚪"}
 def to_markdown(digest: Digest) -> str:
     """Render one day's digest as a Markdown document."""
     lines = [f"# YouTube digest — {digest.date}", ""]
+    if digest.synthesis is not None:
+        lines.extend(_synthesis_lines(digest.synthesis))
     if not digest.entries:
         lines.append("_No new videos._")
     for entry in digest.entries:
@@ -27,6 +30,26 @@ def to_markdown(digest: Digest) -> str:
         lines.append("### Skipped channels")
         lines.extend(f"- {note}" for note in digest.skipped)
     return "\n".join(lines).rstrip() + "\n"
+
+
+def _synthesis_lines(synthesis: DailySynthesis) -> list[str]:
+    """The cross-source briefing that leads the digest: overall tone, a short
+    synthesis, and where the sources agree and differ."""
+    lines = ["## Today — across the sources", ""]
+    if synthesis.tone:
+        lines += [f"**Tone:** {synthesis.tone}", ""]
+    if synthesis.overview:
+        lines += [synthesis.overview, ""]
+    if synthesis.agreements:
+        lines.append("**Where they agree**")
+        lines += [f"- {point}" for point in synthesis.agreements]
+        lines.append("")
+    if synthesis.disagreements:
+        lines.append("**Where they differ**")
+        lines += [f"- {point}" for point in synthesis.disagreements]
+        lines.append("")
+    lines += ["---", ""]
+    return lines
 
 
 def _entry_lines(entry: DigestEntry) -> list[str]:

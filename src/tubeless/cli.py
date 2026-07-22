@@ -97,6 +97,7 @@ def _run_digest(args: argparse.Namespace) -> int:
         seen              = seen,
         language          = args.lang,
         per_channel_limit = args.limit,
+        with_synthesis    = args.synthesize,
     )
     markdown = to_markdown(digest)
     if args.dry_run:
@@ -144,6 +145,10 @@ def _build_parser() -> argparse.ArgumentParser:
     digest_parser.add_argument("--limit", type=_positive_int,
                                default=_configured_positive_int("TUBELESS_LIMIT", 5),
                                help="max recent uploads to check per channel (default: 5, or $TUBELESS_LIMIT)")
+    digest_parser.add_argument("--synthesize", action="store_true",
+                               default=_configured_flag("TUBELESS_SYNTHESIZE"),
+                               help="lead the digest with a cross-video synthesis (tone, "
+                                    "agreement, divergence); needs 2+ videos (or $TUBELESS_SYNTHESIZE)")
     digest_parser.add_argument("--dry-run", action="store_true",
                                help="print the digest instead of writing it and updating state")
     digest_parser.set_defaults(run=_run_digest)
@@ -177,6 +182,13 @@ def _configured_positive_int(name: str, fallback: int | None) -> int | None:
         return _as_positive_int(value)
     except ValueError as err:
         raise ConfigError(f"{name} must be a positive integer: {err}") from None
+
+
+def _configured_flag(name: str) -> bool:
+    """A boolean CLI default read from the environment/config.env: true for
+    ``1`` / ``true`` / ``yes`` / ``on`` (case-insensitive), false otherwise."""
+    value = config.setting(name)
+    return value is not None and value.strip().lower() in ("1", "true", "yes", "on")
 
 
 def _default_backend() -> str:

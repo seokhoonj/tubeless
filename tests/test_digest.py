@@ -49,7 +49,47 @@ def two_uploads(monkeypatch):
     monkeypatch.setattr(digest_module, "fetch_transcript", lambda video_id: _transcript(video_id))
 
 
+class SynthesizingBackend(ScoringBackend):
+    """ScoringBackend plus a synthesis-shaped reply when asked to combine sources
+    (the synthesis prompt is the only one carrying a 'TONE:' format line)."""
+
+    def complete(self, prompt: str, *, system: str | None = None) -> str:
+        if "TONE:" in prompt:
+            return "TONE: cautious\nOVERVIEW: a corrective day\nAGREEMENT:\n- chips fell\nDISAGREEMENT:\n- (none)"
+        return super().complete(prompt, system=system)
+
+
 _ONE_CHANNEL = (Channel(source="@x", label="Example Channel", detail="normal"),)
+
+
+def test_build_digest_adds_a_synthesis_when_requested(two_uploads):
+    digest, _ = build_digest(
+        _ONE_CHANNEL, SynthesizingBackend(), date="d", seen=set(), with_synthesis=True,
+    )
+
+    assert digest.synthesis is not None
+    assert digest.synthesis.tone == "cautious"
+    assert digest.synthesis.agreements == ("chips fell",)
+
+
+def test_build_digest_omits_the_synthesis_by_default(two_uploads):
+    digest, _ = build_digest(_ONE_CHANNEL, SynthesizingBackend(), date="d", seen=set())
+
+    assert digest.synthesis is None
+
+
+def test_build_digest_skips_the_synthesis_for_a_single_video(monkeypatch):
+    monkeypatch.setattr(digest_module, "fetch_uploads",
+                        lambda source, limit: (_upload("aaaaaaaaaaa", "only one"),))
+    monkeypatch.setattr(digest_module, "fetch_transcript", lambda video_id: _transcript(video_id))
+
+    # requested, but one source cannot agree or disagree with itself
+    digest, _ = build_digest(
+        _ONE_CHANNEL, SynthesizingBackend(), date="d", seen=set(), with_synthesis=True,
+    )
+
+    assert len(digest.entries) == 1
+    assert digest.synthesis is None
 
 
 def test_build_digest_sorts_entries_by_importance(two_uploads):

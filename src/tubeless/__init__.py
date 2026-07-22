@@ -27,12 +27,14 @@ from tubeless.llm import ClaudeBackend, GeminiBackend, LLMBackend, OllamaBackend
 from tubeless.render import to_markdown
 from tubeless.source import Video, fetch_video_meta, parse_video_id
 from tubeless.summary import DETAIL_LEVELS, DetailLevel, Summary, summarize
+from tubeless.synthesis import DailySynthesis, synthesize
 from tubeless.transcript import Transcript, TranscriptSegment, fetch_transcript
 
 __all__ = [
     "Channel",
     "ClaudeBackend",
     "ConfigError",
+    "DailySynthesis",
     "DETAIL_LEVELS",
     "DetailLevel",
     "Digest",
@@ -65,5 +67,6 @@ __all__ = [
     "resolve_channel_id",
     "score_importance",
     "summarize",
+    "synthesize",
     "to_markdown",
 ]

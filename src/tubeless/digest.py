@@ -19,6 +19,7 @@ from tubeless.importance import Importance, score_importance
 from tubeless.llm import LLMBackend
 from tubeless.source import Video
 from tubeless.summary import Summary, summarize
+from tubeless.synthesis import DailySynthesis, synthesize
 from tubeless.transcript import fetch_transcript
 
 __all__ = ["Digest", "DigestEntry", "build_digest"]
@@ -39,12 +40,14 @@ class DigestEntry:
 
 @dataclass(frozen=True, slots=True)
 class Digest:
-    """One day's collected entries (most-important first) plus one note per
-    channel that could not be read, so the render can surface the gap."""
+    """One day's collected entries (most-important first), one note per channel
+    that could not be read (so the render can surface the gap), and an optional
+    cross-source synthesis of the day (``None`` unless it was requested)."""
 
-    date:    str
-    entries: tuple[DigestEntry, ...]
-    skipped: tuple[str, ...]
+    date:      str
+    entries:   tuple[DigestEntry, ...]
+    skipped:   tuple[str, ...]
+    synthesis: DailySynthesis | None = None
 
 
 def build_digest(
@@ -55,6 +58,7 @@ def build_digest(
     seen:              Container[str],
     language:          str = "en",
     per_channel_limit: int = 5,
+    with_synthesis:    bool = False,
 ) -> tuple[Digest, set[str]]:
     """Build the digest for ``date`` from the new uploads of ``channels``.
 
@@ -97,7 +101,16 @@ def build_digest(
                 entries.append(entry)
 
     entries.sort(key=lambda entry: entry.importance.score, reverse=True)
-    return Digest(date=date, entries=tuple(entries), skipped=tuple(skipped)), processed
+
+    # A synthesis needs at least two videos -- one source cannot agree or disagree
+    # with itself -- and costs one extra backend call, so it is opt-in.
+    synthesis = None
+    if with_synthesis and len(entries) >= 2:
+        synthesis = synthesize(
+            [(entry.channel, entry.summary) for entry in entries], backend, language=language
+        )
+    digest = Digest(date=date, entries=tuple(entries), skipped=tuple(skipped), synthesis=synthesis)
+    return digest, processed
 
 
 def _matching_titles(uploads: tuple[Upload, ...], keywords: tuple[str, ...]) -> tuple[Upload, ...]:
