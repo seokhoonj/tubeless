@@ -32,6 +32,15 @@ def test_parse_importance_reads_score_and_reason():
     assert got.reason == "big market news"
 
 
+def test_parse_importance_score_only_reply_has_no_reason():
+    # A reply with only a SCORE line has no reason; it must NOT echo the SCORE line
+    # itself as the reason (which the score-line filter exists to prevent).
+    got = _parse_importance("SCORE: 0.8")
+
+    assert got.score  == pytest.approx(0.8)
+    assert got.reason == ""
+
+
 def test_parse_importance_clamps_out_of_range_scores():
     # The model occasionally overshoots the 0..1 range ("SCORE: 1.5") or writes a
     # negative; the parser pulls each to the nearest bound rather than discarding.

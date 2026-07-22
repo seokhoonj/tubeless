@@ -41,6 +41,16 @@ def test_read_seen_drops_non_string_ids(tmp_path):
     assert read_seen(path) == {"a", "b"}
 
 
+def test_read_seen_non_dict_state_is_empty(tmp_path):
+    # Valid JSON but a top-level list/scalar (a hand-edit or a foreign writer):
+    # parsed.get would raise AttributeError and crash the whole run, so it must be
+    # treated as no state instead -- the documented no-crash guarantee.
+    path = tmp_path / "state.json"
+    path.write_text("[1, 2, 3]", encoding="utf-8")
+
+    assert read_seen(path) == set()
+
+
 def test_write_seen_creates_the_parent_directory(tmp_path):
     path = tmp_path / "nested" / "dir" / "state.json"
     write_seen({"x"}, path)

@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from tubeless.llm import LLMBackend
-from tubeless.summary import Summary, language_name
+from tubeless.summary import DEFAULT_LANGUAGE, Summary, language_name
 
 __all__ = ["Importance", "ImportanceTier", "score_importance"]
 
@@ -67,7 +67,7 @@ class Importance:
         return "low"
 
 
-def score_importance(summary: Summary, backend: LLMBackend, *, language: str = "en") -> Importance:
+def score_importance(summary: Summary, backend: LLMBackend, *, language: str = DEFAULT_LANGUAGE) -> Importance:
     """Ask ``backend`` to rate ``summary``'s importance from 0 to 1.
 
     A reply that cannot be parsed falls back to a neutral 0.5 with the reply's
@@ -104,13 +104,9 @@ def _parse_importance(reply: str) -> Importance:
         reason = reason_match.group(1).strip()
     else:
         # No REASON line: use the first line that is not the SCORE line, so a
-        # score-only reply does not show "SCORE: 0.8" as its reason.
+        # score-only reply does not show "SCORE: 0.8" as its reason. If every line
+        # is a SCORE line (or the reply is empty), there is no reason to show.
         lines           = [line.strip() for line in reply.splitlines() if line.strip()]
         non_score_lines = [line for line in lines if not _SCORE_PATTERN.search(line)]
-        if non_score_lines:
-            reason = non_score_lines[0]
-        elif lines:
-            reason = lines[0]      # every line was a SCORE line: fall back to the first
-        else:
-            reason = ""            # an empty reply
+        reason          = non_score_lines[0] if non_score_lines else ""
     return Importance(score=score, reason=reason)

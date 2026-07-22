@@ -285,6 +285,19 @@ def test_summarize_rejoins_a_point_wrapped_onto_a_second_line() -> None:
     )
 
 
+def test_summarize_does_not_glue_a_trailing_remark_onto_a_complete_point() -> None:
+    # A trailing remark after the bullets (against the "no other text" instruction)
+    # must NOT be attached to the last point, which already ends a sentence --
+    # otherwise the rejoin that saves a wrapped point would corrupt a complete one.
+    backend = RecordingBackend(
+        reply="TLDR: gist\n- Point one.\n- Point two.\nIn summary, watch the Fed.\n"
+    )
+
+    summary = summarize(make_transcript(n_words=50), SAMPLE_VIDEO, backend)
+
+    assert summary.points == ("Point one.", "Point two.")
+
+
 def test_summarize_passes_the_target_language_into_the_prompt() -> None:
     backend = RecordingBackend()
 

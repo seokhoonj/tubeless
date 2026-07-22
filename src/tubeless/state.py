@@ -39,6 +39,8 @@ def read_seen(path: Path | None = None) -> set[str]:
         return set()   # a corrupt/garbled file must not crash a run; treat as no state
     except OSError as err:
         raise ConfigError(f"could not read state file {path}: {err}") from err
+    if not isinstance(parsed, dict):
+        return set()   # valid JSON but not our object shape (a list/scalar): treat as no state
     seen = parsed.get("seen", [])
     if not isinstance(seen, list):
         return set()
