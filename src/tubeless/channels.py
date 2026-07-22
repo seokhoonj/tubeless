@@ -70,11 +70,11 @@ def load_channels(path: Path | None = None) -> tuple[Channel, ...]:
             "(each needs a source and a label)"
         )
     try:
-        data = tomllib.loads(path.read_text(encoding="utf-8"))
+        parsed = tomllib.loads(path.read_text(encoding="utf-8"))
     except (tomllib.TOMLDecodeError, OSError, UnicodeDecodeError) as err:
         raise ConfigError(f"could not read {path}: {err}") from err
 
-    entries = data.get("channel")
+    entries = parsed.get("channel")
     if not entries:
         raise ConfigError(f"{path} has no [[channel]] entries")
     return tuple(_channel_from(entry, path) for entry in entries)

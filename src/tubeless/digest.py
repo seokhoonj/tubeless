@@ -92,14 +92,14 @@ def build_digest(
     for channel in channels:
         # A filtered channel scans the full feed window, not just the first few:
         # the wanted uploads (e.g. one host's episodes) are sparse among the rest.
-        filtered    = bool(channel.title_includes or channel.title_excludes)
-        fetch_limit = _FILTERED_FETCH_LIMIT if filtered else per_channel_limit
+        has_title_filter = bool(channel.title_includes or channel.title_excludes)
+        fetch_limit      = _FILTERED_FETCH_LIMIT if has_title_filter else per_channel_limit
         try:
             uploads = fetch_uploads(channel.source, limit=fetch_limit)
         except FeedError as err:
             skipped.append(f"{channel.label}: {err}")
             continue
-        uploads = _matching_titles(uploads, channel.title_includes, channel.title_excludes)
+        uploads = _uploads_matching_title(uploads, channel.title_includes, channel.title_excludes)
 
         for upload in uploads:
             if upload.video_id in seen or upload.video_id in processed:
@@ -122,7 +122,7 @@ def build_digest(
     return digest, processed
 
 
-def _matching_titles(
+def _uploads_matching_title(
     uploads:  tuple[Upload, ...],
     includes: tuple[str, ...],
     excludes: tuple[str, ...],
@@ -134,11 +134,13 @@ def _matching_titles(
         return uploads
     wanted   = [word.lower() for word in includes]
     unwanted = [word.lower() for word in excludes]
-    return tuple(
-        u for u in uploads
-        if all(word in u.title.lower() for word in wanted)
-        and not any(word in u.title.lower() for word in unwanted)
-    )
+
+    def matches(upload: Upload) -> bool:
+        title = upload.title.lower()   # lower once per upload, not once per keyword
+        return (all(word in title for word in wanted)
+                and not any(word in title for word in unwanted))
+
+    return tuple(upload for upload in uploads if matches(upload))
 
 
 def _summarize_upload(

@@ -34,13 +34,17 @@ def read_seen(path: Path | None = None) -> set[str]:
     if not path.exists():
         return set()
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        parsed = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, UnicodeDecodeError):
         return set()   # a corrupt/garbled file must not crash a run; treat as no state
     except OSError as err:
         raise ConfigError(f"could not read state file {path}: {err}") from err
-    seen = data.get("seen", [])
-    return set(seen) if isinstance(seen, list) else set()
+    seen = parsed.get("seen", [])
+    if not isinstance(seen, list):
+        return set()
+    # Keep only string ids: a corrupt file with e.g. {"seen": [1, 2]} must not
+    # make the -> set[str] hint a lie (and set("abc") would split a bare string).
+    return {video_id for video_id in seen if isinstance(video_id, str)}
 
 
 def write_seen(video_ids: set[str], path: Path | None = None) -> None:

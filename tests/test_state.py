@@ -24,6 +24,23 @@ def test_read_seen_corrupt_file_is_empty(tmp_path):
     assert read_seen(path) == set()
 
 
+def test_read_seen_non_list_seen_is_empty(tmp_path):
+    # A corrupt file whose "seen" is a string, not a list: set("abc") would split
+    # it into {'a','b','c'}, so the guard must return an empty set instead.
+    path = tmp_path / "state.json"
+    path.write_text('{"seen": "abc"}', encoding="utf-8")
+
+    assert read_seen(path) == set()
+
+
+def test_read_seen_drops_non_string_ids(tmp_path):
+    # A corrupt file with non-string ids must not make the -> set[str] hint a lie.
+    path = tmp_path / "state.json"
+    path.write_text('{"seen": ["a", 1, "b", null]}', encoding="utf-8")
+
+    assert read_seen(path) == {"a", "b"}
+
+
 def test_write_seen_creates_the_parent_directory(tmp_path):
     path = tmp_path / "nested" / "dir" / "state.json"
     write_seen({"x"}, path)
