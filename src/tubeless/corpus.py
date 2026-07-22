@@ -17,18 +17,11 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from tubeless.errors import CorpusError
 from tubeless.importance import Importance
 from tubeless.source import Video
 from tubeless.transcript import Transcript, TranscriptSegment
-
-if TYPE_CHECKING:
-    # Type-only: corpus is the lower storage layer, so it must not import the
-    # digest orchestration layer at runtime. record_entry reads a DigestEntry
-    # structurally.
-    from tubeless.digest import DigestEntry
 
 __all__ = [
     "CORPUS_ROOT",
@@ -37,7 +30,6 @@ __all__ = [
     "archive_transcript",
     "load_summaries",
     "load_transcript",
-    "record_entry",
 ]
 
 
@@ -204,35 +196,6 @@ def load_transcript(video_id: str, *, root: Path | None = None) -> Transcript | 
         return _transcript_from_dict(json.loads(text))
     except (json.JSONDecodeError, _MalformedRecordError):
         return None
-
-
-def record_entry(entry: DigestEntry, captured: str, *, root: Path | None = None) -> None:
-    """Archive one digest entry: append its summary as a corpus record (under the
-    channel it was captured for, dated ``captured``) and archive its source
-    transcript once.
-
-    This owns the projection from a digest entry to a durable record -- which of
-    the summary/importance/upload fields make up a ``CorpusEntry`` -- so a caller
-    only orchestrates the loop over the entries and decides how to report a
-    failure.
-
-    Raises:
-        CorpusError: the summary record or the transcript could not be written.
-    """
-    append_entry(
-        CorpusEntry(
-            channel    = entry.channel,
-            captured   = captured,
-            published  = entry.upload.published,
-            video      = entry.summary.video,
-            tldr       = entry.summary.tldr,
-            points     = entry.summary.points,
-            importance = entry.importance,
-            language   = entry.summary.language,
-        ),
-        root=root,
-    )
-    archive_transcript(entry.transcript, root=root)
 
 
 def _entry_date(entry: CorpusEntry) -> str:

@@ -21,8 +21,8 @@ from pathlib import Path
 
 from tubeless import config
 from tubeless.channels import CHANNELS_PATH, load_channels
-from tubeless.corpus import CORPUS_ROOT, record_entry
-from tubeless.digest import DEFAULT_PER_CHANNEL_LIMIT, Digest, build_digest
+from tubeless.corpus import CORPUS_ROOT
+from tubeless.digest import DEFAULT_PER_CHANNEL_LIMIT, Digest, build_digest, record_entry
 from tubeless.errors import ConfigError, CorpusError, TubelessError
 from tubeless.llm import BACKENDS, make_backend
 from tubeless.render import to_markdown

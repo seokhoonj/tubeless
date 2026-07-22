@@ -11,8 +11,10 @@ from __future__ import annotations
 
 from collections.abc import Container, Iterable
 from dataclasses import dataclass
+from pathlib import Path
 
 from tubeless.channels import Channel
+from tubeless.corpus import CorpusEntry, append_entry, archive_transcript
 from tubeless.errors import FeedError, TranscriptUnavailable
 from tubeless.feed import Upload, fetch_uploads
 from tubeless.importance import Importance, score_importance
@@ -22,7 +24,7 @@ from tubeless.summary import DEFAULT_LANGUAGE, Summary, summarize
 from tubeless.synthesis import DailySynthesis, synthesize
 from tubeless.transcript import Transcript, fetch_transcript
 
-__all__ = ["DEFAULT_PER_CHANNEL_LIMIT", "Digest", "DigestEntry", "build_digest"]
+__all__ = ["DEFAULT_PER_CHANNEL_LIMIT", "Digest", "DigestEntry", "build_digest", "record_entry"]
 
 # YouTube's RSS feed tops out near 15 entries; a filtered source scans them all.
 _FILTERED_FETCH_LIMIT = 15
@@ -163,3 +165,34 @@ def _summarize_upload(
         channel=channel.label, upload=upload, summary=summary,
         importance=importance, transcript=transcript,
     )
+
+
+def record_entry(entry: DigestEntry, captured: str, *, root: Path | None = None) -> None:
+    """Archive one digest entry to the corpus: append its summary as a record
+    (under the channel it was captured for, dated ``captured``) and archive its
+    source transcript once.
+
+    This owns the projection from a ``DigestEntry`` to a durable ``CorpusEntry``
+    -- which of the summary/importance/upload fields make up the record -- so a
+    caller only orchestrates the loop over the entries and decides how to report a
+    failure. It lives here, beside ``DigestEntry``, and calls down into the corpus
+    storage layer (the orchestration -> storage direction), rather than the corpus
+    reaching up for a ``DigestEntry`` it should not know about.
+
+    Raises:
+        CorpusError: the summary record or the transcript could not be written.
+    """
+    append_entry(
+        CorpusEntry(
+            channel    = entry.channel,
+            captured   = captured,
+            published  = entry.upload.published,
+            video      = entry.summary.video,
+            tldr       = entry.summary.tldr,
+            points     = entry.summary.points,
+            importance = entry.importance,
+            language   = entry.summary.language,
+        ),
+        root=root,
+    )
+    archive_transcript(entry.transcript, root=root)

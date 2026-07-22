@@ -11,9 +11,8 @@ from tubeless.corpus import (
     archive_transcript,
     load_summaries,
     load_transcript,
-    record_entry,
 )
-from tubeless.digest import DigestEntry
+from tubeless.digest import DigestEntry, record_entry
 from tubeless.errors import CorpusError
 from tubeless.feed import Upload
 from tubeless.importance import Importance

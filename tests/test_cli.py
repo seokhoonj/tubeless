@@ -365,8 +365,8 @@ def test_digest_corpus_failure_on_one_entry_does_not_abort_the_rest(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     from tubeless.corpus import load_summaries
-    from tubeless.corpus import record_entry as real_record_entry
     from tubeless.digest import Digest, DigestEntry
+    from tubeless.digest import record_entry as real_record_entry
     from tubeless.errors import CorpusError
     from tubeless.feed import Upload
     from tubeless.importance import Importance
