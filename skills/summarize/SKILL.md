@@ -25,21 +25,23 @@ pipx install tubeless        # 또는: pip install tubeless
 
 ## 실행
 
-PATH의 `tubeless`를 부른다:
+PATH의 `tubeless`를 `summarize` 서브커맨드로 부른다:
 
 ```
-tubeless "<URL>" [옵션]
+tubeless summarize "<URL>" [옵션]
 ```
 
-옵션:
-- `--backend claude|openai|gemini|ollama` — LLM 벤더. 기본은 openai(`gpt-4o-mini`).
-  다른 기본값: gemini=`gemini-flash-lite-latest`(무료), claude=`claude-haiku-4-5`,
-  ollama=`llama3.1`(로컬, 키 불필요). `config.env`에 `TUBELESS_BACKEND=gemini`가
-  있으면 그게 기본이 된다.
+(서브커맨드 없이 `tubeless "<URL>"`도 summarize로 동작하는 단축이 있지만, 정석은
+`tubeless summarize`다.)
+
+옵션 (정확한 기본값·모델은 `tubeless summarize --help`가 정본):
+- `--backend claude|openai|gemini|ollama` — LLM 벤더. 미지정 시 openai(또는
+  `config.env`의 `TUBELESS_BACKEND`). gemini는 무료 티어, ollama는 로컬(키 불필요).
+  각 백엔드의 기본 모델은 CLI가 정한다 — 여기 숫자/모델명을 적어두지 않는다.
 - `--model <id>` — 백엔드의 기본 모델을 덮어씀 (예: `--backend gemini --model gemini-2.5-pro`).
-- `--lang ko` — 요약 언어 (기본 en).
-- `--detail brief|normal|deep` — 요약 깊이 (기본 normal). "자세히/상세히/길게"라고 하면 `deep`, "짧게/간단히"면 `brief`.
-- `--max-points N` — 핵심 포인트 최대 개수 (기본은 --detail에 따라 5/8/14; 지정하면 그 값으로 덮어씀).
+- `--lang <code>` — 요약 언어 (미지정 시 CLI 기본).
+- `--detail brief|normal|deep` — 요약 깊이. "자세히/상세히/길게"라고 하면 `deep`, "짧게/간단히"면 `brief`.
+- `--max-points N` — 핵심 포인트 최대 개수 (미지정 시 --detail에 따른 CLI 기본; 지정하면 그 값).
 - `--json` — 사람이 읽는 텍스트 대신 JSON.
 
 실행하면 CLI가 stderr에 한 줄짜리 설정 헤더(`tubeless: backend=... model=... detail=... lang=...`)를
@@ -54,7 +56,7 @@ tubeless "<URL>" [옵션]
 2. **실행.** 그냥 CLI를 부른다 — 키는 tubeless가 `~/.tubeless/config.env`에서 찾는다.
 
    ```bash
-   tubeless "<URL>"
+   tubeless summarize "<URL>"
    ```
 
    기본(openai)이 아닌 백엔드로 돌릴 때만 `--backend`를 붙인다. 예: 무료로 돌리려면
@@ -73,6 +75,9 @@ tubeless "<URL>" [옵션]
      Claude / Google AI Studio) 충전 안내.
    - `TranscriptUnavailable` → 자막이 없는 영상(자막 꺼둠/미생성). LLM 문제가
      아니라 영상 자체에 자막이 없는 것.
+   - `transcript fetch blocked` (`TranscriptFetchBlocked`) → YouTube가 이 실행의
+     IP를 일시 차단/속도제한한 것. 자막이 없는 게 아니라 일시적 차단이므로,
+     잠시 후 재시도하거나 다른 네트워크에서 실행. 영상 자체 문제가 아니다.
    - `no ... API key` → `~/.tubeless/config.env`에 해당 백엔드 키
      (`OPENAI_API_KEY` / `CLAUDE_API_KEY` / `GEMINI_API_KEY`)가 있는지 확인.
 

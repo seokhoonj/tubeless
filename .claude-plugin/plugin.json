@@ -1,8 +1,11 @@
 {
   "name": "tubeless",
-  "description": "Summarize a YouTube video and run a daily multi-channel digest, powered by the tubeless CLI",
-  "version": "0.1.0",
+  "displayName": "Tubeless",
+  "description": "Summarize a YouTube video's transcript with an LLM, powered by the tubeless CLI",
+  "version": "0.1.1",
   "author": { "name": "seokhoonj" },
   "homepage": "https://github.com/seokhoonj/tubeless",
-  "license": "MIT"
+  "repository": "https://github.com/seokhoonj/tubeless",
+  "license": "MIT",
+  "keywords": ["youtube", "transcript", "summarize", "llm"]
 }

@@ -1,12 +1,17 @@
 {
   "name": "tubeless",
   "owner": { "name": "seokhoonj" },
-  "description": "YouTube transcript summarization and daily digest tools",
+  "description": "Summarize a YouTube video's transcript with an LLM",
   "plugins": [
     {
       "name": "tubeless",
+      "displayName": "Tubeless",
       "source": "./",
-      "description": "Summarize a YouTube video and run a daily multi-channel digest"
+      "description": "Summarize a YouTube video's transcript with an LLM",
+      "author": { "name": "seokhoonj" },
+      "homepage": "https://github.com/seokhoonj/tubeless",
+      "category": "productivity",
+      "keywords": ["youtube", "transcript", "summarize", "llm"]
     }
   ]
 }
