@@ -1,0 +1,20 @@
+{
+  "name": "tubeless",
+  "version": "0.1.1",
+  "description": "Summarize a YouTube video's transcript with an LLM, powered by the tubeless CLI",
+  "author": { "name": "seokhoonj", "url": "https://github.com/seokhoonj" },
+  "homepage": "https://github.com/seokhoonj/tubeless",
+  "repository": "https://github.com/seokhoonj/tubeless",
+  "license": "MIT",
+  "keywords": ["youtube", "transcript", "summarize", "llm"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Tubeless",
+    "shortDescription": "Summarize a YouTube video's transcript with an LLM",
+    "longDescription": "Fetch a YouTube video's transcript and summarize it into a TL;DR and key points via the tubeless CLI. Backends: OpenAI, Claude, Gemini (free tier), or a local Ollama model.",
+    "developerName": "seokhoonj",
+    "category": "Productivity",
+    "capabilities": [],
+    "defaultPrompt": ["Summarize this YouTube video: <url>"]
+  }
+}
