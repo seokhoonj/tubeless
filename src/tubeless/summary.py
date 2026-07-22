@@ -15,7 +15,15 @@ from tubeless.llm import LLMBackend
 from tubeless.source import Video
 from tubeless.transcript import Transcript
 
-__all__ = ["DETAIL_LEVELS", "DetailLevel", "Summary", "language_name", "summarize"]
+__all__ = [
+    "DEFAULT_DETAIL",
+    "DEFAULT_LANGUAGE",
+    "DETAIL_LEVELS",
+    "DetailLevel",
+    "Summary",
+    "language_name",
+    "summarize",
+]
 
 # YouTube's ISO codes are what --lang carries; a model follows a full language
 # name ("Korean") far more reliably than a bare code ("ko"), which it sometimes
@@ -42,6 +50,12 @@ def language_name(language: str) -> str:
 # type checker. `DetailLevel` is the static mirror -- a Literal cannot be computed
 # from the dict, so it is hand-written and MUST be kept in sync with `_DETAIL`.
 DetailLevel = Literal["brief", "normal", "deep"]
+
+# The package-wide summary defaults, named once here so a consumer (the CLI)
+# references them instead of re-spelling the literal at its call site -- a
+# restated default freezes consumer users on the old value if it ever changes.
+DEFAULT_LANGUAGE: str = "en"
+DEFAULT_DETAIL:   DetailLevel = "normal"
 
 # One map-phase chunk is ~3000 words (~4000 tokens of English; Korean is
 # denser per word, still far inside any current chat model's context). Small
@@ -162,8 +176,8 @@ def summarize(
     video:      Video,
     backend:    LLMBackend,
     *,
-    target_language: str = "en",
-    detail:          DetailLevel = "normal",
+    target_language: str = DEFAULT_LANGUAGE,
+    detail:          DetailLevel = DEFAULT_DETAIL,
     max_points:      int | None = None,
 ) -> Summary:
     """Summarize ``transcript`` into a TL;DR plus key points.

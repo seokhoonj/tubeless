@@ -22,13 +22,13 @@ from pathlib import Path
 from tubeless import config
 from tubeless.channels import CHANNELS_PATH, load_channels
 from tubeless.corpus import CORPUS_ROOT, CorpusEntry, append_entry, archive_transcript
-from tubeless.digest import Digest, build_digest
+from tubeless.digest import DEFAULT_PER_CHANNEL_LIMIT, Digest, build_digest
 from tubeless.errors import ConfigError, CorpusError, TubelessError
 from tubeless.llm import ClaudeBackend, GeminiBackend, LLMBackend, OllamaBackend, OpenAIBackend
 from tubeless.render import to_markdown
 from tubeless.source import fetch_video_meta
 from tubeless.state import STATE_PATH, read_seen, write_seen
-from tubeless.summary import DETAIL_LEVELS, Summary, summarize
+from tubeless.summary import DEFAULT_DETAIL, DEFAULT_LANGUAGE, DETAIL_LEVELS, Summary, summarize
 from tubeless.transcript import fetch_transcript
 
 __all__ = ["main"]
@@ -148,11 +148,12 @@ def _build_parser() -> argparse.ArgumentParser:
     summarize_parser = subparsers.add_parser("summarize", help="summarize one video")
     summarize_parser.add_argument("url", help="YouTube URL or bare 11-character video id")
     _add_backend_args(summarize_parser)
-    summarize_parser.add_argument("--lang", default=config.setting("TUBELESS_LANG") or "en",
-                                  help="language of the summary (default: en, or $TUBELESS_LANG)")
+    summarize_parser.add_argument("--lang", default=config.setting("TUBELESS_LANG") or DEFAULT_LANGUAGE,
+                                  help=f"language of the summary (default: {DEFAULT_LANGUAGE}, or $TUBELESS_LANG)")
     summarize_parser.add_argument("--detail", choices=DETAIL_LEVELS,
-                                  default=_configured_choice("TUBELESS_DETAIL", DETAIL_LEVELS, "normal"),
-                                  help="summary depth: brief | normal | deep (default: normal, or $TUBELESS_DETAIL)")
+                                  default=_configured_choice("TUBELESS_DETAIL", DETAIL_LEVELS, DEFAULT_DETAIL),
+                                  help=f"summary depth: {' | '.join(DETAIL_LEVELS)} "
+                                       f"(default: {DEFAULT_DETAIL}, or $TUBELESS_DETAIL)")
     summarize_parser.add_argument("--max-points", type=_positive_int,
                                   default=_configured_positive_int("TUBELESS_MAX_POINTS", None),
                                   help="max key points; overrides the per-detail default (or $TUBELESS_MAX_POINTS)")
@@ -162,8 +163,8 @@ def _build_parser() -> argparse.ArgumentParser:
 
     digest_parser = subparsers.add_parser("digest", help="build the daily multi-channel digest")
     _add_backend_args(digest_parser)
-    digest_parser.add_argument("--lang", default=config.setting("TUBELESS_LANG") or "en",
-                               help="language of the summaries (default: en, or $TUBELESS_LANG)")
+    digest_parser.add_argument("--lang", default=config.setting("TUBELESS_LANG") or DEFAULT_LANGUAGE,
+                               help=f"language of the summaries (default: {DEFAULT_LANGUAGE}, or $TUBELESS_LANG)")
     digest_parser.add_argument("--channels", type=Path, default=CHANNELS_PATH,
                                help=f"channels TOML file (default: {CHANNELS_PATH})")
     digest_parser.add_argument("--state", type=Path, default=STATE_PATH,
@@ -176,8 +177,9 @@ def _build_parser() -> argparse.ArgumentParser:
     digest_parser.add_argument("--only", default=None,
                                help="run only channels whose label contains this text")
     digest_parser.add_argument("--limit", type=_positive_int,
-                               default=_configured_positive_int("TUBELESS_LIMIT", 5),
-                               help="max recent uploads to check per channel (default: 5, or $TUBELESS_LIMIT)")
+                               default=_configured_positive_int("TUBELESS_LIMIT", DEFAULT_PER_CHANNEL_LIMIT),
+                               help=f"max recent uploads to check per channel "
+                                    f"(default: {DEFAULT_PER_CHANNEL_LIMIT}, or $TUBELESS_LIMIT)")
     digest_parser.add_argument("--synthesize", action="store_true",
                                default=_configured_flag("TUBELESS_SYNTHESIZE"),
                                help="lead the digest with a cross-video synthesis (tone, "

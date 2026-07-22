@@ -15,7 +15,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from tubeless.llm import LLMBackend
-from tubeless.summary import Summary, language_name
+from tubeless.summary import DEFAULT_LANGUAGE, Summary, language_name
 
 __all__ = ["DailySynthesis", "synthesize"]
 
@@ -68,7 +68,7 @@ def synthesize(
     summaries: Sequence[tuple[str, Summary]],
     backend:   LLMBackend,
     *,
-    language:  str = "en",
+    language:  str = DEFAULT_LANGUAGE,
 ) -> DailySynthesis:
     """Combine ``summaries`` (each an ``(source_label, Summary)`` pair) into one
     ``DailySynthesis``.

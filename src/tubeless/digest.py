@@ -18,14 +18,18 @@ from tubeless.feed import Upload, fetch_uploads
 from tubeless.importance import Importance, score_importance
 from tubeless.llm import LLMBackend
 from tubeless.source import Video
-from tubeless.summary import Summary, summarize
+from tubeless.summary import DEFAULT_LANGUAGE, Summary, summarize
 from tubeless.synthesis import DailySynthesis, synthesize
 from tubeless.transcript import Transcript, fetch_transcript
 
-__all__ = ["Digest", "DigestEntry", "build_digest"]
+__all__ = ["DEFAULT_PER_CHANNEL_LIMIT", "Digest", "DigestEntry", "build_digest"]
 
 # YouTube's RSS feed tops out near 15 entries; a filtered source scans them all.
 _FILTERED_FETCH_LIMIT = 15
+
+# How many recent uploads to check per channel when the caller does not say.
+# Named here (not re-spelled in the CLI) so the default has one home.
+DEFAULT_PER_CHANNEL_LIMIT = 5
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,8 +64,8 @@ def build_digest(
     *,
     date:              str,
     seen:              Container[str],
-    language:          str = "en",
-    per_channel_limit: int = 5,
+    language:          str = DEFAULT_LANGUAGE,
+    per_channel_limit: int = DEFAULT_PER_CHANNEL_LIMIT,
     with_synthesis:    bool = False,
 ) -> tuple[Digest, set[str]]:
     """Build the digest for ``date`` from the new uploads of ``channels``.
