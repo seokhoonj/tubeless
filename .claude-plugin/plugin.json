@@ -1,0 +1,8 @@
+{
+  "name": "tubeless",
+  "description": "Summarize a YouTube video and run a daily multi-channel digest, powered by the tubeless CLI",
+  "version": "0.1.0",
+  "author": { "name": "seokhoonj" },
+  "homepage": "https://github.com/seokhoonj/tubeless",
+  "license": "MIT"
+}

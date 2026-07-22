@@ -1,0 +1,12 @@
+{
+  "name": "tubeless",
+  "owner": { "name": "seokhoonj" },
+  "description": "YouTube transcript summarization and daily digest tools",
+  "plugins": [
+    {
+      "name": "tubeless",
+      "source": "./",
+      "description": "Summarize a YouTube video and run a daily multi-channel digest"
+    }
+  ]
+}

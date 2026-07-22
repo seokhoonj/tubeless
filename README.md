@@ -21,7 +21,7 @@ Works with Gemini (free), OpenAI, Claude, or a local model via Ollama.
 - [Summarize one video](#summarize-one-video) (`--detail` / `--max-points` / `--backend` / `--model` / `--lang`)
 - [Daily digest](#daily-digest)
 - [Run it every day with cron (Linux)](#run-it-every-day-with-cron-linux)
-- [Use it from Claude Code](#use-it-from-claude-code-tubeless-skill) (`/tubeless`)
+- [Use it from Claude Code](#use-it-from-claude-code) (plugin: `/tubeless:summarize`)
 - [Use it as a Python library](#use-it-as-a-python-library)
 - [Limits](#limits)
 
@@ -366,14 +366,31 @@ uploads. Read the result each morning at `~/.tubeless/digests/`.
 > **macOS** has cron too, but `launchd` / a Calendar-triggered Automator action
 > is the native way. **Windows**: use Task Scheduler to run `tubeless digest`.
 
-### Use it from Claude Code (`/tubeless` skill)
+### Use it from Claude Code
 
-If you use [Claude Code](https://claude.com/claude-code), you can wrap the CLI in
-a local skill so `/tubeless <url>` summarizes a video without leaving your editor.
-The skill just shells out to the `tubeless` command you installed above.
+If you use [Claude Code](https://claude.com/claude-code), you can summarize a
+video with a slash command without leaving your editor. The skill just shells out
+to the `tubeless` command, so install the CLI first (`pip install tubeless`).
 
-Create `~/.claude/skills/tubeless/SKILL.md` (these agent files stay local to your
-machine — they are not part of this repo):
+**Install as a plugin** — this repo doubles as a plugin marketplace:
+
+```
+/plugin marketplace add seokhoonj/tubeless
+/plugin install tubeless@tubeless
+```
+
+Then paste a YouTube URL (the skill triggers on its own), or run it explicitly:
+
+```
+/tubeless:summarize https://youtu.be/VIDEO_ID_XX
+```
+
+Pick a backend the same way as the CLI (`--backend claude`, `--backend ollama`,
+...). Your keys stay in your own `~/.tubeless/config.env` — the plugin ships only
+the instructions, never a key.
+
+**Or wire it up by hand** — drop a `SKILL.md` in `~/.claude/skills/tubeless/`
+(local to your machine, not tracked) that shells out to the CLI:
 
 ```markdown
 ---
@@ -383,15 +400,13 @@ description: Summarize a YouTube video. Trigger on a YouTube URL or "summarize t
 
 Run the installed `tubeless` CLI on the URL the user gave and show the result:
 
-    tubeless "<url>" --detail deep --lang ko
+    tubeless "<url>" --detail deep
 
-Pass `--backend claude` for Claude or `--backend ollama` for a local model.
 Show the TL;DR and key points back to the user.
 ```
 
-Then in Claude Code: `/tubeless https://youtu.be/VIDEO_ID_XX`. The same idea works
-for other agent CLIs (Codex `AGENTS.md`, Gemini `GEMINI.md`) — point them at the
-`tubeless` command.
+The same hand-wired idea works for other agent CLIs (Codex `AGENTS.md`, Gemini
+`GEMINI.md`) — point them at the `tubeless` command.
 
 ### Use it as a Python library
 
@@ -452,7 +467,7 @@ Ollama로 로컬 모델까지 씁니다.
 - [영상 한 개 요약](#영상-한-개-요약) (`--detail` / `--max-points` / `--backend` / `--model` / `--lang`)
 - [데일리 다이제스트](#데일리-다이제스트)
 - [cron으로 매일 자동 실행 (Linux)](#cron으로-매일-자동-실행-linux)
-- [Claude Code에서 쓰기](#claude-code에서-쓰기-tubeless-스킬) (`/tubeless`)
+- [Claude Code에서 쓰기](#claude-code에서-쓰기) (플러그인: `/tubeless:summarize`)
 - [파이썬 라이브러리로 쓰기](#파이썬-라이브러리로-쓰기)
 - [한계](#한계)
 
@@ -788,14 +803,30 @@ cron은 명령을 정해진 시각에 실행합니다. 매일 밤 22:00에 다�
 > **macOS**도 cron이 있지만 `launchd` / 캘린더로 트리거하는 Automator가 더
 > 네이티브합니다. **Windows**: 작업 스케줄러로 `tubeless digest`를 실행하세요.
 
-### Claude Code에서 쓰기 (`/tubeless` 스킬)
+### Claude Code에서 쓰기
 
-[Claude Code](https://claude.com/claude-code)를 쓴다면, CLI를 로컬 스킬로 감싸서
-`/tubeless <url>` 한 번으로 에디터를 떠나지 않고 영상을 요약할 수 있습니다. 스킬은
-위에서 설치한 `tubeless` 명령을 그대로 호출할 뿐입니다.
+[Claude Code](https://claude.com/claude-code)를 쓴다면, 에디터를 떠나지 않고 슬래시
+명령으로 영상을 요약할 수 있습니다. 스킬은 `tubeless` 명령을 그대로 호출할 뿐이니 CLI를
+먼저 설치하세요(`pip install tubeless`).
 
-`~/.claude/skills/tubeless/SKILL.md`를 만듭니다(이 에이전트 파일들은 내 머신에만
-남는 로컬 파일이며 이 저장소에 포함되지 않습니다):
+**플러그인으로 설치** — 이 저장소가 곧 플러그인 마켓플레이스입니다:
+
+```
+/plugin marketplace add seokhoonj/tubeless
+/plugin install tubeless@tubeless
+```
+
+이후 유튜브 URL을 붙여넣으면 스킬이 알아서 발동하거나, 직접 호출할 수 있습니다:
+
+```
+/tubeless:summarize https://youtu.be/VIDEO_ID_XX
+```
+
+백엔드는 CLI와 동일하게 지정합니다(`--backend claude`, `--backend ollama` 등). 키는
+각자 `~/.tubeless/config.env`에 두며, 플러그인은 지시문만 나르고 키는 절대 담지 않습니다.
+
+**직접 엮고 싶다면** — `~/.claude/skills/tubeless/SKILL.md`를 만들어(내 머신에만 남는
+로컬 파일, 추적 안 됨) CLI를 호출하게 합니다:
 
 ```markdown
 ---
@@ -807,13 +838,11 @@ description: 유튜브 영상을 요약. 유튜브 URL이나 "이 영상 요약�
 
     tubeless "<url>" --detail deep --lang ko
 
-Claude는 `--backend claude`, 로컬 모델은 `--backend ollama`를 붙인다.
 TL;DR과 핵심 포인트를 사용자에게 돌려준다.
 ```
 
-그러면 Claude Code에서 `/tubeless https://youtu.be/VIDEO_ID_XX`. 다른 에이전트
-CLI(Codex `AGENTS.md`, Gemini `GEMINI.md`)도 같은 방식으로 `tubeless` 명령을
-가리키게 하면 됩니다.
+다른 에이전트 CLI(Codex `AGENTS.md`, Gemini `GEMINI.md`)도 같은 방식으로 `tubeless`
+명령을 가리키게 하면 됩니다.
 
 ### 파이썬 라이브러리로 쓰기
 
