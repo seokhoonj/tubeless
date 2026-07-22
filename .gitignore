@@ -18,6 +18,7 @@ htmlcov/
 
 # Local scratch (never tracked)
 dev/
+refs/
 
 # AI coding agents
 CLAUDE.md
