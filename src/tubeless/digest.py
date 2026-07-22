@@ -1,4 +1,4 @@
-"""Assemble one day's digest: for each channel, fetch new uploads, summarize and
+"""Curate one day's digest: for each channel, fetch new uploads, summarize and
 score them, and collect the results ranked by importance.
 
 This is the orchestration layer over the single-video engine (transcript +
@@ -24,7 +24,7 @@ from tubeless.summary import DEFAULT_LANGUAGE, Summary, summarize
 from tubeless.synthesis import Synthesis, synthesize
 from tubeless.transcript import Transcript, fetch_transcript
 
-__all__ = ["DEFAULT_PER_CHANNEL_LIMIT", "Digest", "DigestEntry", "build_digest", "record_entry"]
+__all__ = ["DEFAULT_PER_CHANNEL_LIMIT", "Digest", "DigestEntry", "curate", "record_entry"]
 
 # YouTube's RSS feed tops out near 15 entries; a filtered source scans them all.
 _FILTERED_FETCH_LIMIT = 15
@@ -60,7 +60,7 @@ class Digest:
     synthesis: Synthesis | None = None
 
 
-def build_digest(
+def curate(
     channels: Iterable[Channel],
     backend:  LLMBackend,
     *,
@@ -70,7 +70,7 @@ def build_digest(
     per_channel_limit: int = DEFAULT_PER_CHANNEL_LIMIT,
     with_synthesis:    bool = False,
 ) -> tuple[Digest, set[str]]:
-    """Build the digest for ``date`` from the new uploads of ``channels``.
+    """Curate the digest for ``date`` from the new uploads of ``channels``.
 
     Only uploads whose id is not in ``seen`` are processed. A video with no
     transcript is skipped (not fatal) but still counted as processed, so it is

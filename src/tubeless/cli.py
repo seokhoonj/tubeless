@@ -22,7 +22,7 @@ from pathlib import Path
 from tubeless import config
 from tubeless.channels import CHANNELS_PATH, load_channels
 from tubeless.corpus import CORPUS_ROOT
-from tubeless.digest import DEFAULT_PER_CHANNEL_LIMIT, Digest, build_digest, record_entry
+from tubeless.digest import DEFAULT_PER_CHANNEL_LIMIT, Digest, curate, record_entry
 from tubeless.errors import ConfigError, CorpusError, ScheduleError, TubelessError
 from tubeless.llm import BACKENDS, make_backend
 from tubeless.render import to_markdown
@@ -96,7 +96,7 @@ def _run_digest(args: argparse.Namespace) -> int:
     backend           = make_backend(args.backend, model=args.model)
     _print_run_settings(args.backend, backend.model, lang=args.lang, limit=args.limit)
     seen              = read_seen(args.state)
-    digest, processed = build_digest(
+    digest, processed = curate(
         channels, backend,
         date              = _today(),
         seen              = seen,

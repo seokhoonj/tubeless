@@ -459,7 +459,7 @@ for point in summary.points:
 ```
 
 `ClaudeBackend` and `OllamaBackend` are drop-in replacements for
-`OpenAIBackend`. The digest pieces (`load_channels`, `build_digest`,
+`OpenAIBackend`. The digest pieces (`load_channels`, `curate`,
 `to_markdown`) are exported too.
 
 ### How it works
@@ -930,7 +930,7 @@ for point in summary.points:
 ```
 
 `ClaudeBackend`·`OllamaBackend`는 `OpenAIBackend`와 그대로 바꿔 끼울 수
-있습니다. 다이제스트 조각(`load_channels`, `build_digest`, `to_markdown`)도
+있습니다. 다이제스트 조각(`load_channels`, `curate`, `to_markdown`)도
 export되어 있습니다.
 
 ### 동작 방식

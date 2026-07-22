@@ -12,7 +12,7 @@ from tubeless.corpus import (
     load_summaries,
     load_transcript,
 )
-from tubeless.digest import Digest, DigestEntry, build_digest, record_entry
+from tubeless.digest import Digest, DigestEntry, curate, record_entry
 from tubeless.errors import (
     ConfigError,
     CorpusError,
@@ -77,7 +77,7 @@ __all__ = [
     "Video",
     "append_entry",
     "archive_transcript",
-    "build_digest",
+    "curate",
     "fetch_channel_uploads",
     "fetch_playlist_uploads",
     "fetch_uploads",

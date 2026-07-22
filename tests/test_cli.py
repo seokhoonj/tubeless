@@ -123,7 +123,7 @@ def test_configured_flag_reads_a_boolean(_no_config_file, monkeypatch) -> None:
     assert _configured_flag("TUBELESS_SYNTHESIZE") is False
 
 
-def test_digest_synthesize_flag_reaches_build_digest(
+def test_digest_synthesize_flag_reaches_curate(
     _no_config_file, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from tubeless.digest import Digest
@@ -135,7 +135,7 @@ def test_digest_synthesize_flag_reaches_build_digest(
         seen_kwargs.update(kwargs)
         return Digest(date="d", entries=(), skipped=()), set()
 
-    monkeypatch.setattr(cli_module, "build_digest", fake_build)
+    monkeypatch.setattr(cli_module, "curate", fake_build)
 
     assert main(["digest", "--synthesize", "--dry-run"]) == 0
     assert seen_kwargs["with_synthesis"] is True
@@ -298,7 +298,7 @@ def test_digest_dry_run_prints_markdown_without_writing(
     monkeypatch.setattr(cli_module, "load_channels", lambda path: ())
     monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
     monkeypatch.setattr(
-        cli_module, "build_digest",
+        cli_module, "curate",
         lambda channels, backend, **kw: (
             Digest(date="2026-07-21", entries=(entry,), skipped=()), {"dQw4w9WgXcQ"}
         ),
@@ -334,7 +334,7 @@ def test_digest_records_summaries_and_transcripts_to_the_corpus(
     monkeypatch.setattr(cli_module, "load_channels", lambda path: ())
     monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
     monkeypatch.setattr(
-        cli_module, "build_digest",
+        cli_module, "curate",
         lambda channels, backend, **kw: (
             Digest(date="2026-07-21", entries=(entry,), skipped=()), {"dQw4w9WgXcQ"}
         ),
@@ -390,7 +390,7 @@ def test_digest_corpus_failure_on_one_entry_does_not_abort_the_rest(
     monkeypatch.setattr(cli_module, "load_channels", lambda path: ())
     monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
     monkeypatch.setattr(
-        cli_module, "build_digest",
+        cli_module, "curate",
         lambda channels, backend, **kw: (
             Digest(date="2026-07-21", entries=(bad, good), skipped=()),
             {"aaaaaaaaaaa", "bbbbbbbbbbb"},
@@ -434,7 +434,7 @@ def test_digest_only_filters_channels_by_label(_no_config_file, monkeypatch: pyt
         seen_channels["labels"] = [c.label for c in channels]
         return Digest(date="2026-07-21", entries=(), skipped=()), set()
 
-    monkeypatch.setattr(cli_module, "build_digest", capture)
+    monkeypatch.setattr(cli_module, "curate", capture)
 
     assert main(["digest", "--only", "closing", "--dry-run"]) == 0
     assert seen_channels["labels"] == ["Closing Bell"]

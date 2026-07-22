@@ -9,7 +9,7 @@ import pytest
 
 import tubeless.digest as digest_module
 from tubeless.channels import Channel
-from tubeless.digest import build_digest
+from tubeless.digest import curate
 from tubeless.errors import FeedError, TranscriptFetchBlocked, TranscriptUnavailable
 from tubeless.feed import Upload
 from tubeless.transcript import Transcript, TranscriptSegment
@@ -62,7 +62,7 @@ class SynthesizingBackend(ScoringBackend):
 _ONE_CHANNEL = (Channel(source="@x", label="Example Channel", detail="normal"),)
 
 
-def test_build_digest_scans_the_full_window_for_a_filtered_channel(monkeypatch):
+def test_curate_scans_the_full_window_for_a_filtered_channel(monkeypatch):
     # A channel with a title filter must scan the full ~15-entry feed window, not
     # just per_channel_limit -- the wanted uploads are sparse among the rest, so a
     # small window silently drops them (the documented missed-video incident). A
@@ -79,14 +79,14 @@ def test_build_digest_scans_the_full_window_for_a_filtered_channel(monkeypatch):
         Channel(source="@plain", label="Plain"),
     )
 
-    build_digest(channels, ScoringBackend(), date="d", seen=set(), per_channel_limit=5)
+    curate(channels, ScoringBackend(), date="d", seen=set(), per_channel_limit=5)
 
     assert seen_limits["@filtered"] == digest_module._FILTERED_FETCH_LIMIT
     assert seen_limits["@plain"] == 5
 
 
-def test_build_digest_adds_a_synthesis_when_requested(two_uploads):
-    digest, _ = build_digest(
+def test_curate_adds_a_synthesis_when_requested(two_uploads):
+    digest, _ = curate(
         _ONE_CHANNEL, SynthesizingBackend(), date="d", seen=set(), with_synthesis=True,
     )
 
@@ -95,19 +95,19 @@ def test_build_digest_adds_a_synthesis_when_requested(two_uploads):
     assert digest.synthesis.agreements == ("chips fell",)
 
 
-def test_build_digest_omits_the_synthesis_by_default(two_uploads):
-    digest, _ = build_digest(_ONE_CHANNEL, SynthesizingBackend(), date="d", seen=set())
+def test_curate_omits_the_synthesis_by_default(two_uploads):
+    digest, _ = curate(_ONE_CHANNEL, SynthesizingBackend(), date="d", seen=set())
 
     assert digest.synthesis is None
 
 
-def test_build_digest_skips_the_synthesis_for_a_single_video(monkeypatch):
+def test_curate_skips_the_synthesis_for_a_single_video(monkeypatch):
     monkeypatch.setattr(digest_module, "fetch_uploads",
                         lambda source, limit: (_upload("aaaaaaaaaaa", "only one"),))
     monkeypatch.setattr(digest_module, "fetch_transcript", lambda video_id: _transcript(video_id))
 
     # requested, but one source cannot agree or disagree with itself
-    digest, _ = build_digest(
+    digest, _ = curate(
         _ONE_CHANNEL, SynthesizingBackend(), date="d", seen=set(), with_synthesis=True,
     )
 
@@ -115,8 +115,8 @@ def test_build_digest_skips_the_synthesis_for_a_single_video(monkeypatch):
     assert digest.synthesis is None
 
 
-def test_build_digest_sorts_entries_by_importance(two_uploads):
-    digest, processed = build_digest(
+def test_curate_sorts_entries_by_importance(two_uploads):
+    digest, processed = curate(
         _ONE_CHANNEL, ScoringBackend(), date="2026-07-21", seen=set(),
     )
 
@@ -124,8 +124,8 @@ def test_build_digest_sorts_entries_by_importance(two_uploads):
     assert processed == {"aaaaaaaaaaa", "bbbbbbbbbbb"}
 
 
-def test_build_digest_skips_already_seen_videos(two_uploads):
-    digest, processed = build_digest(
+def test_curate_skips_already_seen_videos(two_uploads):
+    digest, processed = curate(
         _ONE_CHANNEL, ScoringBackend(), date="d", seen={"aaaaaaaaaaa"},
     )
 
@@ -133,7 +133,7 @@ def test_build_digest_skips_already_seen_videos(two_uploads):
     assert processed == {"bbbbbbbbbbb"}
 
 
-def test_build_digest_marks_captionless_videos_processed_but_drops_them(monkeypatch):
+def test_curate_marks_captionless_videos_processed_but_drops_them(monkeypatch):
     monkeypatch.setattr(digest_module, "fetch_uploads",
                         lambda source, limit: (_upload("ccccccccccc", "no captions"),))
 
@@ -142,15 +142,15 @@ def test_build_digest_marks_captionless_videos_processed_but_drops_them(monkeypa
 
     monkeypatch.setattr(digest_module, "fetch_transcript", no_transcript)
 
-    digest, processed = build_digest(_ONE_CHANNEL, ScoringBackend(), date="d", seen=set())
+    digest, processed = curate(_ONE_CHANNEL, ScoringBackend(), date="d", seen=set())
 
     assert digest.entries == ()
     assert processed == {"ccccccccccc"}  # marked, so it is not retried tomorrow
 
 
-def test_build_digest_aborts_on_a_transient_transcript_block(monkeypatch):
+def test_curate_aborts_on_a_transient_transcript_block(monkeypatch):
     # A transient IP block must abort the whole run (propagate), NOT be swallowed
-    # like a captionless video -- otherwise build_digest would report the video as
+    # like a captionless video -- otherwise curate would report the video as
     # processed and the caller would persist it, losing it forever.
     monkeypatch.setattr(digest_module, "fetch_uploads",
                         lambda source, limit: (_upload("ddddddddddd", "blocked"),))
@@ -161,10 +161,10 @@ def test_build_digest_aborts_on_a_transient_transcript_block(monkeypatch):
     monkeypatch.setattr(digest_module, "fetch_transcript", blocked)
 
     with pytest.raises(TranscriptFetchBlocked):
-        build_digest(_ONE_CHANNEL, ScoringBackend(), date="d", seen=set())
+        curate(_ONE_CHANNEL, ScoringBackend(), date="d", seen=set())
 
 
-def test_build_digest_processes_a_repeated_video_only_once(monkeypatch):
+def test_curate_processes_a_repeated_video_only_once(monkeypatch):
     # The same upload served by two channel sources must be summarized once.
     monkeypatch.setattr(digest_module, "fetch_uploads",
                         lambda source, limit: (_upload("aaaaaaaaaaa", "shared upload"),))
@@ -178,26 +178,26 @@ def test_build_digest_processes_a_repeated_video_only_once(monkeypatch):
     two_channels = (Channel(source="@a", label="A", detail="normal"),
                     Channel(source="@b", label="B", detail="normal"))
 
-    digest, processed = build_digest(two_channels, ScoringBackend(), date="d", seen=set())
+    digest, processed = curate(two_channels, ScoringBackend(), date="d", seen=set())
 
     assert len(digest.entries) == 1
     assert processed == {"aaaaaaaaaaa"}
     assert fetched == ["aaaaaaaaaaa"]  # summarized once, not per channel
 
 
-def test_build_digest_title_filter_ignores_case(monkeypatch):
+def test_curate_title_filter_ignores_case(monkeypatch):
     monkeypatch.setattr(digest_module, "fetch_uploads",
                         lambda source, limit: (_upload("aaaaaaaaaaa", "Morning SHOW with ALICE"),))
     monkeypatch.setattr(digest_module, "fetch_transcript", lambda video_id: _transcript(video_id))
     channels = (Channel(source="@x", label="Show", detail="normal",
                         title_includes=("show", "alice")),)   # lowercase filter, mixed-case title
 
-    digest, processed = build_digest(channels, ScoringBackend(), date="d", seen=set())
+    digest, processed = curate(channels, ScoringBackend(), date="d", seen=set())
 
     assert [e.upload.video_id for e in digest.entries] == ["aaaaaaaaaaa"]
 
 
-def test_build_digest_applies_a_title_filter(monkeypatch):
+def test_curate_applies_a_title_filter(monkeypatch):
     monkeypatch.setattr(
         digest_module, "fetch_uploads",
         lambda source, limit: (_upload("aaaaaaaaaaa", "[Show] with Alice"),
@@ -208,14 +208,14 @@ def test_build_digest_applies_a_title_filter(monkeypatch):
     channels = (Channel(source="@x", label="Show", detail="normal",
                         title_includes=("[Show]", "Alice")),)
 
-    digest, processed = build_digest(channels, ScoringBackend(), date="d", seen=set())
+    digest, processed = curate(channels, ScoringBackend(), date="d", seen=set())
 
     # only the upload whose title contains BOTH "[Show]" and "Alice"
     assert [e.upload.video_id for e in digest.entries] == ["aaaaaaaaaaa"]
     assert processed == {"aaaaaaaaaaa"}
 
 
-def test_build_digest_drops_titles_matching_an_exclude(monkeypatch):
+def test_curate_drops_titles_matching_an_exclude(monkeypatch):
     # A channel posts a LIVE broadcast and an edited replay of the same episode;
     # title_excludes=["LIVE"] keeps only the replay.
     monkeypatch.setattr(
@@ -227,19 +227,19 @@ def test_build_digest_drops_titles_matching_an_exclude(monkeypatch):
     channels = (Channel(source="@x", label="Show", detail="normal",
                         title_includes=("Market",), title_excludes=("live",)),)  # case-insensitive
 
-    digest, processed = build_digest(channels, ScoringBackend(), date="d", seen=set())
+    digest, processed = curate(channels, ScoringBackend(), date="d", seen=set())
 
     assert [e.upload.video_id for e in digest.entries] == ["aaaaaaaaaaa"]
     assert processed == {"aaaaaaaaaaa"}
 
 
-def test_build_digest_records_a_channel_whose_feed_fails(monkeypatch):
+def test_curate_records_a_channel_whose_feed_fails(monkeypatch):
     def feed_down(source, limit):
         raise FeedError("feed unreachable")
 
     monkeypatch.setattr(digest_module, "fetch_uploads", feed_down)
 
-    digest, processed = build_digest(_ONE_CHANNEL, ScoringBackend(), date="d", seen=set())
+    digest, processed = curate(_ONE_CHANNEL, ScoringBackend(), date="d", seen=set())
 
     assert digest.entries == ()
     assert processed == set()
