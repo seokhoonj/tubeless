@@ -204,12 +204,16 @@ def test_summarize_normal_detail_does_not_force_figure_preservation() -> None:
     assert "preserve EVERY specific figure" not in backend.prompts[0]
 
 
-def test_summarize_detail_sets_the_default_point_cap() -> None:
+@pytest.mark.parametrize("detail, cap", [("brief", 5), ("normal", 8), ("deep", 14)])
+def test_summarize_detail_sets_the_default_point_cap(detail: str, cap: int) -> None:
+    # Each detail level caps the points at its own default when --max-points is
+    # not given; a regression to any of the three would silently change every
+    # summary's length.
     backend = RecordingBackend(reply=_reply_with_points(20))
 
-    brief = summarize(make_transcript(n_words=50), SAMPLE_VIDEO, backend, detail="brief")
+    summary = summarize(make_transcript(n_words=50), SAMPLE_VIDEO, backend, detail=detail)
 
-    assert len(brief.points) == 5  # brief caps at 5 without an explicit --max-points
+    assert len(summary.points) == cap
 
 
 def test_summarize_explicit_max_points_overrides_the_detail_default() -> None:

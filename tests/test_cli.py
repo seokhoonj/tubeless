@@ -360,6 +360,65 @@ def test_digest_records_summaries_and_transcripts_to_the_corpus(
     assert archived.text == "ducks are great"
 
 
+def test_digest_corpus_failure_on_one_entry_does_not_abort_the_rest(
+    _no_config_file, monkeypatch: pytest.MonkeyPatch, tmp_path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from tubeless.corpus import load_summaries
+    from tubeless.corpus import record_entry as real_record_entry
+    from tubeless.digest import Digest, DigestEntry
+    from tubeless.errors import CorpusError
+    from tubeless.feed import Upload
+    from tubeless.importance import Importance
+    from tubeless.summary import Summary
+
+    def _entry(video_id: str) -> DigestEntry:
+        video = Video(video_id=video_id, title=f"V {video_id}",
+                      url=f"https://www.youtube.com/watch?v={video_id}", channel="Duck Channel")
+        return DigestEntry(
+            channel    = "Duck Channel",
+            upload     = Upload(video_id=video_id, title=f"V {video_id}",
+                                published="2026-07-21T09:00:00+00:00",
+                                channel_id="UC", channel_title="Duck Channel"),
+            summary    = Summary(video=video, tldr="gist", points=("a",), language="en"),
+            importance = Importance(score=0.8, reason="quacks"),
+            transcript = Transcript(video_id=video_id, language="en",
+                                    is_auto_generated=False, segments=()),
+        )
+
+    bad, good = _entry("aaaaaaaaaaa"), _entry("bbbbbbbbbbb")
+    monkeypatch.setattr(cli_module, "load_channels", lambda path: ())
+    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(
+        cli_module, "build_digest",
+        lambda channels, backend, **kw: (
+            Digest(date="2026-07-21", entries=(bad, good), skipped=()),
+            {"aaaaaaaaaaa", "bbbbbbbbbbb"},
+        ),
+    )
+    corpus_dir = tmp_path / "corpus"
+
+    def flaky_record(entry, captured, *, root=None):
+        if entry.upload.video_id == "aaaaaaaaaaa":
+            raise CorpusError("disk full")
+        real_record_entry(entry, captured, root=root)
+
+    monkeypatch.setattr(cli_module, "record_entry", flaky_record)
+
+    exit_code = main([
+        "digest",
+        "--out",    str(tmp_path / "digests"),
+        "--state",  str(tmp_path / "state.json"),
+        "--corpus", str(corpus_dir),
+    ])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0                       # one entry's failure is not fatal
+    assert "aaaaaaaaaaa" in captured.err        # the failing entry is reported by id
+    records = load_summaries("Duck Channel", root=corpus_dir)
+    assert [record.video.video_id for record in records] == ["bbbbbbbbbbb"]  # the rest survived
+
+
 def test_digest_only_filters_channels_by_label(_no_config_file, monkeypatch: pytest.MonkeyPatch) -> None:
     from tubeless.channels import Channel
     from tubeless.digest import Digest

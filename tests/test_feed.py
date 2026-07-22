@@ -97,6 +97,51 @@ def test_resolve_channel_id_prefers_canonical_over_a_recommended_channel_id(
     assert resolve_channel_id("@somehandle") == own
 
 
+def test_resolve_channel_id_falls_back_to_the_external_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A page with no canonical link but its own "externalId" resolves from that.
+    own  = "UC" + "e" * 22
+    page = f'<script>{{"externalId":"{own}"}}</script>'
+
+    class _Response:
+        status_code = 200
+        text        = page
+
+        def raise_for_status(self) -> None:
+            pass
+
+    monkeypatch.setattr(feed_module.requests, "get", lambda *a, **k: _Response())
+
+    assert resolve_channel_id("@somehandle") == own
+
+
+def test_resolve_channel_id_raises_when_the_page_has_no_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _Response:
+        status_code = 200
+        text        = "<html>no channel id anywhere here</html>"
+
+        def raise_for_status(self) -> None:
+            pass
+
+    monkeypatch.setattr(feed_module.requests, "get", lambda *a, **k: _Response())
+
+    with pytest.raises(FeedError):
+        resolve_channel_id("@somehandle")
+
+
+def test_resolve_channel_id_wraps_a_request_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    def boom(*a, **k):
+        raise feed_module.requests.RequestException("network down")
+
+    monkeypatch.setattr(feed_module.requests, "get", boom)
+
+    with pytest.raises(FeedError):
+        resolve_channel_id("@somehandle")
+
+
 def test_playlist_id_of_reads_a_bare_id():
     assert _playlist_id_of(_PLAYLIST_ID) == _PLAYLIST_ID
 

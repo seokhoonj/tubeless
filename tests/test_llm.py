@@ -181,6 +181,38 @@ def test_chat_complete_rejects_a_response_with_no_choices():
         _chat_complete(client, "gpt-x", "hi", system=None, label="OpenAI")
 
 
+def test_chat_complete_wraps_an_sdk_error_as_llm_error():
+    # An openai.OpenAIError must surface as LLMError for all three OpenAI-style
+    # backends (OpenAI/Ollama/Gemini route through _chat_complete), so the CLI's
+    # one-line failure holds instead of a raw SDK traceback.
+    import openai
+
+    def create(**kwargs):
+        raise openai.OpenAIError("boom")
+
+    client = types.SimpleNamespace(
+        chat=types.SimpleNamespace(completions=types.SimpleNamespace(create=create))
+    )
+
+    with pytest.raises(LLMError):
+        _chat_complete(client, "gpt-x", "hi", system=None, label="OpenAI")
+
+
+def test_chat_complete_rejects_an_empty_completion():
+    # choices present but the content string is empty -> LLMError, never an empty
+    # summary silently passed downstream.
+    def create(**kwargs):
+        message = types.SimpleNamespace(content="")
+        return types.SimpleNamespace(choices=[types.SimpleNamespace(message=message)])
+
+    client = types.SimpleNamespace(
+        chat=types.SimpleNamespace(completions=types.SimpleNamespace(create=create))
+    )
+
+    with pytest.raises(LLMError):
+        _chat_complete(client, "gpt-x", "hi", system=None, label="OpenAI")
+
+
 def test_chat_complete_returns_text_and_passes_a_timeout():
     # Happy path: the reply text comes back, the system prompt is sent as its own
     # message, and a timeout is always passed so one wedged call can't hang a run.
