@@ -221,6 +221,7 @@ OPENAI_API_KEY=sk-...
 # TUBELESS_MAX_POINTS=20    # default --max-points
 # TUBELESS_LANG=ko          # summary language (default: en; set ko for Korean)
 # TUBELESS_LIMIT=5          # default --limit (digest)
+# TUBELESS_SYNTHESIZE=1     # default --synthesize (digest)
 EOF
 ```
 
@@ -322,10 +323,17 @@ key), summarizes and importance-scores them, and writes one Markdown file per da
 ranked most-important first. A JSON "seen" set remembers what it already handled,
 so running it again (or daily from cron) never re-summarizes the same video.
 
+**Add `--synthesize`** (or `TUBELESS_SYNTHESIZE=1`) to lead the file with a
+cross-video read of the day — the overall tone, what the sources agree on, and
+where they diverge — combining every summary into one briefing. This is the thing
+a per-link paste into a chatbot can't do: it synthesizes *across* the channels you
+follow. Needs two or more videos.
+
 | digest option | what it does | default |
 |---|---|---|
 | `--only TEXT` | Run only channels whose label contains this text. | all |
 | `--limit N` | Max recent uploads to check per channel. | `5` |
+| `--synthesize` | Lead the digest with a cross-video synthesis — overall tone, agreement, and divergence. Needs 2+ videos. | off |
 | `--dry-run` | Print the digest instead of writing it / updating state. | off |
 | `--channels PATH` | Channels TOML file. | `~/.tubeless/channels.toml` |
 | `--state PATH` | The "already seen" state file. | `~/.tubeless/state.json` |
@@ -633,6 +641,7 @@ OPENAI_API_KEY=sk-...
 # TUBELESS_MAX_POINTS=20    # 기본 --max-points
 # TUBELESS_LANG=ko          # 요약 언어 (기본 en; 한국어 요약은 이 줄의 주석을 푸세요)
 # TUBELESS_LIMIT=5          # 기본 --limit (다이제스트)
+# TUBELESS_SYNTHESIZE=1     # 기본 --synthesize (다이제스트)
 EOF
 ```
 
@@ -729,6 +738,11 @@ tubeless digest              # ~/.tubeless/digests/YYYY-MM-DD.md 로 저장
 tubeless digest --dry-run    # 저장 없이 화면에만 출력
 ```
 
+**`--synthesize`**(또는 `TUBELESS_SYNTHESIZE=1`)를 켜면 파일 맨 위에 그날의 영상
+종합 — 전반 톤, 출처들이 합의하는 것, 갈리는 지점 — 이 붙습니다. 하루치 요약을 하나로
+합치는 것으로, 링크를 챗봇에 붙여넣는 걸로는 못 하는 것(내가 챙겨보는 채널들 *사이를
+가로질러* 종합). 영상 2개 이상 필요합니다.
+
 매 실행마다 각 채널의 새 영상을 유튜브 공개 RSS(키 불필요)로 찾아 요약·중요도
 채점하고, 하루에 마크다운 한 파일을 중요도순으로 씁니다. 처리한 영상은 JSON
 "seen" 세트가 기억하므로 다시 돌리거나(cron으로 매일 돌려도) 같은 영상을 두 번
@@ -738,6 +752,7 @@ tubeless digest --dry-run    # 저장 없이 화면에만 출력
 |---|---|---|
 | `--only TEXT` | 라벨에 이 텍스트가 든 채널만 실행. | 전체 |
 | `--limit N` | 채널당 확인할 최근 업로드 최대 개수. | `5` |
+| `--synthesize` | 다이제스트 맨 위에 영상 종합 — 전반 톤·합의·이견. 영상 2개 이상 필요. | 꺼짐 |
 | `--dry-run` | 저장/상태 갱신 없이 화면 출력만. | 꺼짐 |
 | `--channels PATH` | 채널 TOML 파일. | `~/.tubeless/channels.toml` |
 | `--state PATH` | "이미 본" 상태 파일. | `~/.tubeless/state.json` |
