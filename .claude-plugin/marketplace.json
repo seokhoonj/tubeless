@@ -10,7 +10,7 @@
       "description": "Summarize a YouTube video's transcript with an LLM",
       "author": { "name": "seokhoonj" },
       "homepage": "https://github.com/seokhoonj/tubeless",
-      "category": "productivity",
+      "category": "Productivity",
       "keywords": ["youtube", "transcript", "summarize", "llm"]
     }
   ]

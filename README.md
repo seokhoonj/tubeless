@@ -400,6 +400,17 @@ Pick a backend the same way as the CLI (`--backend claude`, `--backend ollama`,
 ...). Your keys stay in your own `~/.tubeless/config.env` — the plugin ships only
 the instructions, never a key.
 
+**Use it from Codex** — the same repo also ships a Codex plugin:
+
+```
+codex plugin marketplace add seokhoonj/tubeless
+codex plugin add tubeless@tubeless
+```
+
+Install the CLI first the same way (`pip install tubeless`); the plugin only wraps
+it. The `summarize` skill triggers on a YouTube URL, or run `tubeless summarize
+<url>` directly.
+
 **Or wire it up by hand** — drop a `SKILL.md` in `~/.claude/skills/tubeless/`
 (local to your machine, not tracked) that shells out to the CLI:
 
@@ -411,13 +422,13 @@ description: Summarize a YouTube video. Trigger on a YouTube URL or "summarize t
 
 Run the installed `tubeless` CLI on the URL the user gave and show the result:
 
-    tubeless "<url>" --detail deep
+    tubeless summarize "<url>" --detail deep
 
 Show the TL;DR and key points back to the user.
 ```
 
-The same hand-wired idea works for other agent CLIs (Codex `AGENTS.md`, Gemini
-`GEMINI.md`) — point them at the `tubeless` command.
+The same hand-wired idea works for Gemini CLI (`GEMINI.md`) — point it at the
+`tubeless` command.
 
 ### Use it as a Python library
 
@@ -846,6 +857,16 @@ cron은 명령을 정해진 시각에 실행합니다. 매일 밤 22:00에 다�
 백엔드는 CLI와 동일하게 지정합니다(`--backend claude`, `--backend ollama` 등). 키는
 각자 `~/.tubeless/config.env`에 두며, 플러그인은 지시문만 나르고 키는 절대 담지 않습니다.
 
+**Codex에서 쓰기** — 같은 저장소가 Codex 플러그인도 함께 배포합니다:
+
+```
+codex plugin marketplace add seokhoonj/tubeless
+codex plugin add tubeless@tubeless
+```
+
+CLI를 먼저 설치하고(`pip install tubeless`) — 플러그인은 그걸 감쌀 뿐입니다. `summarize`
+스킬이 유튜브 URL에 발동하거나, `tubeless summarize <url>`을 직접 실행하면 됩니다.
+
 **직접 엮고 싶다면** — `~/.claude/skills/tubeless/SKILL.md`를 만들어(내 머신에만 남는
 로컬 파일, 추적 안 됨) CLI를 호출하게 합니다:
 
@@ -857,13 +878,12 @@ description: 유튜브 영상을 요약. 유튜브 URL이나 "이 영상 요약�
 
 사용자가 준 URL로 설치된 `tubeless` CLI를 실행하고 결과를 보여준다:
 
-    tubeless "<url>" --detail deep --lang ko
+    tubeless summarize "<url>" --detail deep --lang ko
 
 TL;DR과 핵심 포인트를 사용자에게 돌려준다.
 ```
 
-다른 에이전트 CLI(Codex `AGENTS.md`, Gemini `GEMINI.md`)도 같은 방식으로 `tubeless`
-명령을 가리키게 하면 됩니다.
+Gemini CLI(`GEMINI.md`)도 같은 방식으로 `tubeless` 명령을 가리키게 하면 됩니다.
 
 ### 파이썬 라이브러리로 쓰기
 
