@@ -51,6 +51,17 @@ tubeless "https://www.youtube.com/watch?v=iG9CE55wbtY" --backend claude
 tubeless "https://www.youtube.com/watch?v=iG9CE55wbtY" --backend ollama
 ```
 
+**Any language works.** The examples above are an English talk; point tubeless at
+a non-English video and it still summarizes — into English by default, or in
+whatever `--lang` you ask for:
+
+```sh
+# a Korean-language speech — summarized in English by default...
+tubeless "https://www.youtube.com/watch?v=5aPe9Uy10n4"
+# ...or keep it in the original language
+tubeless "https://www.youtube.com/watch?v=5aPe9Uy10n4" --lang ko
+```
+
 A TL;DR and key points print to your terminal. Everything below is the detailed
 version — full install (pipx, per-OS), what each backend costs and where to pay,
 a config file so you never retype a key or flag, and the daily multi-channel digest.
@@ -494,6 +505,16 @@ tubeless "https://www.youtube.com/watch?v=iG9CE55wbtY" --backend claude --lang k
 
 # Ollama — 로컬, 키 불필요 (설치: https://ollama.com, 이후: ollama pull llama3.1)
 tubeless "https://www.youtube.com/watch?v=iG9CE55wbtY" --backend ollama --lang ko
+```
+
+**언어는 가리지 않습니다.** 위 예시는 영어 강연이지만, 비영어 영상을 넣어도 요약합니다
+— 기본은 영어, `--lang`으로 원하는 언어로:
+
+```sh
+# 한국어 연설 — 기본값은 영어로 요약...
+tubeless "https://www.youtube.com/watch?v=5aPe9Uy10n4"
+# ...또는 원래 언어(한국어) 그대로
+tubeless "https://www.youtube.com/watch?v=5aPe9Uy10n4" --lang ko
 ```
 
 TL;DR과 핵심 포인트가 터미널에 출력됩니다. 아래는 상세 버전 — OS별 전체 설치(pipx),
