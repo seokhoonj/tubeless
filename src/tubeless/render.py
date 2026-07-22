@@ -7,13 +7,15 @@ score tier gets an emoji so the eye lands on the important items first.
 from __future__ import annotations
 
 from tubeless.digest import Digest, DigestEntry
+from tubeless.importance import ImportanceTier
 from tubeless.synthesis import DailySynthesis
 
 __all__ = ["to_markdown"]
 
 # The tier itself (the cutoffs) is domain judgment and lives in importance.py;
-# here we only map each tier to its display marker.
-_TIER_MARKER = {"high": "🔴", "mid": "🟡", "low": "⚪"}
+# here we only map each tier to its display marker. Keyed by ImportanceTier so a
+# new tier without a marker is a type error, not a runtime KeyError.
+_TIER_MARKER: dict[ImportanceTier, str] = {"high": "🔴", "mid": "🟡", "low": "⚪"}
 
 
 def to_markdown(digest: Digest) -> str:

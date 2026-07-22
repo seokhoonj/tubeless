@@ -26,7 +26,7 @@ Vendor = Literal["claude", "openai", "gemini"]
 # The env-var (or config.env) name tubeless reads for each vendor's key: the
 # backend name plus the shared `_API_KEY` suffix, so the key name always matches
 # `--backend`. (A Claude key comes from the Claude console, platform.claude.com.)
-_KEY_NAME = {
+_KEY_NAME: dict[Vendor, str] = {
     "claude": "CLAUDE_API_KEY",
     "openai": "OPENAI_API_KEY",
     "gemini": "GEMINI_API_KEY",

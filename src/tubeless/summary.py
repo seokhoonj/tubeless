@@ -159,6 +159,10 @@ _BULLET_PREFIXES = ("- ", "* ", "• ")
 # "- " bullets. Recognize "1. ", "2) " etc. as points too. One or two digits
 # only, so a sentence opening with a year ("2026. ") is not mistaken for a list.
 _NUMBERED_POINT = re.compile(r"^\d{1,2}[.)]\s+(.*)$")
+# The TL;DR label, tolerating "TLDR"/"TL;DR" and a colon, hyphen, or dash
+# separator. Hoisted to module scope like _NUMBERED_POINT rather than rebuilt per
+# reply line.
+_TLDR_LABEL = re.compile(r"(?i)^tl;?dr\s*[:\-–—]\s*(.*)$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -330,7 +334,7 @@ def _parse_reply(reply: str, *, max_points: int) -> tuple[str, tuple[str, ...]]:
         # Bold markers ("**TL;DR:** ...") are the most common format drift;
         # strip them only on non-bullet lines so "* " bullets survive above.
         unbolded   = line.strip("*").strip()
-        tldr_match = re.match(r"(?i)^tl;?dr\s*[:\-\u2013\u2014]\s*(.*)$", unbolded)
+        tldr_match = _TLDR_LABEL.match(unbolded)
         if tldr_match and not tldr:
             tldr = tldr_match.group(1).strip().strip("*").strip()
         elif not tldr and not points:

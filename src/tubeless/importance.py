@@ -105,6 +105,13 @@ def _parse_importance(reply: str) -> Importance:
     else:
         # No REASON line: use the first line that is not the SCORE line, so a
         # score-only reply does not show "SCORE: 0.8" as its reason.
-        lines  = [line.strip() for line in reply.splitlines() if line.strip()]
-        reason = next((line for line in lines if not _SCORE_PATTERN.search(line)), lines[0] if lines else "")
+        lines           = [line.strip() for line in reply.splitlines() if line.strip()]
+        non_score_lines = [line for line in lines if not _SCORE_PATTERN.search(line)]
+        if non_score_lines:
+            reason = non_score_lines[0]
+        elif lines:
+            reason = lines[0]      # every line was a SCORE line: fall back to the first
+        else:
+            reason = ""            # an empty reply
+    return Importance(score=score, reason=reason)
     return Importance(score=score, reason=reason)

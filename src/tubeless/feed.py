@@ -35,6 +35,16 @@ _TIMEOUT_SECONDS = 15.0
 _CHANNEL_ID_PATTERN  = re.compile(r"^UC[A-Za-z0-9_-]{22}$")
 _PLAYLIST_ID_PATTERN = re.compile(r"^PL[A-Za-z0-9_-]{10,}$")
 
+# The channel id embedded in a channel page, in order of trust: the canonical
+# link is always THIS channel, while a bare externalId/channelId scan can match a
+# recommended channel earlier in the HTML. Compiled once at module scope, like the
+# id patterns above, rather than rebuilt on every resolve_channel_id call.
+_CANONICAL_CHANNEL_ID = re.compile(
+    r'<link rel="canonical" href="https://www\.youtube\.com/channel/(UC[A-Za-z0-9_-]{22})"'
+)
+_EXTERNAL_ID          = re.compile(r'"externalId":"(UC[A-Za-z0-9_-]{22})"')
+_CHANNEL_ID_IN_PAGE   = re.compile(r'"channelId":"(UC[A-Za-z0-9_-]{22})"')
+
 # Atom + YouTube feed namespaces, as declared on the feed root.
 _NS = {
     "atom": "http://www.w3.org/2005/Atom",
@@ -176,9 +186,9 @@ def resolve_channel_id(handle_or_url: str) -> str:
     # resolving a handle to the wrong channel (seen with some non-ASCII handles).
     # externalId (the page's own metadata) then a plain channelId are fallbacks.
     channel_id_match = (
-        re.search(r'<link rel="canonical" href="https://www\.youtube\.com/channel/(UC[A-Za-z0-9_-]{22})"', response.text)
-        or re.search(r'"externalId":"(UC[A-Za-z0-9_-]{22})"', response.text)
-        or re.search(r'"channelId":"(UC[A-Za-z0-9_-]{22})"', response.text)
+        _CANONICAL_CHANNEL_ID.search(response.text)
+        or _EXTERNAL_ID.search(response.text)
+        or _CHANNEL_ID_IN_PAGE.search(response.text)
     )
     if not channel_id_match:
         raise FeedError(f"could not find a channel id on {url!r}")
