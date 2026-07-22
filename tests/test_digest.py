@@ -62,6 +62,29 @@ class SynthesizingBackend(ScoringBackend):
 _ONE_CHANNEL = (Channel(source="@x", label="Example Channel", detail="normal"),)
 
 
+def test_build_digest_scans_the_full_window_for_a_filtered_channel(monkeypatch):
+    # A channel with a title filter must scan the full ~15-entry feed window, not
+    # just per_channel_limit -- the wanted uploads are sparse among the rest, so a
+    # small window silently drops them (the documented missed-video incident). A
+    # plain channel keeps the small per-channel limit.
+    seen_limits: dict[str, int] = {}
+
+    def recording_fetch(source, limit):
+        seen_limits[source] = limit
+        return ()
+
+    monkeypatch.setattr(digest_module, "fetch_uploads", recording_fetch)
+    channels = (
+        Channel(source="@filtered", label="Filtered", title_includes=("live",)),
+        Channel(source="@plain", label="Plain"),
+    )
+
+    build_digest(channels, ScoringBackend(), date="d", seen=set(), per_channel_limit=5)
+
+    assert seen_limits["@filtered"] == digest_module._FILTERED_FETCH_LIMIT
+    assert seen_limits["@plain"] == 5
+
+
 def test_build_digest_adds_a_synthesis_when_requested(two_uploads):
     digest, _ = build_digest(
         _ONE_CHANNEL, SynthesizingBackend(), date="d", seen=set(), with_synthesis=True,

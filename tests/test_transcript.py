@@ -146,6 +146,55 @@ def test_fetch_transcript_falls_back_to_any_available_caption(
     assert fetched.segments[0].text == "only caption"
 
 
+class _GeneratedFallbackTrack:
+    language_code = "ja"
+    is_generated  = True
+
+    def fetch(self) -> list[_FakeSnippet]:
+        return [_FakeSnippet("auto caption", 0.0, 2.0)]
+
+
+class _ManualFallbackTrack:
+    language_code = "ja"
+    is_generated  = False
+
+    def fetch(self) -> list[_FakeSnippet]:
+        return [_FakeSnippet("manual caption", 0.0, 2.0)]
+
+
+class _ListPreferringManual:
+    def find_transcript(self, languages: list[str]) -> object:
+        raise _VendorNoTranscriptForLanguage()
+
+    def __iter__(self):
+        # generated first, manual second: only a real preference (not "take the
+        # first") picks the manual track.
+        return iter([_GeneratedFallbackTrack(), _ManualFallbackTrack()])
+
+
+class _PreferManualAPI:
+    def __init__(self, **_kwargs: object) -> None:
+        pass
+
+    def list(self, video_id: str) -> _ListPreferringManual:
+        return _ListPreferringManual()
+
+
+def test_fetch_transcript_fallback_prefers_a_manual_track(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # When no preferred-language track exists, the fallback must pick a manually
+    # created track over an auto-generated one -- manual captions are materially
+    # more accurate, and a regression to plain available[0] would take the auto one.
+    monkeypatch.setattr(transcript_module, "NoTranscriptFound", _VendorNoTranscriptForLanguage)
+    monkeypatch.setattr(transcript_module, "YouTubeTranscriptApi", _PreferManualAPI)
+
+    fetched = fetch_transcript("dQw4w9WgXcQ")
+
+    assert fetched.is_auto_generated is False
+    assert fetched.segments[0].text == "manual caption"
+
+
 class _VendorFetchFailure(Exception):
     """Stands in for the vendor's CouldNotRetrieveTranscript, whose real
     constructor wants live objects we do not build in tests."""

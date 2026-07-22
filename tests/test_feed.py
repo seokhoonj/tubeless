@@ -142,6 +142,37 @@ def test_resolve_channel_id_wraps_a_request_error(monkeypatch: pytest.MonkeyPatc
         resolve_channel_id("@somehandle")
 
 
+def test_fetch_channel_uploads_wraps_a_request_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A network failure inside _fetch_feed must surface as FeedError, not a raw
+    # requests traceback past the boundary the CLI relies on for one-line errors.
+    def boom(*a, **k):
+        raise feed_module.requests.RequestException("connection reset")
+
+    monkeypatch.setattr(feed_module.requests, "get", boom)
+
+    with pytest.raises(FeedError):
+        fetch_channel_uploads(_CHANNEL_ID)
+
+
+def test_fetch_uploads_routes_a_playlist_and_a_channel_to_the_right_feed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # fetch_uploads dispatches: a PL... source feeds by playlist_id; anything else
+    # resolves to a channel id and feeds by channel_id. A regression that swapped
+    # the branches would fetch the wrong feed with all other tests still green.
+    from tubeless.feed import fetch_uploads
+
+    seen: dict[str, str] = {}
+    monkeypatch.setattr(feed_module, "_fetch_feed", lambda params, *, limit: seen.update(params) or ())
+
+    fetch_uploads(_PLAYLIST_ID)
+    assert seen.get("playlist_id") == _PLAYLIST_ID
+
+    seen.clear()
+    fetch_uploads(_CHANNEL_ID)   # a bare 'UC...' id resolves to itself, no page fetch
+    assert seen.get("channel_id") == _CHANNEL_ID
+
+
 def test_playlist_id_of_reads_a_bare_id():
     assert _playlist_id_of(_PLAYLIST_ID) == _PLAYLIST_ID
 
