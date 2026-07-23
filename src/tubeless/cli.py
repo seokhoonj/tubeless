@@ -70,7 +70,7 @@ def _with_default_subcommand(argv: list[str]) -> list[str]:
 
 def _run_summarize(args: argparse.Namespace) -> int:
     video      = fetch_video(args.url)
-    transcript = fetch_transcript(video.video_id)
+    transcript = fetch_transcript(video)
     backend    = make_backend(args.backend, model=args.model)
     _print_run_settings(args.backend, backend.model,
                         detail=args.detail, max_points=args.max_points, lang=args.lang)

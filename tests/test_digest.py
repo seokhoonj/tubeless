@@ -46,7 +46,7 @@ def two_uploads(monkeypatch):
     monkeypatch.setattr(digest_module, "fetch_uploads",
                         lambda source, limit: (_upload("aaaaaaaaaaa", "small note"),
                                                _upload("bbbbbbbbbbb", "big news")))
-    monkeypatch.setattr(digest_module, "fetch_transcript", lambda video_id: _transcript(video_id))
+    monkeypatch.setattr(digest_module, "fetch_transcript", lambda video: _transcript(video.video_id))
 
 
 class SynthesizingBackend(ScoringBackend):
@@ -104,7 +104,7 @@ def test_curate_omits_the_synthesis_by_default(two_uploads):
 def test_curate_skips_the_synthesis_for_a_single_video(monkeypatch):
     monkeypatch.setattr(digest_module, "fetch_uploads",
                         lambda source, limit: (_upload("aaaaaaaaaaa", "only one"),))
-    monkeypatch.setattr(digest_module, "fetch_transcript", lambda video_id: _transcript(video_id))
+    monkeypatch.setattr(digest_module, "fetch_transcript", lambda video: _transcript(video.video_id))
 
     # requested, but one source cannot agree or disagree with itself
     digest, _ = curate(
@@ -170,9 +170,9 @@ def test_curate_processes_a_repeated_video_only_once(monkeypatch):
                         lambda source, limit: (_upload("aaaaaaaaaaa", "shared upload"),))
     fetched: list[str] = []
 
-    def record(video_id):
-        fetched.append(video_id)
-        return _transcript(video_id)
+    def record(video):
+        fetched.append(video.video_id)
+        return _transcript(video.video_id)
 
     monkeypatch.setattr(digest_module, "fetch_transcript", record)
     two_channels = (Channel(source="@a", label="A", detail="normal"),
@@ -188,7 +188,7 @@ def test_curate_processes_a_repeated_video_only_once(monkeypatch):
 def test_curate_title_filter_ignores_case(monkeypatch):
     monkeypatch.setattr(digest_module, "fetch_uploads",
                         lambda source, limit: (_upload("aaaaaaaaaaa", "Morning SHOW with ALICE"),))
-    monkeypatch.setattr(digest_module, "fetch_transcript", lambda video_id: _transcript(video_id))
+    monkeypatch.setattr(digest_module, "fetch_transcript", lambda video: _transcript(video.video_id))
     channels = (Channel(source="@x", label="Show", detail="normal",
                         title_includes=("show", "alice")),)   # lowercase filter, mixed-case title
 
@@ -204,7 +204,7 @@ def test_curate_applies_a_title_filter(monkeypatch):
                                _upload("bbbbbbbbbbb", "[Show] with Bob"),
                                _upload("ccccccccccc", "[Other] with Alice too")),
     )
-    monkeypatch.setattr(digest_module, "fetch_transcript", lambda video_id: _transcript(video_id))
+    monkeypatch.setattr(digest_module, "fetch_transcript", lambda video: _transcript(video.video_id))
     channels = (Channel(source="@x", label="Show", detail="normal",
                         title_includes=("[Show]", "Alice")),)
 
@@ -223,7 +223,7 @@ def test_curate_drops_titles_matching_an_exclude(monkeypatch):
         lambda source, limit: (_upload("aaaaaaaaaaa", "[7/22 Market] recap"),
                                _upload("bbbbbbbbbbb", "[LIVE 7/22 Market] recap")),
     )
-    monkeypatch.setattr(digest_module, "fetch_transcript", lambda video_id: _transcript(video_id))
+    monkeypatch.setattr(digest_module, "fetch_transcript", lambda video: _transcript(video.video_id))
     channels = (Channel(source="@x", label="Show", detail="normal",
                         title_includes=("Market",), title_excludes=("live",)),)  # case-insensitive
 

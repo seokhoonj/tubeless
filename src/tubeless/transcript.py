@@ -26,6 +26,7 @@ from youtube_transcript_api import (
 )
 
 from tubeless.errors import TranscriptFetchBlocked, TranscriptUnavailable
+from tubeless.source import Video
 
 __all__ = ["TranscriptSegment", "Transcript", "fetch_transcript"]
 
@@ -74,11 +75,15 @@ class Transcript:
 
 
 def fetch_transcript(
-    video_id:   str,
+    video:      Video,
     *,
     languages:  tuple[str, ...] = _PREFERRED_LANGUAGES,
 ) -> Transcript:
     """Fetch the transcript, preferring the first requested language available.
+
+    Takes a ``Video`` -- the same object every pipeline stage passes along --
+    rather than a bare id, so the fetch-transcript call site is identical whether
+    the video came from ``fetch_video`` (oembed) or ``discover`` (a channel feed).
 
     Within each language the vendor library prefers a manually created
     transcript over an auto-generated one; ``is_auto_generated`` records which
@@ -86,7 +91,8 @@ def fetch_transcript(
     mis-transcriptions.
 
     Args:
-        video_id:  a validated 11-character id (see ``source.parse_video_id``).
+        video:     the video to fetch captions for (``video.video_id`` is a
+                   validated 11-character id; see ``source.parse_video_id``).
         languages: language codes in preference order.
 
     Raises:
@@ -95,6 +101,7 @@ def fetch_transcript(
         TranscriptUnavailable: captions are permanently absent -- disabled, none
             of the requested languages exist, or the video does not exist.
     """
+    video_id = video.video_id
     try:
         with _TimeoutSession() as http_client:
             listed  = YouTubeTranscriptApi(http_client=http_client).list(video_id)

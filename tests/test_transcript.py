@@ -6,7 +6,17 @@ from tubeless import (
     TranscriptFetchBlocked,
     TranscriptSegment,
     TranscriptUnavailable,
+    Video,
     fetch_transcript,
+)
+
+# fetch_transcript takes a Video (the object every pipeline stage passes along),
+# so tests hand it one whose id is the track being faked.
+VIDEO = Video(
+    video_id = "dQw4w9WgXcQ",
+    title    = "A talk",
+    url      = "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    channel  = None,
 )
 
 
@@ -71,7 +81,7 @@ def test_fetch_transcript_maps_vendor_snippets_to_segments(
 ) -> None:
     monkeypatch.setattr(transcript_module, "YouTubeTranscriptApi", _FakeTranscriptAPI)
 
-    fetched = fetch_transcript("dQw4w9WgXcQ")
+    fetched = fetch_transcript(VIDEO)
 
     assert isinstance(_FakeTranscriptAPI.last_http_client, transcript_module._TimeoutSession)
     assert fetched.video_id == "dQw4w9WgXcQ"
@@ -140,7 +150,7 @@ def test_fetch_transcript_falls_back_to_any_available_caption(
     monkeypatch.setattr(transcript_module, "NoTranscriptFound", _VendorNoTranscriptForLanguage)
     monkeypatch.setattr(transcript_module, "YouTubeTranscriptApi", _UnpreferredOnlyAPI)
 
-    fetched = fetch_transcript("dQw4w9WgXcQ")
+    fetched = fetch_transcript(VIDEO)
 
     assert fetched.language      == "ja"
     assert fetched.segments[0].text == "only caption"
@@ -189,7 +199,7 @@ def test_fetch_transcript_fallback_prefers_a_manual_track(
     monkeypatch.setattr(transcript_module, "NoTranscriptFound", _VendorNoTranscriptForLanguage)
     monkeypatch.setattr(transcript_module, "YouTubeTranscriptApi", _PreferManualAPI)
 
-    fetched = fetch_transcript("dQw4w9WgXcQ")
+    fetched = fetch_transcript(VIDEO)
 
     assert fetched.is_auto_generated is False
     assert fetched.segments[0].text == "manual caption"
@@ -215,7 +225,7 @@ def test_fetch_transcript_reraises_vendor_failure_as_transcript_unavailable(
     monkeypatch.setattr(transcript_module, "YouTubeTranscriptApi", _FailingTranscriptAPI)
 
     with pytest.raises(TranscriptUnavailable) as raised:
-        fetch_transcript("dQw4w9WgXcQ")
+        fetch_transcript(VIDEO)
 
     assert isinstance(raised.value.__cause__, _VendorFetchFailure)
     assert "dQw4w9WgXcQ" in str(raised.value)
@@ -242,7 +252,7 @@ def test_fetch_transcript_reraises_a_transient_block_as_fetch_blocked(
     monkeypatch.setattr(transcript_module, "YouTubeTranscriptApi", _BlockedTranscriptAPI)
 
     with pytest.raises(TranscriptFetchBlocked) as raised:
-        fetch_transcript("dQw4w9WgXcQ")
+        fetch_transcript(VIDEO)
 
     assert not isinstance(raised.value, TranscriptUnavailable)
     assert isinstance(raised.value.__cause__, _VendorBlocked)
@@ -281,7 +291,7 @@ def test_fetch_transcript_prefers_the_blocked_arm_over_its_permanent_parent(
     monkeypatch.setattr(transcript_module, "YouTubeTranscriptApi", _BlockedSubclassAPI)
 
     with pytest.raises(TranscriptFetchBlocked) as raised:
-        fetch_transcript("dQw4w9WgXcQ")
+        fetch_transcript(VIDEO)
 
     assert not isinstance(raised.value, TranscriptUnavailable)
     assert isinstance(raised.value.__cause__, _VendorBlockedSubclass)
@@ -305,7 +315,7 @@ def test_fetch_transcript_maps_a_transport_timeout_to_fetch_blocked(
     monkeypatch.setattr(transcript_module, "YouTubeTranscriptApi", _TimingOutAPI)
 
     with pytest.raises(TranscriptFetchBlocked) as raised:
-        fetch_transcript("dQw4w9WgXcQ")
+        fetch_transcript(VIDEO)
 
     assert not isinstance(raised.value, TranscriptUnavailable)
     assert "dQw4w9WgXcQ" in str(raised.value)

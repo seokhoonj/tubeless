@@ -148,17 +148,17 @@ def _uploads_matching_title(
 def _summarize_upload(
     upload: Upload, channel: Channel, backend: LLMBackend, *, language: str
 ) -> DigestEntry | None:
-    try:
-        transcript = fetch_transcript(upload.video_id)
-    except TranscriptUnavailable:
-        return None
-
     video = Video(
         video_id = upload.video_id,
         title    = upload.title,
         url      = f"https://www.youtube.com/watch?v={upload.video_id}",
         channel  = upload.channel or channel.label,
     )
+    try:
+        transcript = fetch_transcript(video)
+    except TranscriptUnavailable:
+        return None
+
     summary    = summarize(transcript, video, backend, target_language=language, detail=channel.detail)
     importance = score_importance(summary, backend, language=language)
     return DigestEntry(
