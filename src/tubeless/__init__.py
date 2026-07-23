@@ -27,13 +27,6 @@ from tubeless.errors import (
     TranscriptUnavailable,
     TubelessError,
 )
-from tubeless.feed import (
-    Upload,
-    fetch_channel_uploads,
-    fetch_playlist_uploads,
-    fetch_uploads,
-    resolve_channel_id,
-)
 from tubeless.importance import Importance, ImportanceTier, score
 from tubeless.llm import (
     BACKENDS,
@@ -90,20 +83,15 @@ __all__ = [
     "TranscriptSegment",
     "TranscriptUnavailable",
     "TubelessError",
-    "Upload",
     "Video",
     "curate",
     "discover",
-    "fetch_channel_uploads",
-    "fetch_playlist_uploads",
-    "fetch_uploads",
     "fetch_transcript",
     "fetch_video",
     "load_channels",
     "make_backend",
     "parse_video_id",
     "recompute",
-    "resolve_channel_id",
     "run_digest",
     "score",
     "summarize",

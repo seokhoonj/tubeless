@@ -12,32 +12,48 @@ feed to filter them itself.
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
+from urllib.parse import parse_qs, urlparse
 from xml.etree import ElementTree
 
 import requests
 
 from tubeless.errors import FeedError
-# Channel resolution and the feed URL/namespaces live in feed.py, which still
-# serves the legacy Upload path; discover reuses them and adds a Video-producing
-# parse plus the title filter.
-from tubeless.feed import (
-    _FEED_URL,
-    _NS,
-    _TIMEOUT_SECONDS,
-    _playlist_id_of,
-    _text,
-    resolve_channel_id,
-)
 from tubeless.source import Video
 
 __all__ = ["DEFAULT_SCAN", "discover"]
+
+_FEED_URL        = "https://www.youtube.com/feeds/videos.xml"
+_TIMEOUT_SECONDS = 15.0
 
 # A channel's RSS feed carries about 15 recent uploads. Scanning the whole window
 # is the default so a sparse title filter (one host's episodes among many) does
 # not miss matches further down. This is the former hidden fetch cap, now an
 # explicit argument the caller can narrow.
 DEFAULT_SCAN = 15
+
+# A channel id is 'UC' + 22 chars of the base64url alphabet; a user playlist id
+# is 'PL' + a longer run of the same alphabet. Both are stable observed forms of
+# the feed URLs -- the one place to change if YouTube ever alters them (same
+# reasoning as source.py's video-id pattern).
+_CHANNEL_ID_PATTERN  = re.compile(r"^UC[A-Za-z0-9_-]{22}$")
+_PLAYLIST_ID_PATTERN = re.compile(r"^PL[A-Za-z0-9_-]{10,}$")
+
+# The channel id embedded in a channel page, in order of trust: the canonical
+# link is always THIS channel, while a bare externalId/channelId scan can match a
+# recommended channel earlier in the HTML.
+_CANONICAL_CHANNEL_ID = re.compile(
+    r'<link rel="canonical" href="https://www\.youtube\.com/channel/(UC[A-Za-z0-9_-]{22})"'
+)
+_EXTERNAL_ID        = re.compile(r'"externalId":"(UC[A-Za-z0-9_-]{22})"')
+_CHANNEL_ID_IN_PAGE = re.compile(r'"channelId":"(UC[A-Za-z0-9_-]{22})"')
+
+# Atom + YouTube feed namespaces, as declared on the feed root.
+_NS = {
+    "atom": "http://www.w3.org/2005/Atom",
+    "yt":   "http://www.youtube.com/xml/schemas/2015",
+}
 
 
 def discover(
@@ -71,7 +87,7 @@ def discover(
     if playlist_id is not None:
         params = {"playlist_id": playlist_id}
     else:
-        params = {"channel_id": resolve_channel_id(source)}
+        params = {"channel_id": _resolve_channel_id(source)}
 
     videos = _scan_feed(params, limit=limit)
     return _matching_title(videos, includes, excludes)
@@ -107,6 +123,10 @@ def _parse_feed(xml_text: str, *, limit: int) -> tuple[Video, ...]:
             published = _normalise_published(_text(entry.find("atom:published", _NS))),
         ))
     return tuple(videos)
+
+
+def _text(element: ElementTree.Element | None) -> str | None:
+    return element.text.strip() if element is not None and element.text else None
 
 
 def _normalise_published(raw: str | None) -> str | None:
@@ -146,3 +166,61 @@ def _matching_title(
                 and not any(word in title for word in unwanted))
 
     return tuple(video for video in videos if matches(video))
+
+
+def _playlist_id_of(source: str) -> str | None:
+    """Return the 'PL...' id if ``source`` is a playlist (bare id or a URL with
+    a ``list=`` parameter); ``None`` if it names a channel instead."""
+    text = source.strip()
+    if _PLAYLIST_ID_PATTERN.match(text):
+        return text
+    if "list=" in text:
+        query = urlparse(text if "://" in text else "https://" + text).query
+        for value in parse_qs(query).get("list", []):
+            if _PLAYLIST_ID_PATTERN.match(value):
+                return value
+    return None
+
+
+def _resolve_channel_id(handle_or_url: str) -> str:
+    """Resolve an ``@handle``, channel URL, or bare id to a 'UC...' channel id.
+
+    A bare 'UC...' id is returned unchanged. Anything else is looked up by
+    fetching the channel page and reading the canonical channel id embedded in
+    it (YouTube offers no keyless id-lookup API).
+
+    Raises:
+        FeedError: the channel id could not be determined.
+    """
+    text = handle_or_url.strip()
+    if _CHANNEL_ID_PATTERN.match(text):
+        return text
+
+    url = _channel_page_url(text)
+    try:
+        response = requests.get(
+            url, timeout=_TIMEOUT_SECONDS, headers={"User-Agent": "Mozilla/5.0"},
+        )
+        response.raise_for_status()
+    except requests.RequestException as err:
+        raise FeedError(f"could not open channel page {url!r}: {err}") from err
+
+    # Prefer the page's canonical channel link -- it is always THIS channel. A
+    # bare "channelId"/"externalId" scan returns the FIRST match, which can be a
+    # recommended/related channel appearing earlier in the HTML, silently
+    # resolving a handle to the wrong channel (seen with some non-ASCII handles).
+    channel_id_match = (
+        _CANONICAL_CHANNEL_ID.search(response.text)
+        or _EXTERNAL_ID.search(response.text)
+        or _CHANNEL_ID_IN_PAGE.search(response.text)
+    )
+    if not channel_id_match:
+        raise FeedError(f"could not find a channel id on {url!r}")
+    return channel_id_match.group(1)
+
+
+def _channel_page_url(handle_or_url: str) -> str:
+    if handle_or_url.startswith("http"):
+        return handle_or_url
+    handle = handle_or_url if handle_or_url.startswith("@") else f"@{handle_or_url}"
+    return f"https://www.youtube.com/{handle}"

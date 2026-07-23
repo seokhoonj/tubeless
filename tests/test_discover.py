@@ -5,7 +5,13 @@ import importlib
 import pytest
 
 from tubeless import DEFAULT_SCAN, discover
-from tubeless.discover import _matching_title, _normalise_published, _parse_feed
+from tubeless.discover import (
+    _matching_title,
+    _normalise_published,
+    _parse_feed,
+    _playlist_id_of,
+    _resolve_channel_id,
+)
 from tubeless.errors import FeedError
 from tubeless.source import Video
 
@@ -152,3 +158,77 @@ def test_discover_wraps_a_request_error(monkeypatch: pytest.MonkeyPatch) -> None
 
     with pytest.raises(FeedError):
         discover(_CHANNEL_ID)
+
+
+# --- source resolution helpers ------------------------------------------------
+
+def test_playlist_id_of_reads_a_bare_id():
+    assert _playlist_id_of(_PLAYLIST_ID) == _PLAYLIST_ID
+
+
+def test_playlist_id_of_extracts_from_a_watch_url_with_a_list_param():
+    url = f"https://www.youtube.com/watch?v=vid00000003&list={_PLAYLIST_ID}"
+    assert _playlist_id_of(url) == _PLAYLIST_ID
+
+
+def test_playlist_id_of_returns_none_for_a_channel_source():
+    assert _playlist_id_of("@examplechannel") is None
+    assert _playlist_id_of(_CHANNEL_ID) is None
+
+
+def test_resolve_channel_id_passes_through_a_bare_id():
+    assert _resolve_channel_id(_CHANNEL_ID) == _CHANNEL_ID
+
+
+def _page_response(page: str):
+    class _Response:
+        status_code = 200
+        text        = page
+
+        def raise_for_status(self) -> None:
+            pass
+
+    return _Response()
+
+
+def test_resolve_channel_id_prefers_canonical_over_a_recommended_channel_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A channel page carries recommended channels' "channelId" values too, often
+    # BEFORE the page's own channel -- taking the first match resolved a handle to
+    # the wrong channel. Resolution must return the canonical channel link's id.
+    own         = "UC" + "o" * 22
+    recommended = "UC" + "r" * 22
+    page = (
+        f'<script>{{"channelId":"{recommended}"}}</script>'   # a recommended channel, earlier in the HTML
+        f'<link rel="canonical" href="https://www.youtube.com/channel/{own}">'
+    )
+    monkeypatch.setattr(discover_module.requests, "get", lambda *a, **k: _page_response(page))
+
+    assert _resolve_channel_id("@somehandle") == own
+
+
+def test_resolve_channel_id_falls_back_to_the_external_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    own  = "UC" + "e" * 22
+    page = f'<script>{{"externalId":"{own}"}}</script>'
+    monkeypatch.setattr(discover_module.requests, "get", lambda *a, **k: _page_response(page))
+
+    assert _resolve_channel_id("@somehandle") == own
+
+
+def test_resolve_channel_id_raises_when_the_page_has_no_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(discover_module.requests, "get",
+                        lambda *a, **k: _page_response("<html>no channel id here</html>"))
+
+    with pytest.raises(FeedError):
+        _resolve_channel_id("@somehandle")
+
+
+def test_resolve_channel_id_wraps_a_request_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    def boom(*a, **k):
+        raise discover_module.requests.RequestException("network down")
+
+    monkeypatch.setattr(discover_module.requests, "get", boom)
+
+    with pytest.raises(FeedError):
+        _resolve_channel_id("@somehandle")
