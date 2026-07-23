@@ -40,7 +40,7 @@ class CannedBackend:
 
 @pytest.fixture
 def pipeline_with_fakes(monkeypatch: pytest.MonkeyPatch, _no_config_file) -> None:
-    monkeypatch.setattr(cli_module, "fetch_video_meta", lambda url: SAMPLE_VIDEO)
+    monkeypatch.setattr(cli_module, "fetch_video", lambda url: SAMPLE_VIDEO)
     monkeypatch.setattr(cli_module, "fetch_transcript", lambda video_id: SAMPLE_TRANSCRIPT)
     monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
 
@@ -74,7 +74,7 @@ def test_tubeless_backend_env_routes_a_bare_run_to_that_vendor(
     _no_config_file, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("TUBELESS_BACKEND", "gemini")
-    monkeypatch.setattr(cli_module, "fetch_video_meta", lambda url: SAMPLE_VIDEO)
+    monkeypatch.setattr(cli_module, "fetch_video", lambda url: SAMPLE_VIDEO)
     monkeypatch.setattr(cli_module, "fetch_transcript", lambda video_id: SAMPLE_TRANSCRIPT)
     built = {}
 
@@ -145,7 +145,7 @@ def test_tubeless_detail_env_sets_the_default_detail(
     _no_config_file, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("TUBELESS_DETAIL", "deep")
-    monkeypatch.setattr(cli_module, "fetch_video_meta", lambda url: SAMPLE_VIDEO)
+    monkeypatch.setattr(cli_module, "fetch_video", lambda url: SAMPLE_VIDEO)
     monkeypatch.setattr(cli_module, "fetch_transcript", lambda video_id: SAMPLE_TRANSCRIPT)
     monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
     seen: dict[str, object] = {}
@@ -165,7 +165,7 @@ def test_tubeless_max_points_env_caps_points(
     _no_config_file, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("TUBELESS_MAX_POINTS", "3")
-    monkeypatch.setattr(cli_module, "fetch_video_meta", lambda url: SAMPLE_VIDEO)
+    monkeypatch.setattr(cli_module, "fetch_video", lambda url: SAMPLE_VIDEO)
     monkeypatch.setattr(cli_module, "fetch_transcript", lambda video_id: SAMPLE_TRANSCRIPT)
     monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
     seen: dict[str, object] = {}
@@ -185,7 +185,7 @@ def test_main_handles_keyboard_interrupt_cleanly(
     _no_config_file, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     # Ctrl-C mid-run must exit 130 with a one-line message, not a traceback.
-    monkeypatch.setattr(cli_module, "fetch_video_meta", lambda url: SAMPLE_VIDEO)
+    monkeypatch.setattr(cli_module, "fetch_video", lambda url: SAMPLE_VIDEO)
 
     def interrupted(video_id):
         raise KeyboardInterrupt
@@ -243,7 +243,7 @@ def test_main_reports_an_invalid_url_cleanly_without_a_traceback(
 def test_main_reports_a_missing_transcript_cleanly(
     _no_config_file, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.setattr(cli_module, "fetch_video_meta", lambda url: SAMPLE_VIDEO)
+    monkeypatch.setattr(cli_module, "fetch_video", lambda url: SAMPLE_VIDEO)
 
     def raise_unavailable(video_id: str) -> Transcript:
         raise TranscriptUnavailable(f"no transcript for video {video_id!r}")

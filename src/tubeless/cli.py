@@ -33,7 +33,7 @@ from tubeless.schedule import (
     resolve_digest_command,
     scheduler_for_platform,
 )
-from tubeless.source import fetch_video_meta
+from tubeless.source import fetch_video
 from tubeless.state import STATE_PATH, read_seen, write_seen
 from tubeless.summary import DEFAULT_DETAIL, DEFAULT_LANGUAGE, DETAIL_LEVELS, Summary, summarize
 from tubeless.transcript import fetch_transcript
@@ -69,7 +69,7 @@ def _with_default_subcommand(argv: list[str]) -> list[str]:
 
 
 def _run_summarize(args: argparse.Namespace) -> int:
-    video      = fetch_video_meta(args.url)
+    video      = fetch_video(args.url)
     transcript = fetch_transcript(video.video_id)
     backend    = make_backend(args.backend, model=args.model)
     _print_run_settings(args.backend, backend.model,

@@ -15,7 +15,7 @@ import requests
 
 from tubeless.errors import InvalidVideoURL
 
-__all__ = ["Video", "parse_video_id", "fetch_video_meta"]
+__all__ = ["Video", "parse_video_id", "fetch_video"]
 
 # A YouTube video id is exactly 11 characters of this alphabet. The length and
 # alphabet are stable observed facts of every public YouTube URL form, not a
@@ -34,12 +34,16 @@ _OEMBED_TIMEOUT_SECONDS = 10.0
 @dataclass(frozen=True, slots=True)
 class Video:
     """Public identity of one video. ``channel`` is None when metadata could
-    not be resolved (the summary path must not depend on it)."""
+    not be resolved (the summary path must not depend on it). ``published`` is
+    the ISO-8601 upload time when a source carries one (a channel feed does),
+    and None when it does not (oembed gives no date) -- so the two ways of
+    obtaining a Video, ``fetch_video`` and ``discover``, produce the same type."""
 
-    video_id: str
-    title:    str
-    url:      str
-    channel:  str | None
+    video_id:  str
+    title:     str
+    url:       str
+    channel:   str | None
+    published: str | None = None
 
 
 def parse_video_id(url_or_id: str) -> str:
@@ -86,7 +90,7 @@ def parse_video_id(url_or_id: str) -> str:
     )
 
 
-def fetch_video_meta(url_or_id: str) -> Video:
+def fetch_video(url_or_id: str) -> Video:
     """Resolve title and channel via YouTube's oembed endpoint (no API key).
 
     Metadata is decoration on the summary, not a prerequisite: on any network

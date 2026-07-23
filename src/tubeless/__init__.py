@@ -41,7 +41,7 @@ from tubeless.llm import (
     make_backend,
 )
 from tubeless.render import to_markdown
-from tubeless.source import Video, fetch_video_meta, parse_video_id
+from tubeless.source import Video, fetch_video, parse_video_id
 from tubeless.summary import DETAIL_LEVELS, DetailLevel, Summary, summarise, summarize
 from tubeless.synthesis import Synthesis, synthesize
 from tubeless.transcript import Transcript, TranscriptSegment, fetch_transcript
@@ -82,7 +82,7 @@ __all__ = [
     "fetch_playlist_uploads",
     "fetch_uploads",
     "fetch_transcript",
-    "fetch_video_meta",
+    "fetch_video",
     "load_channels",
     "load_summaries",
     "load_transcript",

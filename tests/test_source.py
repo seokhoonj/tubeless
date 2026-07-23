@@ -1,7 +1,7 @@
 import pytest
 
 import tubeless.source as source_module
-from tubeless import InvalidVideoURL, fetch_video_meta, parse_video_id
+from tubeless import InvalidVideoURL, fetch_video, parse_video_id
 
 VALID_ID = "dQw4w9WgXcQ"
 
@@ -61,13 +61,13 @@ class _FakeResponse:
         return self._payload
 
 
-def test_fetch_video_meta_reads_title_and_channel_from_oembed(monkeypatch):
+def test_fetch_video_reads_title_and_channel_from_oembed(monkeypatch):
     monkeypatch.setattr(
         source_module.requests, "get",
         lambda *a, **k: _FakeResponse({"title": "A talk", "author_name": "Duck Channel"}),
     )
 
-    video = fetch_video_meta(VALID_ID)
+    video = fetch_video(VALID_ID)
 
     assert video.video_id == VALID_ID
     assert video.title    == "A talk"
@@ -75,26 +75,26 @@ def test_fetch_video_meta_reads_title_and_channel_from_oembed(monkeypatch):
     assert video.url      == f"https://www.youtube.com/watch?v={VALID_ID}"
 
 
-def test_fetch_video_meta_falls_back_when_the_request_fails(monkeypatch):
+def test_fetch_video_falls_back_when_the_request_fails(monkeypatch):
     def boom(*a, **k):
         raise source_module.requests.RequestException("network down")
 
     monkeypatch.setattr(source_module.requests, "get", boom)
 
-    video = fetch_video_meta(VALID_ID)
+    video = fetch_video(VALID_ID)
 
     assert video.title   == VALID_ID   # decoration is optional: title falls back to the id
     assert video.channel is None
 
 
-def test_fetch_video_meta_falls_back_on_a_non_dict_payload(monkeypatch):
+def test_fetch_video_falls_back_on_a_non_dict_payload(monkeypatch):
     # A valid-JSON but non-object body (null, a list) must take the fallback, not
     # crash on payload.get(...).
     monkeypatch.setattr(
         source_module.requests, "get", lambda *a, **k: _FakeResponse(["not", "a", "dict"]),
     )
 
-    video = fetch_video_meta(VALID_ID)
+    video = fetch_video(VALID_ID)
 
     assert video.title   == VALID_ID
     assert video.channel is None
