@@ -22,7 +22,7 @@ VIDEO = Video(
 
 def test_transcript_text_joins_segments_with_spaces() -> None:
     transcript = Transcript(
-        video_id          = "dQw4w9WgXcQ",
+        video             = VIDEO,
         language          = "en",
         is_auto_generated = False,
         segments          = (
@@ -35,7 +35,7 @@ def test_transcript_text_joins_segments_with_spaces() -> None:
 
 def test_transcript_text_is_empty_for_no_segments() -> None:
     transcript = Transcript(
-        video_id="dQw4w9WgXcQ", language="en", is_auto_generated=False, segments=()
+        video=VIDEO, language="en", is_auto_generated=False, segments=()
     )
     assert transcript.text == ""
 
@@ -84,7 +84,7 @@ def test_fetch_transcript_maps_vendor_snippets_to_segments(
     fetched = fetch_transcript(VIDEO)
 
     assert isinstance(_FakeTranscriptAPI.last_http_client, transcript_module._TimeoutSession)
-    assert fetched.video_id == "dQw4w9WgXcQ"
+    assert fetched.video.video_id == "dQw4w9WgXcQ"
     assert fetched.language == "ko"
     assert fetched.is_auto_generated is True
     assert fetched.segments == (

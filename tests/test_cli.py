@@ -24,7 +24,7 @@ SAMPLE_VIDEO = Video(
 )
 
 SAMPLE_TRANSCRIPT = Transcript(
-    video_id          = SAMPLE_VIDEO.video_id,
+    video             = SAMPLE_VIDEO,
     language          = "en",
     is_auto_generated = False,
     segments          = (TranscriptSegment(text="ducks are great", start=0.0, duration=3.0),),

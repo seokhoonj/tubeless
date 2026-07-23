@@ -186,7 +186,6 @@ class Summary:
 
 
 def summarize_transcript(
-    video:      Video,
     transcript: Transcript,
     backend:    LLMBackend,
     *,
@@ -196,9 +195,9 @@ def summarize_transcript(
 ) -> Summary:
     """Summarize an already-fetched ``transcript`` into a TL;DR plus key points.
 
-    This is the core: it takes the transcript the caller already has, so a
-    digest that fetched many transcripts summarizes each without re-fetching.
-    ``summarize`` is the one-URL wrapper over it.
+    This is the core: it takes the transcript the caller already has (which
+    carries its own ``video``), so a digest that fetched many transcripts
+    summarizes each without re-fetching. ``summarize`` is the one-URL wrapper.
 
     ``detail`` ('brief' / 'normal' / 'deep') sets how fully the summary is
     written -- the TL;DR length, how many sentences each point carries, and the
@@ -215,7 +214,8 @@ def summarize_transcript(
             is given and is less than 1.
         LLMError: propagated from the backend.
     """
-    spec = _DETAIL.get(detail)
+    video = transcript.video
+    spec  = _DETAIL.get(detail)
     if spec is None:
         raise ValueError(f"detail must be one of {DETAIL_LEVELS}, got {detail!r}")
     if max_points is not None and max_points < 1:
@@ -275,10 +275,9 @@ def summarize(
         ValueError: bad ``detail`` or ``max_points`` (see ``summarize_transcript``).
         LLMError: propagated from the backend.
     """
-    video      = fetch_video(url_or_id)
-    transcript = fetch_transcript(video)
+    transcript = fetch_transcript(fetch_video(url_or_id))
     return summarize_transcript(
-        video, transcript, backend,
+        transcript, backend,
         detail=detail, language=language, max_points=max_points,
     )
 

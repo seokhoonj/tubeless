@@ -27,7 +27,7 @@ def _summary(video: Video, *, tldr="gist", points=("a", "b"), language="en", det
 
 def _transcript(video_id: str = "dQw4w9WgXcQ") -> Transcript:
     return Transcript(
-        video_id=video_id, language="en", is_auto_generated=False,
+        video=_video(video_id), language="en", is_auto_generated=False,
         segments=(TranscriptSegment(text="hello world", start=0.0, duration=2.0),),
     )
 

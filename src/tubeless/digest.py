@@ -150,7 +150,7 @@ def summarize_videos(
             continue
         if store is not None:
             store.save_transcript(transcript)
-        summary = summarize_transcript(video, transcript, backend, detail=detail, language=language)
+        summary = summarize_transcript(transcript, backend, detail=detail, language=language)
         if store is not None:
             store.save_summary(summary)
         summaries.append(summary)

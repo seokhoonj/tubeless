@@ -87,7 +87,7 @@ class FileStore:
             "saved_at":       _now(),
             "transcript":     _transcript_to_dict(transcript),
         }
-        _write_json(self._transcripts_dir / f"{transcript.video_id}.json", envelope)
+        _write_json(self._transcripts_dir / f"{transcript.video.video_id}.json", envelope)
 
     def load_summaries(
         self, *, since: str | None = None, until: str | None = None, channel: str | None = None
@@ -185,7 +185,7 @@ def _summary_from_envelope(record: object) -> tuple[Summary, str] | None:
 
 def _transcript_to_dict(transcript: Transcript) -> dict[str, object]:
     return {
-        "video_id":          transcript.video_id,
+        "video":             asdict(transcript.video),
         "language":          transcript.language,
         "is_auto_generated": transcript.is_auto_generated,
         "segments":          [asdict(segment) for segment in transcript.segments],
@@ -198,12 +198,13 @@ def _transcript_from_envelope(record: object) -> Transcript | None:
     body = record.get("transcript")
     if not isinstance(body, dict):
         return None
+    video    = body.get("video")
     segments = body.get("segments")
-    if not isinstance(segments, list):
+    if not isinstance(video, dict) or not isinstance(segments, list):
         return None
     try:
         return Transcript(
-            video_id          = body["video_id"],
+            video             = Video(**video),
             language          = body["language"],
             is_auto_generated = body["is_auto_generated"],
             segments          = tuple(TranscriptSegment(**segment) for segment in segments),

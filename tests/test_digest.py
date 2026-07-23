@@ -30,9 +30,9 @@ def _video(video_id: str, title: str, *, channel: str = "Example Channel", publi
     )
 
 
-def _transcript(video_id: str) -> Transcript:
+def _transcript(video: Video) -> Transcript:
     return Transcript(
-        video_id=video_id, language="ko", is_auto_generated=False,
+        video=video, language="ko", is_auto_generated=False,
         segments=(TranscriptSegment(text="words words words", start=0.0, duration=3.0),),
     )
 
@@ -83,7 +83,7 @@ class FakeStore:
         return tuple(self.summaries)
 
     def load_transcript(self, video_id: str):
-        return next((t for t in self.transcripts if t.video_id == video_id), None)
+        return next((t for t in self.transcripts if t.video.video_id == video_id), None)
 
 
 _ONE_CHANNEL = (Channel(source="@x", detail="normal"),)
@@ -92,7 +92,7 @@ _ONE_CHANNEL = (Channel(source="@x", detail="normal"),)
 # --- summarize_videos (the channel-agnostic engine) ---------------------------
 
 def test_summarize_videos_summarizes_each_and_reports_processed(monkeypatch):
-    monkeypatch.setattr(digest_module, "fetch_transcript", lambda video: _transcript(video.video_id))
+    monkeypatch.setattr(digest_module, "fetch_transcript", lambda video: _transcript(video))
     videos = (_video("aaaaaaaaaaa", "one"), _video("bbbbbbbbbbb", "two"))
 
     result = summarize_videos(videos, ScoringBackend(), detail="normal")
@@ -106,7 +106,7 @@ def test_summarize_videos_records_a_captionless_video_as_a_skip_but_processed(mo
     def fetch(video):
         if video.video_id == "ccccccccccc":
             raise TranscriptUnavailable("captions off")
-        return _transcript(video.video_id)
+        return _transcript(video)
 
     monkeypatch.setattr(digest_module, "fetch_transcript", fetch)
     videos = (_video("aaaaaaaaaaa", "ok"), _video("ccccccccccc", "no captions"))
@@ -120,17 +120,17 @@ def test_summarize_videos_records_a_captionless_video_as_a_skip_but_processed(mo
 
 
 def test_summarize_videos_writes_through_to_the_store(monkeypatch):
-    monkeypatch.setattr(digest_module, "fetch_transcript", lambda video: _transcript(video.video_id))
+    monkeypatch.setattr(digest_module, "fetch_transcript", lambda video: _transcript(video))
     store = FakeStore()
 
     summarize_videos((_video("aaaaaaaaaaa", "one"),), ScoringBackend(), detail="normal", store=store)
 
-    assert [t.video_id for t in store.transcripts] == ["aaaaaaaaaaa"]
+    assert [t.video.video_id for t in store.transcripts] == ["aaaaaaaaaaa"]
     assert [s.video.video_id for s in store.summaries] == ["aaaaaaaaaaa"]
 
 
 def test_summarize_videos_dry_run_persists_nothing(monkeypatch):
-    monkeypatch.setattr(digest_module, "fetch_transcript", lambda video: _transcript(video.video_id))
+    monkeypatch.setattr(digest_module, "fetch_transcript", lambda video: _transcript(video))
 
     result = summarize_videos((_video("aaaaaaaaaaa", "one"),), ScoringBackend(), detail="normal", store=None)
 
@@ -197,7 +197,7 @@ def _discover_returns(monkeypatch, by_source):
     def fake_discover(source, *, limit, includes=(), excludes=()):
         return by_source.get(source, ())
     monkeypatch.setattr(digest_module, "fetch_recent_videos", fake_discover)
-    monkeypatch.setattr(digest_module, "fetch_transcript", lambda video: _transcript(video.video_id))
+    monkeypatch.setattr(digest_module, "fetch_transcript", lambda video: _transcript(video))
 
 
 def test_run_digest_discovers_summarizes_and_ranks(monkeypatch):
@@ -242,7 +242,7 @@ def test_run_digest_records_a_feed_failure_as_a_skip_and_continues(monkeypatch):
         return (_video("aaaaaaaaaaa", "one"),)
 
     monkeypatch.setattr(digest_module, "fetch_recent_videos", fake_discover)
-    monkeypatch.setattr(digest_module, "fetch_transcript", lambda video: _transcript(video.video_id))
+    monkeypatch.setattr(digest_module, "fetch_transcript", lambda video: _transcript(video))
     channels = (Channel(source="@dead"), Channel(source="@x"))
 
     run = run_digest(channels, ScoringBackend(), period="d")
