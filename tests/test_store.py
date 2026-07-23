@@ -152,3 +152,71 @@ def test_stored_summary_envelope_carries_schema_version_and_saved_at(tmp_path):
     assert record["schema_version"] == 1
     assert record["saved_at"].endswith("Z")
     assert record["summary"]["detail"] == "normal"
+
+
+def _write_summary_file(tmp_path, *, detail: str, saved_at: str, tldr: str, video: Video) -> None:
+    """Author a summary envelope directly, so a test can control saved_at (which
+    FileStore stamps with the wall clock) and inject a deliberately corrupt one."""
+    path = tmp_path / "summaries" / f"{video.video_id}.en.{detail}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({
+        "schema_version": 1,
+        "saved_at":       saved_at,
+        "summary": {
+            "video":    {"video_id": video.video_id, "title": video.title,
+                         "url": video.url, "channel": video.channel, "published": video.published},
+            "tldr":     tldr,
+            "points":   ["a"],
+            "language": "en",
+            "detail":   detail,
+        },
+    }), encoding="utf-8")
+
+
+def test_load_orders_variants_of_one_video_by_save_time(tmp_path):
+    # Two variants of one video (same published) must come back in save order, so
+    # a caller keeping the last per video gets the most recently stored one --
+    # not the alphabetically-last filename.
+    video = _video(published="2026-07-20T09:00:00Z")
+    _write_summary_file(tmp_path, detail="normal", saved_at="2026-07-20T10:00:00Z", tldr="older", video=video)
+    _write_summary_file(tmp_path, detail="deep",   saved_at="2026-07-20T11:00:00Z", tldr="newer", video=video)
+
+    loaded = FileStore(tmp_path).load_summaries()
+
+    # 'deep' sorts before 'normal' by filename, but it was saved later, so it is last
+    assert [s.detail for s in loaded] == ["normal", "deep"]
+    assert loaded[-1].tldr == "newer"
+
+
+def test_load_summaries_falls_back_to_saved_at_when_published_is_absent(tmp_path):
+    # A summary whose feed gave no publish time is filtered by its saved_at, and
+    # must not raise on the None published value.
+    video = _video("aaaaaaaaaaa", published=None)
+    _write_summary_file(tmp_path, detail="normal", saved_at="2026-07-05T09:00:00Z", tldr="g", video=video)
+
+    kept    = FileStore(tmp_path).load_summaries(since="2026-07-01", until="2026-07-08")
+    dropped = FileStore(tmp_path).load_summaries(since="2026-07-06")
+
+    assert [s.video.video_id for s in kept] == ["aaaaaaaaaaa"]
+    assert dropped == ()   # saved_at 2026-07-05 is before since=2026-07-06
+
+
+def test_a_summary_file_with_an_illegal_detail_reads_as_absent(tmp_path):
+    # A schema-drifted file must not mint a Summary whose detail violates the
+    # DetailLevel Literal; it reads as absent, like a corrupt file.
+    _write_summary_file(tmp_path, detail="wobble", saved_at="2026-07-20T10:00:00Z",
+                        tldr="g", video=_video("aaaaaaaaaaa"))
+
+    assert FileStore(tmp_path).load_summaries() == ()
+
+
+def test_a_corrupt_transcript_file_reads_as_absent(tmp_path):
+    store = FileStore(tmp_path)
+    store.save_transcript(_transcript("aaaaaaaaaaa"))
+    # invalid JSON, and a valid-JSON-but-shapeless body: both must read as absent
+    (tmp_path / "transcripts" / "bbbbbbbbbbb.json").write_text("{not json", encoding="utf-8")
+    (tmp_path / "transcripts" / "ccccccccccc.json").write_text('{"transcript": 42}', encoding="utf-8")
+
+    assert store.load_transcript("aaaaaaaaaaa") is not None
+    assert store.load_transcript("bbbbbbbbbbb") is None
+    assert store.load_transcript("ccccccccccc") is None

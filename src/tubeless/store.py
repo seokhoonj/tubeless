@@ -23,7 +23,7 @@ from typing import Protocol
 
 from tubeless.errors import CorpusError
 from tubeless.source import Video
-from tubeless.summary import Summary
+from tubeless.summary import DETAIL_LEVELS, Summary
 from tubeless.transcript import Transcript, TranscriptSegment
 
 __all__ = ["CORPUS_ROOT", "FileStore", "Store"]
@@ -101,9 +101,10 @@ class FileStore:
         ``until`` exclusive. A corrupt file is treated as absent, not raised.
 
         When the same video has several stored variants (different detail or
-        language), each is returned; a caller that needs one per video selects
-        among them (see ``digest.recompute``)."""
-        rows: list[tuple[str, Summary]] = []
+        language), each is returned in save order -- oldest ``saved_at`` first --
+        so a caller keeping the last per video (see ``digest.recompute``) gets the
+        most recently stored one."""
+        rows: list[tuple[str, str, Summary]] = []
         for path in sorted(self._summaries_dir.glob("*.json")):
             loaded = _summary_from_envelope(_read_json(path))
             if loaded is None:
@@ -116,9 +117,12 @@ class FileStore:
                 continue
             if until is not None and moment >= until:
                 continue
-            rows.append((moment, summary))
-        rows.sort(key=lambda row: row[0])
-        return tuple(summary for _, summary in rows)
+            rows.append((moment, saved_at, summary))
+        # Order by publish time, then by save time -- so two variants of one video
+        # (identical published) fall in save order and the most recently stored
+        # one sorts last, which is the one recompute keeps.
+        rows.sort(key=lambda row: (row[0], row[1]))
+        return tuple(summary for _, _, summary in rows)
 
     def load_transcript(self, video_id: str) -> Transcript | None:
         """Return the stored transcript for ``video_id``, or ``None`` if none is
@@ -149,17 +153,30 @@ def _summary_from_envelope(record: object) -> tuple[Summary, str] | None:
     saved_at = record.get("saved_at")
     if not isinstance(body, dict) or not isinstance(saved_at, str):
         return None
-    video  = body.get("video")
-    points = body.get("points")
+    video    = body.get("video")
+    points   = body.get("points")
+    tldr     = body.get("tldr")
+    language = body.get("language")
+    detail   = body.get("detail")
+    # Validate the leaf values, not just the containers: a hand-edited or
+    # schema-drifted file must read as absent, never mint a Summary whose
+    # ``detail``/``points`` violate their own types (which would then flow into
+    # the re-save key and the renderer).
     if not isinstance(video, dict) or not isinstance(points, list):
+        return None
+    if not isinstance(tldr, str) or not isinstance(language, str):
+        return None
+    if detail not in DETAIL_LEVELS:
+        return None
+    if not all(isinstance(point, str) for point in points):
         return None
     try:
         summary = Summary(
             video    = Video(**video),
-            tldr     = body["tldr"],
+            tldr     = tldr,
             points   = tuple(points),
-            language = body["language"],
-            detail   = body["detail"],
+            language = language,
+            detail   = detail,
         )
     except (KeyError, TypeError):
         return None
@@ -197,10 +214,12 @@ def _transcript_from_envelope(record: object) -> Transcript | None:
 
 def _read_json(path: Path) -> object | None:
     """Read and parse a JSON file, returning ``None`` if it is missing or its
-    bytes are not valid JSON -- the loaders treat both as 'not stored'."""
+    bytes are not valid JSON -- the loaders treat both as 'not stored'. Only a
+    genuinely absent file is swallowed; a permission or I/O error propagates
+    rather than silently dropping a stored record from a digest."""
     try:
         text = path.read_text(encoding="utf-8")
-    except OSError:
+    except FileNotFoundError:
         return None
     try:
         return json.loads(text)
