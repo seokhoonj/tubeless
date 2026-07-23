@@ -4,7 +4,7 @@ from typing import get_args
 
 from tubeless.digest import Digest, Entry, Skip
 from tubeless.importance import Importance, ImportanceTier
-from tubeless.render import _TIER_MARKER, to_markdown
+from tubeless.render import _TIER_MARKER, render_markdown
 from tubeless.source import Video
 from tubeless.summary import Summary
 from tubeless.synthesis import Synthesis
@@ -28,10 +28,10 @@ def _entry(*, title: str, score: float, channel: str = "Example Channel") -> Ent
     )
 
 
-def test_to_markdown_renders_header_score_and_points():
+def test_render_markdown_renders_header_score_and_points():
     digest = Digest(period="2026-07-21", entries=(_entry(title="Example Video", score=0.9),))
 
-    md = to_markdown(digest)
+    md = render_markdown(digest)
 
     assert "# YouTube digest — 2026-07-21" in md
     assert "🔴" in md                    # 0.9 is the high tier
@@ -41,33 +41,33 @@ def test_to_markdown_renders_header_score_and_points():
     assert "- point 1" in md
 
 
-def test_to_markdown_header_uses_the_summary_channel():
+def test_render_markdown_header_uses_the_summary_channel():
     digest = Digest(period="d", entries=(_entry(title="v", score=0.9, channel="Duck Channel"),))
 
-    assert "Duck Channel — v" in to_markdown(digest)
+    assert "Duck Channel — v" in render_markdown(digest)
 
 
-def test_to_markdown_falls_back_when_the_channel_is_unknown():
+def test_render_markdown_falls_back_when_the_channel_is_unknown():
     video = Video(video_id="vid00000001", title="v", url="u", channel=None)
     entry = Entry(
         summary    = Summary(video=video, tldr="g", points=(), language="en", detail="normal"),
         importance = Importance(score=0.9, reason=""),
     )
 
-    assert "Unknown channel — v" in to_markdown(Digest(period="d", entries=(entry,)))
+    assert "Unknown channel — v" in render_markdown(Digest(period="d", entries=(entry,)))
 
 
-def test_to_markdown_tiers_track_the_score():
-    high = to_markdown(Digest(period="d", entries=(_entry(title="a", score=0.8),)))
-    mid  = to_markdown(Digest(period="d", entries=(_entry(title="a", score=0.5),)))
-    low  = to_markdown(Digest(period="d", entries=(_entry(title="a", score=0.1),)))
+def test_render_markdown_tiers_track_the_score():
+    high = render_markdown(Digest(period="d", entries=(_entry(title="a", score=0.8),)))
+    mid  = render_markdown(Digest(period="d", entries=(_entry(title="a", score=0.5),)))
+    low  = render_markdown(Digest(period="d", entries=(_entry(title="a", score=0.1),)))
 
     assert "🔴" in high
     assert "🟡" in mid
     assert "⚪" in low
 
 
-def test_to_markdown_leads_with_the_synthesis_when_present():
+def test_render_markdown_leads_with_the_synthesis_when_present():
     synthesis = Synthesis(
         tone          = "cautious",
         overview      = "a corrective day",
@@ -79,7 +79,7 @@ def test_to_markdown_leads_with_the_synthesis_when_present():
         synthesis=synthesis,
     )
 
-    md = to_markdown(digest)
+    md = render_markdown(digest)
 
     assert "## Today — across the sources" in md
     assert "**Tone:** cautious" in md
@@ -92,19 +92,19 @@ def test_to_markdown_leads_with_the_synthesis_when_present():
     assert md.index("Today — across the sources") < md.index("Example Video")
 
 
-def test_to_markdown_omits_the_synthesis_section_when_absent():
+def test_render_markdown_omits_the_synthesis_section_when_absent():
     digest = Digest(period="d", entries=(_entry(title="v", score=0.5),))
 
-    assert "across the sources" not in to_markdown(digest)
+    assert "across the sources" not in render_markdown(digest)
 
 
-def test_to_markdown_notes_an_empty_day():
-    md = to_markdown(Digest(period="2026-07-21", entries=()))
+def test_render_markdown_notes_an_empty_day():
+    md = render_markdown(Digest(period="2026-07-21", entries=()))
 
     assert "No new videos" in md
 
 
-def test_to_markdown_lists_skipped_channels_and_captionless_videos_separately():
+def test_render_markdown_lists_skipped_channels_and_captionless_videos_separately():
     digest = Digest(
         period="d", entries=(),
         skipped=(
@@ -113,7 +113,7 @@ def test_to_markdown_lists_skipped_channels_and_captionless_videos_separately():
         ),
     )
 
-    md = to_markdown(digest)
+    md = render_markdown(digest)
 
     assert "Skipped channels" in md
     assert "@lectures: feed down" in md

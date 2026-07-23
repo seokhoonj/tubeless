@@ -26,7 +26,7 @@ from tubeless.digest import DEFAULT_PER_CHANNEL_LIMIT, recompute, run_digest
 from tubeless.discover import DEFAULT_SCAN, discover
 from tubeless.errors import ConfigError, ScheduleError, TubelessError
 from tubeless.llm import BACKENDS, make_backend
-from tubeless.render import to_markdown
+from tubeless.render import render_markdown
 from tubeless.schedule import (
     DEFAULT_DAILY_TIME,
     DigestSchedule,
@@ -133,7 +133,7 @@ def _run_digest(args: argparse.Namespace) -> int:
         with_synthesis    = args.synthesize,
         store             = store,
     )
-    markdown = to_markdown(run.digest)
+    markdown = render_markdown(run.digest)
     if args.dry_run:
         print(markdown)
         return 0
@@ -157,7 +157,7 @@ def _run_recompute(args: argparse.Namespace) -> int:
         language       = args.lang,
         with_synthesis = not args.no_synthesize,
     )
-    markdown = to_markdown(digest)
+    markdown = render_markdown(digest)
     if args.dry_run:
         print(markdown)
         return 0

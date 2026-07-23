@@ -12,7 +12,7 @@ from tubeless.digest import Digest, Entry, Skip
 from tubeless.importance import ImportanceTier
 from tubeless.synthesis import Synthesis
 
-__all__ = ["to_markdown"]
+__all__ = ["render_markdown"]
 
 # The tier itself (the cutoffs) is domain judgment and lives in importance.py;
 # here we only map each tier to its display marker. The dict[ImportanceTier, str]
@@ -24,7 +24,7 @@ _TIER_MARKER: dict[ImportanceTier, str] = {"high": "🔴", "mid": "🟡", "low":
 assert set(_TIER_MARKER) == set(get_args(ImportanceTier)), "every ImportanceTier needs a marker"
 
 
-def to_markdown(digest: Digest) -> str:
+def render_markdown(digest: Digest) -> str:
     """Render one digest as a Markdown document."""
     lines = [f"# YouTube digest — {digest.period}", ""]
     if digest.synthesis is not None:

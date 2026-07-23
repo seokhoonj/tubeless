@@ -37,7 +37,7 @@ from tubeless.llm import (
     OpenAIBackend,
     make_backend,
 )
-from tubeless.render import to_markdown
+from tubeless.render import render_markdown
 from tubeless.source import Video, fetch_video, parse_video_id
 from tubeless.store import CORPUS_ROOT, FileStore, Store
 from tubeless.summary import (
@@ -92,11 +92,11 @@ __all__ = [
     "make_backend",
     "parse_video_id",
     "recompute",
+    "render_markdown",
     "run_digest",
     "score",
     "summarize",
     "summarize_transcript",
     "summarize_videos",
     "synthesize",
-    "to_markdown",
 ]
