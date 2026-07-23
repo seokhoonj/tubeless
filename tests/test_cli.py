@@ -4,6 +4,7 @@ import pytest
 
 import tubeless.cli as cli_module
 import tubeless.llm as llm_module
+import tubeless.summary as summary_module
 from tubeless import Transcript, TranscriptSegment, TranscriptUnavailable, Video, config
 from tubeless.cli import (
     _configured_choice,
@@ -40,8 +41,8 @@ class CannedBackend:
 
 @pytest.fixture
 def pipeline_with_fakes(monkeypatch: pytest.MonkeyPatch, _no_config_file) -> None:
-    monkeypatch.setattr(cli_module, "fetch_video", lambda url: SAMPLE_VIDEO)
-    monkeypatch.setattr(cli_module, "fetch_transcript", lambda video_id: SAMPLE_TRANSCRIPT)
+    monkeypatch.setattr(summary_module, "fetch_video", lambda url: SAMPLE_VIDEO)
+    monkeypatch.setattr(summary_module, "fetch_transcript", lambda video_id: SAMPLE_TRANSCRIPT)
     monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
 
 
@@ -74,8 +75,8 @@ def test_tubeless_backend_env_routes_a_bare_run_to_that_vendor(
     _no_config_file, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("TUBELESS_BACKEND", "gemini")
-    monkeypatch.setattr(cli_module, "fetch_video", lambda url: SAMPLE_VIDEO)
-    monkeypatch.setattr(cli_module, "fetch_transcript", lambda video_id: SAMPLE_TRANSCRIPT)
+    monkeypatch.setattr(summary_module, "fetch_video", lambda url: SAMPLE_VIDEO)
+    monkeypatch.setattr(summary_module, "fetch_transcript", lambda video_id: SAMPLE_TRANSCRIPT)
     built = {}
 
     # The fake mirrors GeminiBackend's real default model, so a bare run (model
@@ -145,17 +146,17 @@ def test_tubeless_detail_env_sets_the_default_detail(
     _no_config_file, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("TUBELESS_DETAIL", "deep")
-    monkeypatch.setattr(cli_module, "fetch_video", lambda url: SAMPLE_VIDEO)
-    monkeypatch.setattr(cli_module, "fetch_transcript", lambda video_id: SAMPLE_TRANSCRIPT)
+    monkeypatch.setattr(summary_module, "fetch_video", lambda url: SAMPLE_VIDEO)
+    monkeypatch.setattr(summary_module, "fetch_transcript", lambda video_id: SAMPLE_TRANSCRIPT)
     monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
     seen: dict[str, object] = {}
-    real_summarize_transcript = cli_module.summarize_transcript
+    real_summarize = cli_module.summarize
 
     def spy(*args, **kwargs):
         seen.update(kwargs)
-        return real_summarize_transcript(*args, **kwargs)
+        return real_summarize(*args, **kwargs)
 
-    monkeypatch.setattr(cli_module, "summarize_transcript", spy)
+    monkeypatch.setattr(cli_module, "summarize", spy)
 
     assert main([SAMPLE_VIDEO.url]) == 0   # no --detail flag
     assert seen["detail"] == "deep"
@@ -165,17 +166,17 @@ def test_tubeless_max_points_env_caps_points(
     _no_config_file, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("TUBELESS_MAX_POINTS", "3")
-    monkeypatch.setattr(cli_module, "fetch_video", lambda url: SAMPLE_VIDEO)
-    monkeypatch.setattr(cli_module, "fetch_transcript", lambda video_id: SAMPLE_TRANSCRIPT)
+    monkeypatch.setattr(summary_module, "fetch_video", lambda url: SAMPLE_VIDEO)
+    monkeypatch.setattr(summary_module, "fetch_transcript", lambda video_id: SAMPLE_TRANSCRIPT)
     monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
     seen: dict[str, object] = {}
-    real_summarize_transcript = cli_module.summarize_transcript
+    real_summarize = cli_module.summarize
 
     def spy(*args, **kwargs):
         seen.update(kwargs)
-        return real_summarize_transcript(*args, **kwargs)
+        return real_summarize(*args, **kwargs)
 
-    monkeypatch.setattr(cli_module, "summarize_transcript", spy)
+    monkeypatch.setattr(cli_module, "summarize", spy)
 
     assert main([SAMPLE_VIDEO.url]) == 0   # no --max-points flag
     assert seen["max_points"] == 3
@@ -185,12 +186,13 @@ def test_main_handles_keyboard_interrupt_cleanly(
     _no_config_file, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     # Ctrl-C mid-run must exit 130 with a one-line message, not a traceback.
-    monkeypatch.setattr(cli_module, "fetch_video", lambda url: SAMPLE_VIDEO)
+    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(summary_module, "fetch_video", lambda url: SAMPLE_VIDEO)
 
     def interrupted(video_id):
         raise KeyboardInterrupt
 
-    monkeypatch.setattr(cli_module, "fetch_transcript", interrupted)
+    monkeypatch.setattr(summary_module, "fetch_transcript", interrupted)
 
     exit_code = main([SAMPLE_VIDEO.url])
 
@@ -243,12 +245,13 @@ def test_main_reports_an_invalid_url_cleanly_without_a_traceback(
 def test_main_reports_a_missing_transcript_cleanly(
     _no_config_file, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.setattr(cli_module, "fetch_video", lambda url: SAMPLE_VIDEO)
+    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(summary_module, "fetch_video", lambda url: SAMPLE_VIDEO)
 
     def raise_unavailable(video_id: str) -> Transcript:
         raise TranscriptUnavailable(f"no transcript for video {video_id!r}")
 
-    monkeypatch.setattr(cli_module, "fetch_transcript", raise_unavailable)
+    monkeypatch.setattr(summary_module, "fetch_transcript", raise_unavailable)
 
     exit_code = main([SAMPLE_VIDEO.url])
 
@@ -369,3 +372,63 @@ def test_digest_only_with_no_match_errors(_no_config_file, monkeypatch: pytest.M
 
     assert exit_code == 1
     assert "tubeless:" in capsys.readouterr().err
+
+
+def test_recompute_reassembles_over_a_range_and_prints(
+    _no_config_file, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from tubeless.digest import Digest
+
+    seen_kwargs: dict[str, object] = {}
+    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
+
+    def fake_recompute(backend, store, **kwargs):
+        seen_kwargs.update(kwargs)
+        return Digest(period="2026-07-01..2026-07-08", entries=())
+
+    monkeypatch.setattr(cli_module, "recompute", fake_recompute)
+
+    exit_code = main(["recompute", "--since", "2026-07-01", "--until", "2026-07-08", "--dry-run"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert seen_kwargs["since"] == "2026-07-01"
+    assert seen_kwargs["until"] == "2026-07-08"
+    assert seen_kwargs["with_synthesis"] is True          # on by default for recompute
+    assert "YouTube digest — 2026-07-01..2026-07-08" in captured.out
+
+
+def test_recompute_no_synthesize_flag_turns_synthesis_off(
+    _no_config_file, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tubeless.digest import Digest
+
+    seen_kwargs: dict[str, object] = {}
+    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
+
+    def fake_recompute(backend, store, **kwargs):
+        seen_kwargs.update(kwargs)
+        return Digest(period="all", entries=())
+
+    monkeypatch.setattr(cli_module, "recompute", fake_recompute)
+
+    assert main(["recompute", "--no-synthesize", "--dry-run"]) == 0
+    assert seen_kwargs["with_synthesis"] is False
+
+
+def test_discover_lists_the_sources_videos(
+    _no_config_file, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    videos = (
+        Video(video_id="aaaaaaaaaaa", title="First", url="u1", channel="C", published="2026-07-20T09:00:00Z"),
+        Video(video_id="bbbbbbbbbbb", title="Second", url="u2", channel="C", published=None),
+    )
+    monkeypatch.setattr(cli_module, "discover", lambda source, *, limit: videos)
+
+    exit_code = main(["discover", "@somechannel"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "aaaaaaaaaaa" in captured.out
+    assert "First" in captured.out
+    assert "bbbbbbbbbbb" in captured.out
