@@ -177,8 +177,10 @@ def curate(
     Raises:
         LLMError: propagated from the backend.
     """
+    # score is a total, order-preserving map, so zip(strict=True) pairs each
+    # summary with its own importance and raises (even under -O) if that ever
+    # breaks -- no separate length assert needed.
     importances = score(summaries, backend, language=language)
-    assert len(importances) == len(summaries), "score must return one importance per summary"
     entries = [Entry(summary=summary, importance=importance)
                for summary, importance in zip(summaries, importances, strict=True)]
     entries.sort(key=lambda entry: entry.importance.score, reverse=True)
@@ -222,7 +224,7 @@ def run_digest(
         TranscriptFetchBlocked / LLMError: propagated (see ``summarize_videos``).
     """
     all_summaries: list[Summary] = []
-    skips:         list[Skip] = []
+    skipped:       list[Skip] = []
     processed:     set[str] = set()
 
     for channel in channels:
@@ -237,7 +239,7 @@ def run_digest(
                 includes=channel.includes, excludes=channel.excludes,
             )
         except FeedError as err:
-            skips.append(Skip("feed-failure", channel.source, str(err)))
+            skipped.append(Skip("feed-failure", channel.source, str(err)))
             continue
 
         fresh = tuple(
@@ -248,12 +250,12 @@ def run_digest(
             fresh, backend, detail=channel.detail, language=language, store=store,
         )
         all_summaries.extend(result.summaries)
-        skips.extend(result.skipped)
+        skipped.extend(result.skipped)
         processed |= result.processed
 
     digest = curate(
         all_summaries, backend, period=period, language=language,
-        with_synthesis=with_synthesis, skipped=skips,
+        with_synthesis=with_synthesis, skipped=skipped,
     )
     return DigestRun(digest, frozenset(seen) | processed)
 
@@ -289,10 +291,10 @@ def recompute(
 
 
 def _latest_per_video(summaries: Sequence[Summary]) -> list[Summary]:
-    """One summary per video: the last in the store's (oldest-first) load order,
-    so the most recent stored summary of each video wins and ``curate`` never
-    double-counts a video that has several stored variants (different detail or
-    language)."""
+    """One summary per video: the last in the store's load order, which orders
+    variants of one video by save time, so the most recently stored summary of
+    each video wins and ``curate`` never double-counts a video that has several
+    stored variants (different detail or language)."""
     latest: dict[str, Summary] = {}
     for summary in summaries:
         latest[summary.video.video_id] = summary

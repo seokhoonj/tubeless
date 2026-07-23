@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, get_args
 
 from tubeless.llm import LLMBackend
 from tubeless.source import Video, fetch_video
@@ -148,6 +148,10 @@ _DETAIL = {
     ),
 }
 DETAIL_LEVELS = tuple(_DETAIL)
+# The hand-written DetailLevel Literal cannot be computed from _DETAIL, so guard
+# the "keep in sync" comment at import (mirroring render._TIER_MARKER): a level
+# added to one but not the other fails immediately, not at a later call.
+assert set(DETAIL_LEVELS) == set(get_args(DetailLevel)), "every DetailLevel needs a _DETAIL spec"
 
 _AUTO_CAPTION_HEDGE = (
     "The captions are auto-generated and may mis-transcribe names, numbers, "

@@ -134,17 +134,19 @@ def _normalise_published(raw: str | None) -> str | None:
 
     A single canonical format makes lexicographic order match chronological order,
     so date-range queries can compare ``published`` strings directly. A value that
-    cannot be parsed degrades to ``None`` rather than raising -- a missing date
-    must not sink an otherwise-good video (partial-failure preservation)."""
+    cannot be parsed -- or that carries no timezone, so its instant is unknown --
+    degrades to ``None`` rather than raising or being falsely stamped 'Z': a
+    missing or ambiguous date must not sink an otherwise-good video, nor corrupt
+    the ordering by pretending an unknown-offset time is UTC."""
     if not raw:
         return None
     try:
         moment = datetime.fromisoformat(raw)
     except ValueError:
         return None
-    if moment.tzinfo is not None:
-        moment = moment.astimezone(UTC)
-    return moment.strftime("%Y-%m-%dT%H:%M:%SZ")
+    if moment.tzinfo is None:
+        return None
+    return moment.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _matching_title(

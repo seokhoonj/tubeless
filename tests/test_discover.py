@@ -84,6 +84,12 @@ def test_normalise_published_degrades_unparseable_to_none():
     assert _normalise_published("last Tuesday") is None
 
 
+def test_normalise_published_rejects_a_naive_timestamp():
+    # A timezone-naive time has an unknown instant; stamping it 'Z' would fake UTC
+    # and corrupt the lexicographic==chronological ordering, so it degrades to None.
+    assert _normalise_published("2026-07-20T09:00:00") is None
+
+
 def _video(video_id: str, title: str) -> Video:
     return Video(video_id=video_id, title=title, url="", channel=None)
 
