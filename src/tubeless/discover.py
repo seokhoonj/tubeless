@@ -13,7 +13,7 @@ feed to filter them itself.
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from urllib.parse import parse_qs, urlparse
 from xml.etree import ElementTree
 
@@ -143,7 +143,7 @@ def _normalise_published(raw: str | None) -> str | None:
     except ValueError:
         return None
     if moment.tzinfo is not None:
-        moment = moment.astimezone(timezone.utc)
+        moment = moment.astimezone(UTC)
     return moment.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 

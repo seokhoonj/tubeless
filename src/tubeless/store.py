@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
 
@@ -127,7 +127,7 @@ class FileStore:
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).strftime(_TIMESTAMP_FORMAT)
+    return datetime.now(UTC).strftime(_TIMESTAMP_FORMAT)
 
 
 def _summary_to_dict(summary: Summary) -> dict[str, object]:

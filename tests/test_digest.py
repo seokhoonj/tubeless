@@ -10,7 +10,6 @@ import pytest
 import tubeless.digest as digest_module
 from tubeless.channels import Channel
 from tubeless.digest import (
-    DEFAULT_PER_CHANNEL_LIMIT,
     Skip,
     curate,
     recompute,

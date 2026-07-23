@@ -309,26 +309,23 @@ List the channels and series you follow in `~/.tubeless/channels.toml`:
 ```toml
 [[channel]]
 source = "@examplechannel"      # a handle, channel URL, 'UC...' id, or playlist
-label  = "Example Channel"
 detail = "deep"
 
 [[channel]]
 # A bare 'UC...' id skips the handle-to-id lookup, so it is the most stable form
 # (find it in the channel page's URL, or via 'Share' on the channel).
 source = "UCxxxxxxxxxxxxxxxxxxxxxx"
-label  = "Another Channel"
 detail = "normal"
 
 [[channel]]
-# A playlist narrows a channel to one series; title_includes narrows it further
-# to uploads whose title contains every listed word (e.g. one recurring host).
-# title_excludes then drops uploads carrying any listed word -- e.g. skip the
-# "LIVE" broadcast a channel keeps alongside an edited replay of the same episode.
-source         = "PLxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-label          = "A Daily Show"
-detail         = "deep"
-title_includes = ["Some Host"]
-title_excludes = ["LIVE"]
+# A playlist narrows a channel to one series; includes narrows it further to
+# uploads whose title contains every listed word (e.g. one recurring host).
+# excludes then drops uploads carrying any listed word -- e.g. skip the "LIVE"
+# broadcast a channel keeps alongside an edited replay of the same episode.
+source   = "PLxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+detail   = "deep"
+includes = ["Some Host"]
+excludes = ["LIVE"]
 ```
 
 Then run:
@@ -351,7 +348,7 @@ follow. Needs two or more videos.
 
 | digest option | what it does | default |
 |---|---|---|
-| `--only TEXT` | Run only channels whose label contains this text. | all |
+| `--only TEXT` | Run only channels whose source contains this text. | all |
 | `--limit N` | Max recent uploads to check per channel. | `5` |
 | `--synthesize` | Lead the digest with a cross-video synthesis — overall tone, agreement, and divergence. Needs 2+ videos. | off |
 | `--dry-run` | Print the digest instead of writing it / updating state. | off |
@@ -448,19 +445,22 @@ Show the TL;DR and key points back to the user.
 ### Use it as a Python library
 
 ```python
-from tubeless import OpenAIBackend, fetch_transcript, fetch_video_meta, summarize
+from tubeless import OpenAIBackend, summarize
 
-video      = fetch_video_meta("https://youtu.be/VIDEO_ID_XX")
-transcript = fetch_transcript(video.video_id)
-summary    = summarize(transcript, video, OpenAIBackend(), detail="deep")
+# One call: fetch the video's metadata and transcript, then summarize.
+summary = summarize("https://youtu.be/VIDEO_ID_XX", OpenAIBackend(), detail="deep")
 print(summary.tldr)
 for point in summary.points:
     print("-", point)
 ```
 
+If you already hold a transcript, call the core directly:
+`summarize_transcript(video, transcript, backend, detail=...)` (with
+`fetch_video` and `fetch_transcript` to obtain the two).
+
 `ClaudeBackend` and `OllamaBackend` are drop-in replacements for
-`OpenAIBackend`. The digest pieces (`load_channels`, `curate`,
-`to_markdown`) are exported too.
+`OpenAIBackend`. The digest pieces (`discover`, `run_digest`, `curate`,
+`recompute`, `to_markdown`, `FileStore`) are exported too.
 
 ### How it works
 
@@ -783,26 +783,23 @@ tubeless VIDEO_ID_XX --detail deep --max-points 30
 ```toml
 [[channel]]
 source = "@examplechannel"      # 핸들 · 채널URL · 'UC...' id · 재생목록
-label  = "예시 채널"
 detail = "deep"
 
 [[channel]]
 # 'UC...' id를 직접 쓰면 핸들->id 조회를 건너뛰어 가장 안정적입니다
 # (채널 페이지 URL이나 '공유'에서 확인).
 source = "UCxxxxxxxxxxxxxxxxxxxxxx"
-label  = "다른 채널"
 detail = "normal"
 
 [[channel]]
-# 재생목록은 채널을 한 시리즈로 좁히고, title_includes는 제목에 나열된 단어를
-# 모두 포함하는 영상만 남깁니다(예: 특정 진행자 회차만). title_excludes는 나열된
-# 단어가 하나라도 든 영상을 제외합니다 -- 예: 같은 회차의 편집본과 함께 올라오는
+# 재생목록은 채널을 한 시리즈로 좁히고, includes는 제목에 나열된 단어를 모두
+# 포함하는 영상만 남깁니다(예: 특정 진행자 회차만). excludes는 나열된 단어가
+# 하나라도 든 영상을 제외합니다 -- 예: 같은 회차의 편집본과 함께 올라오는
 # "LIVE" 생방송을 건너뜁니다.
-source         = "PLxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-label          = "어떤 데일리 쇼"
-detail         = "deep"
-title_includes = ["진행자이름"]
-title_excludes = ["LIVE"]
+source   = "PLxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+detail   = "deep"
+includes = ["진행자이름"]
+excludes = ["LIVE"]
 ```
 
 그리고:
@@ -824,7 +821,7 @@ tubeless digest --dry-run    # 저장 없이 화면에만 출력
 
 | digest 옵션 | 뜻 | 기본값 |
 |---|---|---|
-| `--only TEXT` | 라벨에 이 텍스트가 든 채널만 실행. | 전체 |
+| `--only TEXT` | source에 이 텍스트가 든 채널만 실행. | 전체 |
 | `--limit N` | 채널당 확인할 최근 업로드 최대 개수. | `5` |
 | `--synthesize` | 다이제스트 맨 위에 영상 종합 — 전반 톤·합의·이견. 영상 2개 이상 필요. | 꺼짐 |
 | `--dry-run` | 저장/상태 갱신 없이 화면 출력만. | 꺼짐 |
@@ -919,19 +916,22 @@ TL;DR과 핵심 포인트를 사용자에게 돌려준다.
 ### 파이썬 라이브러리로 쓰기
 
 ```python
-from tubeless import OpenAIBackend, fetch_transcript, fetch_video_meta, summarize
+from tubeless import OpenAIBackend, summarize
 
-video      = fetch_video_meta("https://youtu.be/VIDEO_ID_XX")
-transcript = fetch_transcript(video.video_id)
-summary    = summarize(transcript, video, OpenAIBackend(), detail="deep")
+# 한 번의 호출로 영상 메타데이터와 자막을 받아 요약합니다.
+summary = summarize("https://youtu.be/VIDEO_ID_XX", OpenAIBackend(), detail="deep")
 print(summary.tldr)
 for point in summary.points:
     print("-", point)
 ```
 
+이미 자막을 갖고 있으면 코어를 직접 부릅니다:
+`summarize_transcript(video, transcript, backend, detail=...)`
+(`fetch_video`·`fetch_transcript`로 둘을 얻습니다).
+
 `ClaudeBackend`·`OllamaBackend`는 `OpenAIBackend`와 그대로 바꿔 끼울 수
-있습니다. 다이제스트 조각(`load_channels`, `curate`, `to_markdown`)도
-export되어 있습니다.
+있습니다. 다이제스트 조각(`discover`, `run_digest`, `curate`, `recompute`,
+`to_markdown`, `FileStore`)도 export되어 있습니다.
 
 ### 동작 방식
 

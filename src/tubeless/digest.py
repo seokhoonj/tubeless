@@ -180,7 +180,7 @@ def curate(
     importances = score(summaries, backend, language=language)
     assert len(importances) == len(summaries), "score must return one importance per summary"
     entries = [Entry(summary=summary, importance=importance)
-               for summary, importance in zip(summaries, importances)]
+               for summary, importance in zip(summaries, importances, strict=True)]
     entries.sort(key=lambda entry: entry.importance.score, reverse=True)
 
     # synthesize returns None below two summaries (and makes no backend call), so

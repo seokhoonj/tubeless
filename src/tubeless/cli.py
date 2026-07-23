@@ -22,11 +22,10 @@ from pathlib import Path
 from tubeless import config
 from tubeless.channels import CHANNELS_PATH, load_channels
 from tubeless.digest import DEFAULT_PER_CHANNEL_LIMIT, recompute, run_digest
+from tubeless.discover import DEFAULT_SCAN, discover
 from tubeless.errors import ConfigError, ScheduleError, TubelessError
 from tubeless.llm import BACKENDS, make_backend
-from tubeless.discover import DEFAULT_SCAN, discover
 from tubeless.render import to_markdown
-from tubeless.store import CORPUS_ROOT, FileStore
 from tubeless.schedule import (
     DEFAULT_DAILY_TIME,
     DigestSchedule,
@@ -35,6 +34,7 @@ from tubeless.schedule import (
     scheduler_for_platform,
 )
 from tubeless.state import STATE_PATH, read_seen, write_seen
+from tubeless.store import CORPUS_ROOT, FileStore
 from tubeless.summary import (
     DEFAULT_DETAIL,
     DEFAULT_LANGUAGE,
