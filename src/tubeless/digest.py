@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from typing import Literal, NamedTuple
 
 from tubeless.channels import Channel
-from tubeless.discover import DEFAULT_SCAN, discover
+from tubeless.discover import DEFAULT_SCAN, fetch_recent_videos
 from tubeless.errors import FeedError, TranscriptUnavailable
 from tubeless.importance import Importance, score
 from tubeless.llm import LLMBackend
@@ -234,7 +234,7 @@ def run_digest(
         has_filter = bool(channel.includes or channel.excludes)
         limit      = DEFAULT_SCAN if has_filter else per_channel_limit
         try:
-            videos = discover(
+            videos = fetch_recent_videos(
                 channel.source, limit=limit,
                 includes=channel.includes, excludes=channel.excludes,
             )

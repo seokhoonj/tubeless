@@ -16,7 +16,7 @@ from tubeless.digest import (
     run_digest,
     summarize_videos,
 )
-from tubeless.discover import DEFAULT_SCAN, discover
+from tubeless.discover import DEFAULT_SCAN, fetch_recent_videos
 from tubeless.errors import (
     ConfigError,
     CorpusError,
@@ -85,7 +85,7 @@ __all__ = [
     "TubelessError",
     "Video",
     "curate",
-    "discover",
+    "fetch_recent_videos",
     "fetch_transcript",
     "fetch_video",
     "load_channels",

@@ -196,7 +196,7 @@ def test_curate_of_no_summaries_is_an_empty_digest():
 def _discover_returns(monkeypatch, by_source):
     def fake_discover(source, *, limit, includes=(), excludes=()):
         return by_source.get(source, ())
-    monkeypatch.setattr(digest_module, "discover", fake_discover)
+    monkeypatch.setattr(digest_module, "fetch_recent_videos", fake_discover)
     monkeypatch.setattr(digest_module, "fetch_transcript", lambda video: _transcript(video.video_id))
 
 
@@ -241,7 +241,7 @@ def test_run_digest_records_a_feed_failure_as_a_skip_and_continues(monkeypatch):
             raise FeedError("feed down")
         return (_video("aaaaaaaaaaa", "one"),)
 
-    monkeypatch.setattr(digest_module, "discover", fake_discover)
+    monkeypatch.setattr(digest_module, "fetch_recent_videos", fake_discover)
     monkeypatch.setattr(digest_module, "fetch_transcript", lambda video: _transcript(video.video_id))
     channels = (Channel(source="@dead"), Channel(source="@x"))
 
@@ -261,7 +261,7 @@ def test_run_digest_scans_the_full_window_for_a_filtered_channel(monkeypatch):
         seen_limits[source] = limit
         return ()
 
-    monkeypatch.setattr(digest_module, "discover", fake_discover)
+    monkeypatch.setattr(digest_module, "fetch_recent_videos", fake_discover)
     channels = (
         Channel(source="@filtered", includes=("live",)),
         Channel(source="@plain"),
@@ -280,7 +280,7 @@ def test_run_digest_surfaces_a_captionless_video_as_a_skip(monkeypatch):
     def fake_discover(source, *, limit, includes=(), excludes=()):
         return (_video("ccccccccccc", "no captions"),)
 
-    monkeypatch.setattr(digest_module, "discover", fake_discover)
+    monkeypatch.setattr(digest_module, "fetch_recent_videos", fake_discover)
     monkeypatch.setattr(digest_module, "fetch_transcript", fetch)
 
     run = run_digest(_ONE_CHANNEL, ScoringBackend(), period="d")
@@ -297,7 +297,7 @@ def test_run_digest_aborts_on_a_transient_block_before_persisting(monkeypatch):
     def blocked(video):
         raise TranscriptFetchBlocked("ip blocked")
 
-    monkeypatch.setattr(digest_module, "discover", fake_discover)
+    monkeypatch.setattr(digest_module, "fetch_recent_videos", fake_discover)
     monkeypatch.setattr(digest_module, "fetch_transcript", blocked)
 
     with pytest.raises(TranscriptFetchBlocked):

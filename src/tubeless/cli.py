@@ -23,7 +23,7 @@ from pathlib import Path
 from tubeless import config
 from tubeless.channels import CHANNELS_PATH, load_channels
 from tubeless.digest import DEFAULT_PER_CHANNEL_LIMIT, recompute, run_digest
-from tubeless.discover import DEFAULT_SCAN, discover
+from tubeless.discover import DEFAULT_SCAN, fetch_recent_videos
 from tubeless.errors import ConfigError, ScheduleError, TubelessError
 from tubeless.llm import BACKENDS, make_backend
 from tubeless.render import render_markdown
@@ -168,7 +168,7 @@ def _run_recompute(args: argparse.Namespace) -> int:
 
 
 def _run_discover(args: argparse.Namespace) -> int:
-    for video in discover(args.source, limit=args.limit):
+    for video in fetch_recent_videos(args.source, limit=args.limit):
         print(f"{video.video_id}  {video.published or '?':<20}  {video.title}")
     return 0
 

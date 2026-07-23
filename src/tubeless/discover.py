@@ -22,7 +22,7 @@ import requests
 from tubeless.errors import FeedError
 from tubeless.source import Video
 
-__all__ = ["DEFAULT_SCAN", "discover"]
+__all__ = ["DEFAULT_SCAN", "fetch_recent_videos"]
 
 _FEED_URL        = "https://www.youtube.com/feeds/videos.xml"
 _TIMEOUT_SECONDS = 15.0
@@ -56,7 +56,7 @@ _NS = {
 }
 
 
-def discover(
+def fetch_recent_videos(
     source: str,
     *,
     limit:    int = DEFAULT_SCAN,

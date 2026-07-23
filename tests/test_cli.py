@@ -342,7 +342,7 @@ def test_digest_writes_summaries_and_transcripts_to_the_store(
     monkeypatch.setattr(cli_module, "load_channels",
                         lambda path: (Channel(source="@x"),))
     monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
-    monkeypatch.setattr(digest_module, "discover",
+    monkeypatch.setattr(digest_module, "fetch_recent_videos",
                         lambda source, *, limit, includes=(), excludes=(): (SAMPLE_VIDEO,))
     monkeypatch.setattr(digest_module, "fetch_transcript", lambda video: SAMPLE_TRANSCRIPT)
     corpus_dir = tmp_path / "corpus"
@@ -446,7 +446,7 @@ def test_discover_lists_the_sources_videos(
         Video(video_id="aaaaaaaaaaa", title="First", url="u1", channel="C", published="2026-07-20T09:00:00Z"),
         Video(video_id="bbbbbbbbbbb", title="Second", url="u2", channel="C", published=None),
     )
-    monkeypatch.setattr(cli_module, "discover", lambda source, *, limit: videos)
+    monkeypatch.setattr(cli_module, "fetch_recent_videos", lambda source, *, limit: videos)
 
     exit_code = main(["discover", "@somechannel"])
 

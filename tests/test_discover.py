@@ -4,7 +4,7 @@ import importlib
 
 import pytest
 
-from tubeless import DEFAULT_SCAN, discover
+from tubeless import DEFAULT_SCAN, fetch_recent_videos
 from tubeless.discover import (
     _matching_title,
     _normalise_published,
@@ -15,8 +15,7 @@ from tubeless.discover import (
 from tubeless.errors import FeedError
 from tubeless.source import Video
 
-# The package re-exports the discover() function, which shadows the
-# tubeless.discover attribute; reach the module itself for monkeypatching.
+# Reach the module for monkeypatching its private helpers / requests.
 discover_module = importlib.import_module("tubeless.discover")
 
 _PLAYLIST_ID = "PLexampleexampleexampleexample01"
@@ -128,11 +127,11 @@ def test_discover_routes_a_playlist_and_a_channel_to_the_right_feed(
         discover_module, "_scan_feed", lambda params, *, limit: seen.update(params) or ()
     )
 
-    discover(_PLAYLIST_ID)
+    fetch_recent_videos(_PLAYLIST_ID)
     assert seen.get("playlist_id") == _PLAYLIST_ID
 
     seen.clear()
-    discover(_CHANNEL_ID)   # a bare 'UC...' id resolves to itself, no page fetch
+    fetch_recent_videos(_CHANNEL_ID)   # a bare 'UC...' id resolves to itself, no page fetch
     assert seen.get("channel_id") == _CHANNEL_ID
 
 
@@ -148,7 +147,7 @@ def test_discover_scans_the_default_window_and_filters(monkeypatch: pytest.Monke
 
     monkeypatch.setattr(discover_module, "_scan_feed", fake_scan)
 
-    kept = discover(_CHANNEL_ID, includes=("daily",), excludes=("live",))
+    kept = fetch_recent_videos(_CHANNEL_ID, includes=("daily",), excludes=("live",))
 
     assert captured["limit"] == DEFAULT_SCAN          # default scans the full window
     assert [v.video_id for v in kept] == ["bbbbbbbbbbb"]
@@ -163,7 +162,7 @@ def test_discover_wraps_a_request_error(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr(discover_module.requests, "get", boom)
 
     with pytest.raises(FeedError):
-        discover(_CHANNEL_ID)
+        fetch_recent_videos(_CHANNEL_ID)
 
 
 # --- source resolution helpers ------------------------------------------------
