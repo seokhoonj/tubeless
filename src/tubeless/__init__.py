@@ -13,6 +13,7 @@ from tubeless.corpus import (
     load_transcript,
 )
 from tubeless.digest import Digest, DigestEntry, curate, record_entry
+from tubeless.discover import DEFAULT_SCAN, discover
 from tubeless.errors import (
     ConfigError,
     CorpusError,
@@ -51,6 +52,7 @@ __all__ = [
     "Channel",
     "ClaudeBackend",
     "ConfigError",
+    "DEFAULT_SCAN",
     "CorpusEntry",
     "CorpusError",
     "DETAIL_LEVELS",
@@ -78,6 +80,7 @@ __all__ = [
     "append_entry",
     "archive_transcript",
     "curate",
+    "discover",
     "fetch_channel_uploads",
     "fetch_playlist_uploads",
     "fetch_uploads",
