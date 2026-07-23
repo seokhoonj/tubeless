@@ -16,6 +16,7 @@ import argparse
 import dataclasses
 import datetime
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -48,6 +49,13 @@ __all__ = ["main"]
 _SUBCOMMANDS = ("summarize", "digest", "recompute", "discover", "schedule")
 _DIGEST_DIR  = Path.home() / ".tubeless" / "digests"
 
+# A YouTube id is 11 base64url characters, so ~1 in 64 starts with '-'. argparse
+# would read such a bare id as an option flag, so a leading-dash id is rewritten
+# to its watch URL (which never starts with '-') before parsing. The pattern is
+# strict, so a genuine mistyped flag (e.g. '--jsonn') is NOT rewritten and still
+# gets argparse's normal error.
+_LEADING_DASH_ID = re.compile(r"^-[A-Za-z0-9_-]{10}$")
+
 
 def main(argv: list[str] | None = None) -> int:
     """Run the chosen subcommand; return the process exit code."""
@@ -67,10 +75,22 @@ def main(argv: list[str] | None = None) -> int:
 
 def _with_default_subcommand(argv: list[str]) -> list[str]:
     """Insert 'summarize' when the first token is neither a subcommand nor a
-    help flag, so a bare ``tubeless <url>`` still means ``tubeless summarize``."""
+    help flag, so a bare ``tubeless <url>`` still means ``tubeless summarize``.
+
+    Also rewrite a leading-dash bare video id (which argparse would treat as an
+    option) to its watch URL, whether it heads a bare run or follows an explicit
+    ``summarize``."""
+    argv = list(argv)
+    if argv and argv[0] == "summarize" and len(argv) > 1 and _LEADING_DASH_ID.match(argv[1]):
+        argv[1] = _watch_url(argv[1])
     if argv and argv[0] not in _SUBCOMMANDS and argv[0] not in ("-h", "--help"):
-        return ["summarize", *argv]
+        head = _watch_url(argv[0]) if _LEADING_DASH_ID.match(argv[0]) else argv[0]
+        return ["summarize", head, *argv[1:]]
     return argv
+
+
+def _watch_url(video_id: str) -> str:
+    return f"https://www.youtube.com/watch?v={video_id}"
 
 
 def _run_summarize(args: argparse.Namespace) -> int:
@@ -93,7 +113,8 @@ def _run_summarize(args: argparse.Namespace) -> int:
 def _run_digest(args: argparse.Namespace) -> int:
     channels = load_channels(args.channels)
     if args.only:
-        channels = tuple(c for c in channels if args.only.lower() in c.source.lower())
+        only = args.only.lower()
+        channels = tuple(channel for channel in channels if only in channel.source.lower())
         if not channels:
             raise ConfigError(f"no channel source contains {args.only!r} in {args.channels}")
     backend = make_backend(args.backend, model=args.model)

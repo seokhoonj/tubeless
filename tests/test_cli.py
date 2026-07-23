@@ -42,7 +42,7 @@ class CannedBackend:
 @pytest.fixture
 def pipeline_with_fakes(monkeypatch: pytest.MonkeyPatch, _no_config_file) -> None:
     monkeypatch.setattr(summary_module, "fetch_video", lambda url: SAMPLE_VIDEO)
-    monkeypatch.setattr(summary_module, "fetch_transcript", lambda video_id: SAMPLE_TRANSCRIPT)
+    monkeypatch.setattr(summary_module, "fetch_transcript", lambda video: SAMPLE_TRANSCRIPT)
     monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
 
 
@@ -76,7 +76,7 @@ def test_tubeless_backend_env_routes_a_bare_run_to_that_vendor(
 ) -> None:
     monkeypatch.setenv("TUBELESS_BACKEND", "gemini")
     monkeypatch.setattr(summary_module, "fetch_video", lambda url: SAMPLE_VIDEO)
-    monkeypatch.setattr(summary_module, "fetch_transcript", lambda video_id: SAMPLE_TRANSCRIPT)
+    monkeypatch.setattr(summary_module, "fetch_transcript", lambda video: SAMPLE_TRANSCRIPT)
     built = {}
 
     # The fake mirrors GeminiBackend's real default model, so a bare run (model
@@ -147,7 +147,7 @@ def test_tubeless_detail_env_sets_the_default_detail(
 ) -> None:
     monkeypatch.setenv("TUBELESS_DETAIL", "deep")
     monkeypatch.setattr(summary_module, "fetch_video", lambda url: SAMPLE_VIDEO)
-    monkeypatch.setattr(summary_module, "fetch_transcript", lambda video_id: SAMPLE_TRANSCRIPT)
+    monkeypatch.setattr(summary_module, "fetch_transcript", lambda video: SAMPLE_TRANSCRIPT)
     monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
     seen: dict[str, object] = {}
     real_summarize = cli_module.summarize
@@ -167,7 +167,7 @@ def test_tubeless_max_points_env_caps_points(
 ) -> None:
     monkeypatch.setenv("TUBELESS_MAX_POINTS", "3")
     monkeypatch.setattr(summary_module, "fetch_video", lambda url: SAMPLE_VIDEO)
-    monkeypatch.setattr(summary_module, "fetch_transcript", lambda video_id: SAMPLE_TRANSCRIPT)
+    monkeypatch.setattr(summary_module, "fetch_transcript", lambda video: SAMPLE_TRANSCRIPT)
     monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
     seen: dict[str, object] = {}
     real_summarize = cli_module.summarize
@@ -278,6 +278,29 @@ def test_explicit_summarize_subcommand_works(
 
     assert exit_code == 0
     assert "A talk about ducks" in capsys.readouterr().out
+
+
+def test_bare_video_id_starting_with_a_dash_is_accepted(
+    pipeline_with_fakes: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # A YouTube id can start with '-' (base64url); argparse would read it as an
+    # option, so it must be rewritten to a URL and still summarize -- both bare
+    # and after an explicit `summarize`.
+    assert main(["-bcdefghij0"]) == 0
+    assert main(["summarize", "-bcdefghij0"]) == 0
+
+
+def test_with_default_subcommand_rewrites_a_leading_dash_id_to_a_url() -> None:
+    from tubeless.cli import _with_default_subcommand
+
+    assert _with_default_subcommand(["-bcdefghij0"]) == [
+        "summarize", "https://www.youtube.com/watch?v=-bcdefghij0",
+    ]
+    assert _with_default_subcommand(["summarize", "-bcdefghij0", "--json"]) == [
+        "summarize", "https://www.youtube.com/watch?v=-bcdefghij0", "--json",
+    ]
+    # a real mistyped flag is NOT rewritten (11-char id pattern does not match)
+    assert _with_default_subcommand(["--jsonn"]) == ["summarize", "--jsonn"]
 
 
 def test_digest_dry_run_prints_markdown_without_writing(
