@@ -43,7 +43,13 @@ from tubeless.llm import (
 )
 from tubeless.render import to_markdown
 from tubeless.source import Video, fetch_video, parse_video_id
-from tubeless.summary import DETAIL_LEVELS, DetailLevel, Summary, summarise, summarize
+from tubeless.summary import (
+    DETAIL_LEVELS,
+    DetailLevel,
+    Summary,
+    summarize,
+    summarize_transcript,
+)
 from tubeless.synthesis import Synthesis, synthesize
 from tubeless.transcript import Transcript, TranscriptSegment, fetch_transcript
 
@@ -94,8 +100,8 @@ __all__ = [
     "record_entry",
     "resolve_channel_id",
     "score_importance",
-    "summarise",
     "summarize",
+    "summarize_transcript",
     "synthesize",
     "to_markdown",
 ]

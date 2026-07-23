@@ -19,7 +19,7 @@ _REPLY = (
 
 def _summary(title: str, tldr: str, points: tuple[str, ...]) -> Summary:
     video = Video(video_id="vid00000001", title=title, url="https://x", channel="c")
-    return Summary(video=video, tldr=tldr, points=points, language="en")
+    return Summary(video=video, tldr=tldr, points=points, language="en", detail="normal")
 
 
 class OneReplyBackend:

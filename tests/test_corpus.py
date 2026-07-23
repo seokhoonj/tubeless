@@ -228,6 +228,7 @@ def test_record_entry_appends_the_summary_and_archives_the_transcript(tmp_path):
         tldr     = "One-line gist.",
         points   = ("first point", "second point"),
         language = "en",
+        detail   = "normal",
     )
     entry = DigestEntry(
         channel    = "Channel A",

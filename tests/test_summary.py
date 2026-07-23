@@ -1,6 +1,6 @@
 import pytest
 
-from tubeless import Transcript, TranscriptSegment, Video, summarize
+from tubeless import Transcript, TranscriptSegment, Video, summarize_transcript
 from tubeless.summary import CHUNK_WORD_LIMIT, language_name
 
 SAMPLE_VIDEO = Video(
@@ -51,7 +51,7 @@ def test_language_name_maps_codes_and_passes_names_through() -> None:
 
 def test_summarize_prompt_uses_the_language_name_not_the_code() -> None:
     backend = RecordingBackend()
-    summary = summarize(make_transcript(n_words=10), SAMPLE_VIDEO, backend, target_language="ko")
+    summary = summarize_transcript(SAMPLE_VIDEO, make_transcript(n_words=10), backend, language="ko")
 
     # the model is told "Korean", not the bare "ko" it tends to ignore
     assert "Answer in Korean" in backend.prompts[0]
@@ -63,7 +63,7 @@ def test_summarize_prompt_uses_the_language_name_not_the_code() -> None:
 def test_summarize_parses_tldr_and_points_from_the_reply() -> None:
     backend = RecordingBackend()
 
-    summary = summarize(make_transcript(n_words=50), SAMPLE_VIDEO, backend)
+    summary = summarize_transcript(SAMPLE_VIDEO, make_transcript(n_words=50), backend)
 
     assert summary.tldr   == "Ducks are covered end to end."
     assert summary.points == ("Ducks float.", "Ducks quack.", "Ducks migrate.")
@@ -75,7 +75,7 @@ def test_summarize_caps_points_at_max_points() -> None:
     reply_with_five_points = "TLDR: gist\n" + "\n".join(f"- point {i}" for i in range(5))
     backend = RecordingBackend(reply=reply_with_five_points)
 
-    summary = summarize(make_transcript(n_words=50), SAMPLE_VIDEO, backend, max_points=2)
+    summary = summarize_transcript(SAMPLE_VIDEO, make_transcript(n_words=50), backend, max_points=2)
 
     assert summary.points == ("point 0", "point 1")
 
@@ -84,7 +84,7 @@ def test_summarize_parses_a_numbered_list_as_points() -> None:
     # Smaller models often answer with "1. 2. 3." instead of "- " bullets.
     backend = RecordingBackend(reply="TLDR: gist\n1. first\n2) second\n3. third\n")
 
-    summary = summarize(make_transcript(n_words=50), SAMPLE_VIDEO, backend)
+    summary = summarize_transcript(SAMPLE_VIDEO, make_transcript(n_words=50), backend)
 
     assert summary.tldr   == "gist"
     assert summary.points == ("first", "second", "third")
@@ -95,7 +95,7 @@ def test_summarize_parses_the_canonical_tldr_label() -> None:
     # as the plain "TLDR:" it still tolerates, and accept an em-dash separator.
     backend = RecordingBackend(reply="TL;DR — the gist\n- a point\n")
 
-    summary = summarize(make_transcript(n_words=50), SAMPLE_VIDEO, backend)
+    summary = summarize_transcript(SAMPLE_VIDEO, make_transcript(n_words=50), backend)
 
     assert summary.tldr   == "the gist"
     assert summary.points == ("a point",)
@@ -104,7 +104,7 @@ def test_summarize_parses_the_canonical_tldr_label() -> None:
 def test_summarize_parses_a_reply_without_a_tldr_label() -> None:
     backend = RecordingBackend(reply="Just the gist as plain prose.\n- one point\n")
 
-    summary = summarize(make_transcript(n_words=50), SAMPLE_VIDEO, backend)
+    summary = summarize_transcript(SAMPLE_VIDEO, make_transcript(n_words=50), backend)
 
     assert summary.tldr   == "Just the gist as plain prose."
     assert summary.points == ("one point",)
@@ -113,7 +113,7 @@ def test_summarize_parses_a_reply_without_a_tldr_label() -> None:
 def test_summarize_short_transcript_is_a_single_backend_call() -> None:
     backend = RecordingBackend()
 
-    summarize(make_transcript(n_words=50), SAMPLE_VIDEO, backend)
+    summarize_transcript(SAMPLE_VIDEO, make_transcript(n_words=50), backend)
 
     assert len(backend.prompts) == 1
     assert SAMPLE_VIDEO.title in backend.prompts[0]
@@ -123,7 +123,7 @@ def test_summarize_long_transcript_map_reduces_across_chunks() -> None:
     backend = RecordingBackend()
     three_chunks_of_words = make_transcript(n_words=CHUNK_WORD_LIMIT * 2 + 100)
 
-    summarize(three_chunks_of_words, SAMPLE_VIDEO, backend)
+    summarize_transcript(SAMPLE_VIDEO, three_chunks_of_words, backend)
 
     # Three map calls (one per chunk) plus one reduce call.
     assert len(backend.prompts) == 4
@@ -135,8 +135,8 @@ def test_summarize_long_transcript_map_reduces_across_chunks() -> None:
 def test_summarize_warns_about_auto_generated_captions_in_the_prompt() -> None:
     backend = RecordingBackend()
 
-    summarize(
-        make_transcript(n_words=50, is_auto_generated=True), SAMPLE_VIDEO, backend
+    summarize_transcript(
+        SAMPLE_VIDEO, make_transcript(n_words=50, is_auto_generated=True), backend
     )
 
     assert "auto-generated" in backend.prompts[0]
@@ -145,9 +145,9 @@ def test_summarize_warns_about_auto_generated_captions_in_the_prompt() -> None:
 def test_summarize_hedges_every_prompt_of_a_long_auto_generated_transcript() -> None:
     backend = RecordingBackend()
 
-    summarize(
-        make_transcript(n_words=CHUNK_WORD_LIMIT + 100, is_auto_generated=True),
+    summarize_transcript(
         SAMPLE_VIDEO,
+        make_transcript(n_words=CHUNK_WORD_LIMIT + 100, is_auto_generated=True),
         backend,
     )
 
@@ -157,7 +157,7 @@ def test_summarize_hedges_every_prompt_of_a_long_auto_generated_transcript() -> 
 def test_summarize_manual_transcript_does_not_mention_auto_captions() -> None:
     backend = RecordingBackend()
 
-    summarize(make_transcript(n_words=50, is_auto_generated=False), SAMPLE_VIDEO, backend)
+    summarize_transcript(SAMPLE_VIDEO, make_transcript(n_words=50, is_auto_generated=False), backend)
 
     assert "auto-generated" not in backend.prompts[0]
 
@@ -169,7 +169,7 @@ def _reply_with_points(n: int) -> str:
 def test_summarize_deep_detail_asks_for_fuller_points() -> None:
     backend = RecordingBackend()
 
-    summarize(make_transcript(n_words=50), SAMPLE_VIDEO, backend, detail="deep")
+    summarize_transcript(SAMPLE_VIDEO, make_transcript(n_words=50), backend, detail="deep")
 
     assert "two to four sentences" in backend.prompts[0]
 
@@ -177,7 +177,7 @@ def test_summarize_deep_detail_asks_for_fuller_points() -> None:
 def test_summarize_deep_detail_asks_to_preserve_every_figure() -> None:
     backend = RecordingBackend()
 
-    summarize(make_transcript(n_words=50), SAMPLE_VIDEO, backend, detail="deep")
+    summarize_transcript(SAMPLE_VIDEO, make_transcript(n_words=50), backend, detail="deep")
 
     assert "preserve EVERY specific figure" in backend.prompts[0]
 
@@ -188,8 +188,8 @@ def test_summarize_deep_detail_preserves_figures_in_every_map_chunk() -> None:
     # discarded. Every chunk prompt must carry it too.
     backend = RecordingBackend()
 
-    summarize(
-        make_transcript(n_words=CHUNK_WORD_LIMIT + 100), SAMPLE_VIDEO, backend, detail="deep"
+    summarize_transcript(
+        SAMPLE_VIDEO, make_transcript(n_words=CHUNK_WORD_LIMIT + 100), backend, detail="deep"
     )
 
     assert len(backend.prompts) > 1  # map-reduced
@@ -199,7 +199,7 @@ def test_summarize_deep_detail_preserves_figures_in_every_map_chunk() -> None:
 def test_summarize_normal_detail_does_not_force_figure_preservation() -> None:
     backend = RecordingBackend()
 
-    summarize(make_transcript(n_words=50), SAMPLE_VIDEO, backend, detail="normal")
+    summarize_transcript(SAMPLE_VIDEO, make_transcript(n_words=50), backend, detail="normal")
 
     assert "preserve EVERY specific figure" not in backend.prompts[0]
 
@@ -211,7 +211,7 @@ def test_summarize_detail_sets_the_default_point_cap(detail: str, cap: int) -> N
     # summary's length.
     backend = RecordingBackend(reply=_reply_with_points(20))
 
-    summary = summarize(make_transcript(n_words=50), SAMPLE_VIDEO, backend, detail=detail)
+    summary = summarize_transcript(SAMPLE_VIDEO, make_transcript(n_words=50), backend, detail=detail)
 
     assert len(summary.points) == cap
 
@@ -219,8 +219,8 @@ def test_summarize_detail_sets_the_default_point_cap(detail: str, cap: int) -> N
 def test_summarize_explicit_max_points_overrides_the_detail_default() -> None:
     backend = RecordingBackend(reply=_reply_with_points(20))
 
-    summary = summarize(
-        make_transcript(n_words=50), SAMPLE_VIDEO, backend, detail="deep", max_points=3
+    summary = summarize_transcript(
+        SAMPLE_VIDEO, make_transcript(n_words=50), backend, detail="deep", max_points=3
     )
 
     assert len(summary.points) == 3
@@ -230,14 +230,14 @@ def test_summarize_rejects_an_unknown_detail_level() -> None:
     backend = RecordingBackend()
 
     with pytest.raises(ValueError):
-        summarize(make_transcript(n_words=50), SAMPLE_VIDEO, backend, detail="huge")
+        summarize_transcript(SAMPLE_VIDEO, make_transcript(n_words=50), backend, detail="huge")
 
 
 def test_summarize_strips_bold_markers_from_the_tldr_label() -> None:
     # A common drift: the model bolds the label as "**TLDR:** ...".
     backend = RecordingBackend(reply="**TLDR:** the bolded gist\n- a point\n")
 
-    summary = summarize(make_transcript(n_words=50), SAMPLE_VIDEO, backend)
+    summary = summarize_transcript(SAMPLE_VIDEO, make_transcript(n_words=50), backend)
 
     assert summary.tldr   == "the bolded gist"
     assert summary.points == ("a point",)
@@ -248,7 +248,7 @@ def test_summarize_does_not_mistake_a_leading_year_for_a_numbered_point() -> Non
     # not be parsed as list item "2026".
     backend = RecordingBackend(reply="2026. The year in review\n- one point\n")
 
-    summary = summarize(make_transcript(n_words=50), SAMPLE_VIDEO, backend)
+    summary = summarize_transcript(SAMPLE_VIDEO, make_transcript(n_words=50), backend)
 
     assert summary.tldr   == "2026. The year in review"
     assert summary.points == ("one point",)
@@ -258,7 +258,7 @@ def test_summarize_with_max_points_zero_is_rejected() -> None:
     backend = RecordingBackend(reply=_reply_with_points(5))
 
     with pytest.raises(ValueError):
-        summarize(make_transcript(n_words=50), SAMPLE_VIDEO, backend, max_points=0)
+        summarize_transcript(SAMPLE_VIDEO, make_transcript(n_words=50), backend, max_points=0)
 
 
 def test_summarize_with_negative_max_points_is_rejected() -> None:
@@ -266,7 +266,7 @@ def test_summarize_with_negative_max_points_is_rejected() -> None:
     backend = RecordingBackend(reply=_reply_with_points(5))
 
     with pytest.raises(ValueError):
-        summarize(make_transcript(n_words=50), SAMPLE_VIDEO, backend, max_points=-2)
+        summarize_transcript(SAMPLE_VIDEO, make_transcript(n_words=50), backend, max_points=-2)
 
 
 def test_summarize_rejoins_a_point_wrapped_onto_a_second_line() -> None:
@@ -277,7 +277,7 @@ def test_summarize_rejoins_a_point_wrapped_onto_a_second_line() -> None:
         reply="TLDR: gist\n- A long point that runs\non into a second line.\n- Second point\n"
     )
 
-    summary = summarize(make_transcript(n_words=50), SAMPLE_VIDEO, backend)
+    summary = summarize_transcript(SAMPLE_VIDEO, make_transcript(n_words=50), backend)
 
     assert summary.points == (
         "A long point that runs on into a second line.",
@@ -293,7 +293,7 @@ def test_summarize_does_not_glue_a_trailing_remark_onto_a_complete_point() -> No
         reply="TLDR: gist\n- Point one.\n- Point two.\nIn summary, watch the Fed.\n"
     )
 
-    summary = summarize(make_transcript(n_words=50), SAMPLE_VIDEO, backend)
+    summary = summarize_transcript(SAMPLE_VIDEO, make_transcript(n_words=50), backend)
 
     assert summary.points == ("Point one.", "Point two.")
 
@@ -301,9 +301,37 @@ def test_summarize_does_not_glue_a_trailing_remark_onto_a_complete_point() -> No
 def test_summarize_passes_the_target_language_into_the_prompt() -> None:
     backend = RecordingBackend()
 
-    summary = summarize(
-        make_transcript(n_words=50), SAMPLE_VIDEO, backend, target_language="en"
+    summary = summarize_transcript(
+        SAMPLE_VIDEO, make_transcript(n_words=50), backend, language="en"
     )
 
     assert summary.language == "en"
     assert "Answer in English." in backend.prompts[0]
+
+
+def test_summarize_transcript_records_the_detail_it_was_written_at() -> None:
+    backend = RecordingBackend()
+
+    summary = summarize_transcript(SAMPLE_VIDEO, make_transcript(n_words=50), backend, detail="deep")
+
+    assert summary.detail == "deep"
+
+
+def test_summarize_wrapper_fetches_metadata_and_transcript_then_summarizes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The one-URL wrapper resolves the video and transcript itself, then delegates
+    # to summarize_transcript -- so a caller with only a URL needs one call.
+    import tubeless.summary as summary_module
+    from tubeless import summarize
+
+    backend = RecordingBackend()
+    monkeypatch.setattr(summary_module, "fetch_video", lambda url_or_id: SAMPLE_VIDEO)
+    monkeypatch.setattr(summary_module, "fetch_transcript", lambda video: make_transcript(n_words=50))
+
+    summary = summarize(SAMPLE_VIDEO.url, backend, detail="deep", language="ko")
+
+    assert summary.video    == SAMPLE_VIDEO
+    assert summary.detail   == "deep"
+    assert summary.language == "ko"
+    assert "Answer in Korean" in backend.prompts[0]

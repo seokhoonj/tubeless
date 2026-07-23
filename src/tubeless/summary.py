@@ -12,8 +12,8 @@ from dataclasses import dataclass
 from typing import Literal
 
 from tubeless.llm import LLMBackend
-from tubeless.source import Video
-from tubeless.transcript import Transcript
+from tubeless.source import Video, fetch_video
+from tubeless.transcript import Transcript, fetch_transcript
 
 __all__ = [
     "DEFAULT_DETAIL",
@@ -22,8 +22,8 @@ __all__ = [
     "DetailLevel",
     "Summary",
     "language_name",
-    "summarise",
     "summarize",
+    "summarize_transcript",
 ]
 
 # YouTube's ISO codes are what --lang carries; a model follows a full language
@@ -168,24 +168,33 @@ _TLDR_LABEL = re.compile(r"(?i)^tl;?dr\s*[:\-–—]\s*(.*)$")
 
 @dataclass(frozen=True, slots=True)
 class Summary:
-    """The finished summary of one video, in ``language``."""
+    """The finished summary of one video, in ``language`` at depth ``detail``.
+
+    ``detail`` records which level produced this summary, so a stored summary
+    carries the depth it was written at (a re-summary at another depth is a
+    distinct record, not an overwrite)."""
 
     video:    Video
     tldr:     str
     points:   tuple[str, ...]
     language: str
+    detail:   DetailLevel
 
 
-def summarize(
-    transcript: Transcript,
+def summarize_transcript(
     video:      Video,
+    transcript: Transcript,
     backend:    LLMBackend,
     *,
-    target_language: str = DEFAULT_LANGUAGE,
-    detail:          DetailLevel = DEFAULT_DETAIL,
-    max_points:      int | None = None,
+    detail:     DetailLevel = DEFAULT_DETAIL,
+    language:   str = DEFAULT_LANGUAGE,
+    max_points: int | None = None,
 ) -> Summary:
-    """Summarize ``transcript`` into a TL;DR plus key points.
+    """Summarize an already-fetched ``transcript`` into a TL;DR plus key points.
+
+    This is the core: it takes the transcript the caller already has, so a
+    digest that fetched many transcripts summarizes each without re-fetching.
+    ``summarize`` is the one-URL wrapper over it.
 
     ``detail`` ('brief' / 'normal' / 'deep') sets how fully the summary is
     written -- the TL;DR length, how many sentences each point carries, and the
@@ -212,22 +221,22 @@ def summarize(
         raise ValueError(f"max_points must be >= 1, got {max_points}")
     cap = spec.max_points if max_points is None else max_points
 
-    hedge    = _AUTO_CAPTION_HEDGE if transcript.is_auto_generated else ""
-    chunks   = _split_into_chunks(transcript.text, word_limit=CHUNK_WORD_LIMIT)
-    language = language_name(target_language)   # a name, not a bare code, in the prompt
+    hedge           = _AUTO_CAPTION_HEDGE if transcript.is_auto_generated else ""
+    chunks          = _split_into_chunks(transcript.text, word_limit=CHUNK_WORD_LIMIT)
+    prompt_language = language_name(language)   # a name, not a bare code, in the prompt
 
     if len(chunks) == 1:
         reply = backend.complete(
             _single_pass_prompt(
                 chunks[0], video, hedge=hedge,
-                language=language, spec=spec, max_points=cap,
+                language=prompt_language, spec=spec, max_points=cap,
             ),
             system=_SYSTEM_PROMPT,
         )
     else:
         chunk_summaries = [
             backend.complete(
-                _chunk_prompt(chunk, video, hedge=hedge, language=language, spec=spec),
+                _chunk_prompt(chunk, video, hedge=hedge, language=prompt_language, spec=spec),
                 system=_SYSTEM_PROMPT,
             )
             for chunk in chunks
@@ -235,17 +244,39 @@ def summarize(
         reply = backend.complete(
             _combine_prompt(
                 chunk_summaries, video, hedge=hedge,
-                language=language, spec=spec, max_points=cap,
+                language=prompt_language, spec=spec, max_points=cap,
             ),
             system=_SYSTEM_PROMPT,
         )
 
     tldr, points = _parse_reply(reply, max_points=cap)
-    return Summary(video=video, tldr=tldr, points=points, language=target_language)
+    return Summary(video=video, tldr=tldr, points=points, language=language, detail=detail)
 
 
-# British spelling, same function: one implementation, two accepted names.
-summarise = summarize
+def summarize(
+    url_or_id:  str,
+    backend:    LLMBackend,
+    *,
+    detail:     DetailLevel = DEFAULT_DETAIL,
+    language:   str = DEFAULT_LANGUAGE,
+    max_points: int | None = None,
+) -> Summary:
+    """Summarize one video from its URL or id: fetch its metadata and transcript,
+    then summarize. The convenience path for a single video -- ``fetch_video``
+    then ``fetch_transcript`` then ``summarize_transcript`` in one call.
+
+    Raises:
+        InvalidVideoURL: ``url_or_id`` is not a recognizable video URL or id.
+        TranscriptUnavailable / TranscriptFetchBlocked: from ``fetch_transcript``.
+        ValueError: bad ``detail`` or ``max_points`` (see ``summarize_transcript``).
+        LLMError: propagated from the backend.
+    """
+    video      = fetch_video(url_or_id)
+    transcript = fetch_transcript(video)
+    return summarize_transcript(
+        video, transcript, backend,
+        detail=detail, language=language, max_points=max_points,
+    )
 
 
 def _split_into_chunks(text: str, *, word_limit: int) -> list[str]:

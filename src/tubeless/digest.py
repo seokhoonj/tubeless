@@ -20,7 +20,7 @@ from tubeless.feed import Upload, fetch_uploads
 from tubeless.importance import Importance, score_importance
 from tubeless.llm import LLMBackend
 from tubeless.source import Video
-from tubeless.summary import DEFAULT_LANGUAGE, Summary, summarize
+from tubeless.summary import DEFAULT_LANGUAGE, Summary, summarize_transcript
 from tubeless.synthesis import Synthesis, synthesize
 from tubeless.transcript import Transcript, fetch_transcript
 
@@ -159,7 +159,7 @@ def _summarize_upload(
     except TranscriptUnavailable:
         return None
 
-    summary    = summarize(transcript, video, backend, target_language=language, detail=channel.detail)
+    summary    = summarize_transcript(video, transcript, backend, detail=channel.detail, language=language)
     importance = score_importance(summary, backend, language=language)
     return DigestEntry(
         channel=channel.label, upload=upload, summary=summary,

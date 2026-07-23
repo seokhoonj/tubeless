@@ -149,13 +149,13 @@ def test_tubeless_detail_env_sets_the_default_detail(
     monkeypatch.setattr(cli_module, "fetch_transcript", lambda video_id: SAMPLE_TRANSCRIPT)
     monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
     seen: dict[str, object] = {}
-    real_summarize = cli_module.summarize
+    real_summarize_transcript = cli_module.summarize_transcript
 
     def spy(*args, **kwargs):
         seen.update(kwargs)
-        return real_summarize(*args, **kwargs)
+        return real_summarize_transcript(*args, **kwargs)
 
-    monkeypatch.setattr(cli_module, "summarize", spy)
+    monkeypatch.setattr(cli_module, "summarize_transcript", spy)
 
     assert main([SAMPLE_VIDEO.url]) == 0   # no --detail flag
     assert seen["detail"] == "deep"
@@ -169,13 +169,13 @@ def test_tubeless_max_points_env_caps_points(
     monkeypatch.setattr(cli_module, "fetch_transcript", lambda video_id: SAMPLE_TRANSCRIPT)
     monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
     seen: dict[str, object] = {}
-    real_summarize = cli_module.summarize
+    real_summarize_transcript = cli_module.summarize_transcript
 
     def spy(*args, **kwargs):
         seen.update(kwargs)
-        return real_summarize(*args, **kwargs)
+        return real_summarize_transcript(*args, **kwargs)
 
-    monkeypatch.setattr(cli_module, "summarize", spy)
+    monkeypatch.setattr(cli_module, "summarize_transcript", spy)
 
     assert main([SAMPLE_VIDEO.url]) == 0   # no --max-points flag
     assert seen["max_points"] == 3
@@ -290,7 +290,7 @@ def test_digest_dry_run_prints_markdown_without_writing(
         channel="Example Channel",
         upload=Upload(video_id="dQw4w9WgXcQ", title="Example Video", published="",
                       channel_id="UC", channel="Example Channel"),
-        summary=Summary(video=SAMPLE_VIDEO, tldr="gist", points=("a",), language="ko"),
+        summary=Summary(video=SAMPLE_VIDEO, tldr="gist", points=("a",), language="ko", detail="normal"),
         importance=Importance(score=0.9, reason="big news"),
         transcript=Transcript(video_id="dQw4w9WgXcQ", language="ko",
                               is_auto_generated=False, segments=()),
@@ -327,7 +327,7 @@ def test_digest_records_summaries_and_transcripts_to_the_corpus(
         upload     = Upload(video_id="dQw4w9WgXcQ", title="A talk about ducks",
                             published="2026-07-21T09:00:00+00:00",
                             channel_id="UC", channel="Duck Channel"),
-        summary    = Summary(video=SAMPLE_VIDEO, tldr="gist", points=("a", "b"), language="en"),
+        summary    = Summary(video=SAMPLE_VIDEO, tldr="gist", points=("a", "b"), language="en", detail="normal"),
         importance = Importance(score=0.8, reason="quacks"),
         transcript = SAMPLE_TRANSCRIPT,
     )
@@ -380,7 +380,7 @@ def test_digest_corpus_failure_on_one_entry_does_not_abort_the_rest(
             upload     = Upload(video_id=video_id, title=f"V {video_id}",
                                 published="2026-07-21T09:00:00+00:00",
                                 channel_id="UC", channel="Duck Channel"),
-            summary    = Summary(video=video, tldr="gist", points=("a",), language="en"),
+            summary    = Summary(video=video, tldr="gist", points=("a",), language="en", detail="normal"),
             importance = Importance(score=0.8, reason="quacks"),
             transcript = Transcript(video_id=video_id, language="en",
                                     is_auto_generated=False, segments=()),

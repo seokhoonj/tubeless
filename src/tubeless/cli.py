@@ -35,7 +35,13 @@ from tubeless.schedule import (
 )
 from tubeless.source import fetch_video
 from tubeless.state import STATE_PATH, read_seen, write_seen
-from tubeless.summary import DEFAULT_DETAIL, DEFAULT_LANGUAGE, DETAIL_LEVELS, Summary, summarize
+from tubeless.summary import (
+    DEFAULT_DETAIL,
+    DEFAULT_LANGUAGE,
+    DETAIL_LEVELS,
+    Summary,
+    summarize_transcript,
+)
 from tubeless.transcript import fetch_transcript
 
 __all__ = ["main"]
@@ -74,11 +80,11 @@ def _run_summarize(args: argparse.Namespace) -> int:
     backend    = make_backend(args.backend, model=args.model)
     _print_run_settings(args.backend, backend.model,
                         detail=args.detail, max_points=args.max_points, lang=args.lang)
-    summary    = summarize(
-        transcript, video, backend,
-        target_language = args.lang,
-        detail          = args.detail,
-        max_points      = args.max_points,
+    summary    = summarize_transcript(
+        video, transcript, backend,
+        detail     = args.detail,
+        language   = args.lang,
+        max_points = args.max_points,
     )
     if args.json:
         print(json.dumps(dataclasses.asdict(summary), ensure_ascii=False, indent=2))

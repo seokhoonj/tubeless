@@ -13,7 +13,7 @@ SAMPLE_VIDEO = Video(
     channel  = "Chan",
 )
 SAMPLE_SUMMARY = Summary(
-    video=SAMPLE_VIDEO, tldr="gist", points=("a", "b"), language="ko",
+    video=SAMPLE_VIDEO, tldr="gist", points=("a", "b"), language="ko", detail="normal",
 )
 
 
