@@ -65,21 +65,23 @@ class Synthesis:
 
 
 def synthesize(
-    summaries: Sequence[tuple[str, Summary]],
+    summaries: Sequence[Summary],
     backend:   LLMBackend,
     *,
     language:  str = DEFAULT_LANGUAGE,
-) -> Synthesis:
-    """Combine ``summaries`` (each an ``(source_label, Summary)`` pair) into one
-    ``Synthesis``.
+) -> Synthesis | None:
+    """Combine ``summaries`` into one cross-source ``Synthesis``.
 
-    Meant for two or more summaries -- one source cannot agree or disagree with
-    itself -- but it does not enforce that; the caller (the digest) decides when a
-    synthesis is worth a backend call.
+    Returns ``None`` when fewer than two summaries are given -- one source cannot
+    agree or disagree with itself -- and makes no backend call in that case, so
+    the caller need not guard the count itself. Each summary is attributed to its
+    own channel in the prompt, so the model can name which source said what.
 
     Raises:
         LLMError: propagated from the backend.
     """
+    if len(summaries) < 2:
+        return None
     reply = backend.complete(
         _PROMPT.format(language=language_name(language), sources=_sources_block(summaries)),
         system=_SYSTEM_PROMPT,
@@ -87,11 +89,12 @@ def synthesize(
     return _parse_synthesis(reply)
 
 
-def _sources_block(summaries: Sequence[tuple[str, Summary]]) -> str:
+def _sources_block(summaries: Sequence[Summary]) -> str:
     blocks = []
-    for label, summary in summaries:
+    for summary in summaries:
+        source = summary.video.channel or summary.video.title
         points = "\n".join(f"- {point}" for point in summary.points)
-        blocks.append(f"[{label}] {summary.video.title}\nTLDR: {summary.tldr}\n{points}")
+        blocks.append(f"[{source}] {summary.video.title}\nTLDR: {summary.tldr}\n{points}")
     return "\n\n".join(blocks)
 
 

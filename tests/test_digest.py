@@ -1,7 +1,7 @@
 """Digest orchestration with fakes: sorting, seen-skip, captionless-skip, feed error.
 
 The feed and transcript boundaries are monkeypatched; summarize and
-score_importance run for real against a fake backend, so the assembly logic and
+importance scoring runs for real against a fake backend, so the assembly logic and
 the score-driven sort are exercised end to end without a network call.
 """
 
@@ -31,8 +31,8 @@ def _transcript(video_id: str) -> Transcript:
 
 class ScoringBackend:
     """Fake backend: a summary-shaped reply for summarize, a score-shaped reply
-    for score_importance. The score is high when the prompt names a 'big' video,
-    so sorting has something to order by."""
+    for importance scoring. The score is high when the prompt names a 'big'
+    video, so sorting has something to order by."""
 
     def complete(self, prompt: str, *, system: str | None = None) -> str:
         if "importance" in prompt.lower():

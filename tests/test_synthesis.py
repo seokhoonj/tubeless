@@ -17,8 +17,8 @@ _REPLY = (
 )
 
 
-def _summary(title: str, tldr: str, points: tuple[str, ...]) -> Summary:
-    video = Video(video_id="vid00000001", title=title, url="https://x", channel="c")
+def _summary(title: str, tldr: str, points: tuple[str, ...], *, channel: str = "c") -> Summary:
+    video = Video(video_id="vid00000001", title=title, url="https://x", channel=channel)
     return Summary(video=video, tldr=tldr, points=points, language="en", detail="normal")
 
 
@@ -90,13 +90,25 @@ def test_parse_synthesis_drops_a_korean_none_disagreement():
 def test_synthesize_feeds_every_source_into_the_prompt():
     backend   = OneReplyBackend(_REPLY)
     summaries = [
-        ("Channel A", _summary("Video A", "gist A", ("a1", "a2"))),
-        ("Channel B", _summary("Video B", "gist B", ("b1",))),
+        _summary("Video A", "gist A", ("a1", "a2"), channel="Channel A"),
+        _summary("Video B", "gist B", ("b1",),      channel="Channel B"),
     ]
 
     got = synthesize(summaries, backend, language="en")
 
     assert isinstance(got, Synthesis)
-    # each source's label, title, and tldr reached the model
+    # each source's channel, title, and tldr reached the model
     for token in ("Channel A", "Video A", "gist A", "a1", "Channel B", "Video B", "gist B"):
         assert token in backend.prompt
+
+
+def test_synthesize_returns_none_below_two_summaries_without_calling_the_backend():
+    # One source cannot agree or disagree with itself, so synthesize declines and
+    # never spends a backend call on it -- the caller need not guard the count.
+    class _ExplodingBackend:
+        def complete(self, prompt: str, *, system: str | None = None) -> str:
+            raise AssertionError("backend must not be called for fewer than two summaries")
+
+    exploding = _ExplodingBackend()
+    assert synthesize([], exploding) is None
+    assert synthesize([_summary("V", "g", ("p",))], exploding) is None

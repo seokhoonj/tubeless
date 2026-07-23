@@ -31,7 +31,7 @@ from tubeless.feed import (
     fetch_uploads,
     resolve_channel_id,
 )
-from tubeless.importance import Importance, ImportanceTier, score_importance
+from tubeless.importance import Importance, ImportanceTier, score
 from tubeless.llm import (
     BACKENDS,
     ClaudeBackend,
@@ -99,7 +99,7 @@ __all__ = [
     "parse_video_id",
     "record_entry",
     "resolve_channel_id",
-    "score_importance",
+    "score",
     "summarize",
     "summarize_transcript",
     "synthesize",

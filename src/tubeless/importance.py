@@ -10,13 +10,14 @@ scorer stays domain-agnostic like the rest of the core.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal
 
 from tubeless.llm import LLMBackend
 from tubeless.summary import DEFAULT_LANGUAGE, Summary, language_name
 
-__all__ = ["Importance", "ImportanceTier", "score_importance"]
+__all__ = ["Importance", "ImportanceTier", "score"]
 
 # Score -> tier cutoffs. At or above _HIGH_TIER is a must-read; at or above
 # _MID_TIER is worth a glance; below that is background. Deliberately coarse (the
@@ -67,15 +68,28 @@ class Importance:
         return "low"
 
 
-def score_importance(summary: Summary, backend: LLMBackend, *, language: str = DEFAULT_LANGUAGE) -> Importance:
-    """Ask ``backend`` to rate ``summary``'s importance from 0 to 1.
+def score(
+    summaries: Sequence[Summary], backend: LLMBackend, *, language: str = DEFAULT_LANGUAGE
+) -> list[Importance]:
+    """Rate each summary's importance from 0 to 1, one ``Importance`` per input.
 
-    A reply that cannot be parsed falls back to a neutral 0.5 with the reply's
-    first line as the reason, so one unparseable score never sinks the digest.
+    A total, order-preserving map: the result has exactly one entry per summary,
+    in input order, with no drops or reordering -- so a caller can zip the scores
+    back onto the summaries positionally (there is no id join). An empty input
+    makes no backend call and returns ``[]``.
+
+    A reply that cannot be parsed falls back to a neutral 0.5 (with the reply's
+    first line as the reason), so one unparseable score never sinks the digest or
+    shifts the alignment.
 
     Raises:
-        LLMError: propagated from the backend.
+        LLMError: propagated from the backend (a global credential/credit problem
+            should stop the run rather than be scored as neutral).
     """
+    return [_score_one(summary, backend, language=language) for summary in summaries]
+
+
+def _score_one(summary: Summary, backend: LLMBackend, *, language: str) -> Importance:
     points = "\n".join(f"- {point}" for point in summary.points)
     reply = backend.complete(
         _PROMPT.format(

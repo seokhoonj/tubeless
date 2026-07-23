@@ -17,7 +17,7 @@ from tubeless.channels import Channel
 from tubeless.corpus import CorpusEntry, append_entry, archive_transcript
 from tubeless.errors import FeedError, TranscriptUnavailable
 from tubeless.feed import Upload, fetch_uploads
-from tubeless.importance import Importance, score_importance
+from tubeless.importance import Importance, score
 from tubeless.llm import LLMBackend
 from tubeless.source import Video
 from tubeless.summary import DEFAULT_LANGUAGE, Summary, summarize_transcript
@@ -116,9 +116,9 @@ def curate(
     # A synthesis needs at least two videos -- one source cannot agree or disagree
     # with itself -- and costs one extra backend call, so it is opt-in.
     synthesis = None
-    if with_synthesis and len(entries) >= 2:
+    if with_synthesis:
         synthesis = synthesize(
-            [(entry.channel, entry.summary) for entry in entries], backend, language=language
+            [entry.summary for entry in entries], backend, language=language
         )
     digest = Digest(date=date, entries=tuple(entries), skipped=tuple(skipped), synthesis=synthesis)
     return digest, processed
@@ -160,7 +160,7 @@ def _summarize_upload(
         return None
 
     summary    = summarize_transcript(video, transcript, backend, detail=channel.detail, language=language)
-    importance = score_importance(summary, backend, language=language)
+    importance = score([summary], backend, language=language)[0]
     return DigestEntry(
         channel=channel.label, upload=upload, summary=summary,
         importance=importance, transcript=transcript,

@@ -2,7 +2,7 @@
 
 import pytest
 
-from tubeless.importance import Importance, _parse_importance, score_importance
+from tubeless.importance import Importance, _parse_importance, score
 from tubeless.source import Video
 from tubeless.summary import Summary
 
@@ -80,11 +80,12 @@ def test_importance_tier_classifies_the_score(score, expected_tier):
     assert Importance(score=score, reason="r").tier == expected_tier
 
 
-def test_score_importance_calls_the_backend_and_returns_importance():
-    got = score_importance(SAMPLE_SUMMARY, OneReplyBackend("SCORE: 0.42\nREASON: moderate"))
+def test_score_calls_the_backend_and_returns_one_importance_per_summary():
+    got = score([SAMPLE_SUMMARY], OneReplyBackend("SCORE: 0.42\nREASON: moderate"))
 
-    assert got.score  == pytest.approx(0.42)
-    assert got.reason == "moderate"
+    assert len(got) == 1
+    assert got[0].score  == pytest.approx(0.42)
+    assert got[0].reason == "moderate"
 
 
 @pytest.mark.parametrize(
@@ -97,7 +98,33 @@ def test_score_importance_calls_the_backend_and_returns_importance():
         ("no score anywhere here", 0.5),   # unparseable -> neutral fallback
     ],
 )
-def test_score_importance_parses_the_score_forms(reply, expected_score):
-    got = score_importance(SAMPLE_SUMMARY, OneReplyBackend(reply))
+def test_score_parses_the_score_forms(reply, expected_score):
+    got = score([SAMPLE_SUMMARY], OneReplyBackend(reply))
 
-    assert got.score == pytest.approx(expected_score)
+    assert got[0].score == pytest.approx(expected_score)
+
+
+def test_score_is_an_order_preserving_map_over_the_summaries():
+    # One Importance per input, in input order, no drops -- so the caller can zip
+    # the scores back onto the summaries positionally.
+    class _PerCallBackend:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def complete(self, prompt: str, *, system: str | None = None) -> str:
+            self.calls += 1
+            return f"SCORE: 0.{self.calls}\nREASON: reason {self.calls}"
+
+    backend = _PerCallBackend()
+    got = score([SAMPLE_SUMMARY, SAMPLE_SUMMARY, SAMPLE_SUMMARY], backend)
+
+    assert [imp.reason for imp in got] == ["reason 1", "reason 2", "reason 3"]
+    assert backend.calls == 3
+
+
+def test_score_of_no_summaries_makes_no_backend_call():
+    class _ExplodingBackend:
+        def complete(self, prompt: str, *, system: str | None = None) -> str:
+            raise AssertionError("backend must not be called for an empty input")
+
+    assert score([], _ExplodingBackend()) == []
