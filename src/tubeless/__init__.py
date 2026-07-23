@@ -43,6 +43,7 @@ from tubeless.llm import (
 )
 from tubeless.render import to_markdown
 from tubeless.source import Video, fetch_video, parse_video_id
+from tubeless.store import CORPUS_ROOT, FileStore, Store
 from tubeless.summary import (
     DETAIL_LEVELS,
     DetailLevel,
@@ -55,6 +56,7 @@ from tubeless.transcript import Transcript, TranscriptSegment, fetch_transcript
 
 __all__ = [
     "BACKENDS",
+    "CORPUS_ROOT",
     "Channel",
     "ClaudeBackend",
     "ConfigError",
@@ -66,6 +68,7 @@ __all__ = [
     "Digest",
     "DigestEntry",
     "FeedError",
+    "FileStore",
     "GeminiBackend",
     "Importance",
     "ImportanceTier",
@@ -74,6 +77,7 @@ __all__ = [
     "LLMError",
     "OllamaBackend",
     "OpenAIBackend",
+    "Store",
     "Summary",
     "Synthesis",
     "Transcript",
