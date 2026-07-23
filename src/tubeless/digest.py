@@ -1,198 +1,307 @@
-"""Curate one day's digest: for each channel, fetch new uploads, summarize and
-score them, and collect the results ranked by importance.
+"""Assemble a digest from a set of channels: discover each channel's new videos,
+summarize and score them, and rank the results into one document.
 
-This is the orchestration layer over the single-video engine (transcript +
-summary) and the feed/importance modules. It holds no state of its own beyond
-the run: it takes the already-seen ids in and reports which ids it processed, so
-the caller persists them.
+The layering is deliberate. ``summarize_videos`` is the channel-agnostic engine
+that turns videos into stored summaries; ``curate`` is the sole ``Digest``
+constructor, a pure assembler that scores and ranks already-produced summaries;
+``run_digest`` is the top orchestrator that discovers per channel and feeds the
+two. ``recompute`` reuses ``curate`` over previously stored summaries, so a
+weekly or monthly re-synthesis needs no refetching. None of them holds state
+beyond the run: the caller passes the already-seen ids in and gets the merged
+set back to persist.
 """
 
 from __future__ import annotations
 
-from collections.abc import Container, Iterable
+from collections.abc import Sequence
 from dataclasses import dataclass
-from pathlib import Path
+from typing import Literal, NamedTuple
 
 from tubeless.channels import Channel
-from tubeless.corpus import CorpusEntry, append_entry, archive_transcript
+from tubeless.discover import DEFAULT_SCAN, discover
 from tubeless.errors import FeedError, TranscriptUnavailable
-from tubeless.feed import Upload, fetch_uploads
 from tubeless.importance import Importance, score
 from tubeless.llm import LLMBackend
 from tubeless.source import Video
-from tubeless.summary import DEFAULT_LANGUAGE, Summary, summarize_transcript
+from tubeless.store import Store
+from tubeless.summary import (
+    DEFAULT_DETAIL,
+    DEFAULT_LANGUAGE,
+    DetailLevel,
+    Summary,
+    summarize_transcript,
+)
 from tubeless.synthesis import Synthesis, synthesize
-from tubeless.transcript import Transcript, fetch_transcript
+from tubeless.transcript import fetch_transcript
 
-__all__ = ["DEFAULT_PER_CHANNEL_LIMIT", "Digest", "DigestEntry", "curate", "record_entry"]
+__all__ = [
+    "DEFAULT_PER_CHANNEL_LIMIT",
+    "Digest",
+    "DigestRun",
+    "Entry",
+    "Skip",
+    "SummarizeVideosResult",
+    "curate",
+    "recompute",
+    "run_digest",
+    "summarize_videos",
+]
 
-# YouTube's RSS feed tops out near 15 entries; a filtered source scans them all.
-_FILTERED_FETCH_LIMIT = 15
-
-# How many recent uploads to check per channel when the caller does not say.
-# Named here (not re-spelled in the CLI) so the default has one home.
+# How many recent uploads to check per plain channel when the caller does not
+# say. A channel with a title filter scans the full feed window instead (matches
+# are sparse among the rest), so this cap applies only to unfiltered channels.
 DEFAULT_PER_CHANNEL_LIMIT = 5
+
+SkipCategory = Literal["feed-failure", "no-transcript"]
 
 
 @dataclass(frozen=True, slots=True)
-class DigestEntry:
-    """One summarized, scored video in a digest. ``transcript`` is the source it
-    was summarized from -- kept so the caller can archive it to the corpus, since
-    the summary alone is lossy and the transcript cannot be refetched once a
-    video's captions are disabled or it is removed."""
+class Skip:
+    """One thing left out of the digest, tagged by why. ``category`` separates a
+    channel-level miss (``feed-failure`` -- ``item`` is the channel source) from a
+    video-level one (``no-transcript`` -- ``item`` is the video id), so an empty
+    digest with a feed failure is never mistaken for a quiet day, and a captionless
+    video is legible rather than silently dropped. ``message`` explains it."""
 
-    channel:    str
-    upload:     Upload
+    category: SkipCategory
+    item:     str
+    message:  str
+
+
+@dataclass(frozen=True, slots=True)
+class Entry:
+    """One ranked video in a digest: its summary and the importance it was scored
+    at. The display name is the summary's own ``video.channel`` -- no separate
+    label is carried, so there is nothing to drift from the summary."""
+
     summary:    Summary
     importance: Importance
-    transcript: Transcript
 
 
 @dataclass(frozen=True, slots=True)
 class Digest:
-    """One day's collected entries (most-important first), one note per channel
-    that could not be read (so the render can surface the gap), and an optional
-    cross-source synthesis of the day (``None`` unless it was requested)."""
+    """One assembled digest (entries most-important first), the things left out
+    (feed failures and captionless videos), and an optional cross-source synthesis.
+    ``period`` is a display label for the span it covers -- a single date for a
+    fresh run, a ``since..until`` range for a recompute; it is never structurally
+    parsed (chronological queries read ``Summary.video.published``)."""
 
-    date:      str
-    entries:   tuple[DigestEntry, ...]
-    skipped:   tuple[str, ...]
+    period:    str
+    entries:   tuple[Entry, ...]
+    skipped:   tuple[Skip, ...] = ()
     synthesis: Synthesis | None = None
 
 
-def curate(
-    channels: Iterable[Channel],
+class SummarizeVideosResult(NamedTuple):
+    """What ``summarize_videos`` produced: the finished summaries and the videos
+    it skipped for having no transcript. ``processed`` is derived (not stored, so
+    it cannot drift): every id that was handled -- summarized or skipped -- and so
+    must not be retried."""
+
+    summaries: list[Summary]
+    skipped:   list[Skip]
+
+    @property
+    def processed(self) -> frozenset[str]:
+        return (frozenset(summary.video.video_id for summary in self.summaries)
+                | frozenset(skip.item for skip in self.skipped))
+
+
+class DigestRun(NamedTuple):
+    """What ``run_digest`` produced: the assembled ``digest`` and the merged
+    ``seen`` set (the input seen union everything processed this run), ready to
+    persist directly with ``write_seen``."""
+
+    digest: Digest
+    seen:   frozenset[str]
+
+
+def summarize_videos(
+    videos:   Sequence[Video],
     backend:  LLMBackend,
     *,
-    date:              str,
-    seen:              Container[str],
+    detail:   DetailLevel = DEFAULT_DETAIL,
+    language: str = DEFAULT_LANGUAGE,
+    store:    Store | None = None,
+) -> SummarizeVideosResult:
+    """Fetch each video's transcript and summarize it, channel-agnostically.
+
+    When a ``store`` is given, each transcript and summary is written through as
+    it is produced -- so the durable corpus grows even if a later step fails.
+    ``store=None`` is a dry run: transcripts are still fetched and the backend is
+    still called (that cost is unavoidable), only persistence is skipped.
+
+    A video with no transcript is recorded as a ``no-transcript`` Skip and left
+    out of the summaries, but still counts as processed (via the result's
+    ``processed``) so it is not retried on the next run.
+
+    Raises:
+        TranscriptFetchBlocked: a transient block (propagated so the run aborts
+            before the caller persists state, rather than marking the video seen).
+        LLMError: propagated from the backend.
+    """
+    summaries: list[Summary] = []
+    skipped:   list[Skip] = []
+    for video in videos:
+        try:
+            transcript = fetch_transcript(video)
+        except TranscriptUnavailable as err:
+            skipped.append(Skip("no-transcript", video.video_id, str(err)))
+            continue
+        if store is not None:
+            store.save_transcript(transcript)
+        summary = summarize_transcript(video, transcript, backend, detail=detail, language=language)
+        if store is not None:
+            store.save_summary(summary)
+        summaries.append(summary)
+    return SummarizeVideosResult(summaries, skipped)
+
+
+def curate(
+    summaries:      Sequence[Summary],
+    backend:        LLMBackend,
+    *,
+    period:         str,
+    language:       str = DEFAULT_LANGUAGE,
+    with_synthesis: bool = False,
+    skipped:        Sequence[Skip] = (),
+) -> Digest:
+    """Assemble a ``Digest`` from already-produced summaries: score each, rank by
+    importance, and optionally synthesize across them.
+
+    The sole ``Digest`` constructor -- channel-agnostic and pure of I/O (only
+    backend calls) -- so a fresh run and a recompute produce the same shape. The
+    scores align to the summaries positionally (``score`` is an order-preserving
+    map), asserted below. ``skipped`` is surfaced on the digest unchanged.
+
+    Raises:
+        LLMError: propagated from the backend.
+    """
+    importances = score(summaries, backend, language=language)
+    assert len(importances) == len(summaries), "score must return one importance per summary"
+    entries = [Entry(summary=summary, importance=importance)
+               for summary, importance in zip(summaries, importances)]
+    entries.sort(key=lambda entry: entry.importance.score, reverse=True)
+
+    # synthesize returns None below two summaries (and makes no backend call), so
+    # with_synthesis alone gates it -- no separate count check here.
+    synthesis = synthesize(summaries, backend, language=language) if with_synthesis else None
+    return Digest(
+        period    = period,
+        entries   = tuple(entries),
+        skipped   = tuple(skipped),
+        synthesis = synthesis,
+    )
+
+
+def run_digest(
+    channels:          Sequence[Channel],
+    backend:           LLMBackend,
+    *,
+    period:            str,
+    seen:              frozenset[str] = frozenset(),
     language:          str = DEFAULT_LANGUAGE,
     per_channel_limit: int = DEFAULT_PER_CHANNEL_LIMIT,
     with_synthesis:    bool = False,
-) -> tuple[Digest, set[str]]:
-    """Curate the digest for ``date`` from the new uploads of ``channels``.
+    store:             Store | None = None,
+) -> DigestRun:
+    """Discover each channel's new videos, summarize and score them, and curate
+    the ranked digest for ``period``.
 
-    Only uploads whose id is not in ``seen`` are processed. A video with no
-    transcript is skipped (not fatal) but still counted as processed, so it is
-    not retried on the next run. A channel whose feed cannot be read is recorded
-    in ``Digest.skipped`` and the run continues.
+    Only videos whose id is not in ``seen`` (or already processed earlier in this
+    run) are summarized, so a video shared by two channel sources is handled once.
+    A filtered channel scans the full feed window; a plain one scans
+    ``per_channel_limit``. A channel whose feed cannot be read becomes a
+    ``feed-failure`` Skip and the run continues. ``store=None`` is a dry run
+    (fetches and summarizes, but persists nothing).
 
-    Returns the Digest and the set of newly processed video ids; the caller
-    merges these into ``seen`` and persists them.
+    Returns the digest and the merged seen set (input ``seen`` union everything
+    processed this run), so the caller persists it directly.
 
     Raises:
-        LLMError: propagated from the backend (a credential/credit problem is
-            global, so it should stop the run rather than be swallowed per video).
-        TranscriptFetchBlocked: propagated from ``fetch_transcript`` when YouTube
-            transiently blocks the run. Aborts before the caller persists state,
-            so the affected videos are retried next run rather than lost.
+        TranscriptFetchBlocked / LLMError: propagated (see ``summarize_videos``).
     """
-    entries:   list[DigestEntry] = []
-    skipped:   list[str] = []
-    processed: set[str] = set()
+    all_summaries: list[Summary] = []
+    skips:         list[Skip] = []
+    processed:     set[str] = set()
 
     for channel in channels:
-        # A filtered channel scans the full feed window, not just the first few:
-        # the wanted uploads (e.g. one host's episodes) are sparse among the rest.
-        has_title_filter = bool(channel.title_includes or channel.title_excludes)
-        fetch_limit      = _FILTERED_FETCH_LIMIT if has_title_filter else per_channel_limit
+        # A filtered channel scans the full feed window, not just per_channel_limit:
+        # the wanted uploads are sparse among the rest, so a small window silently
+        # drops them (the documented missed-video incident).
+        has_filter = bool(channel.title_includes or channel.title_excludes)
+        limit      = DEFAULT_SCAN if has_filter else per_channel_limit
         try:
-            uploads = fetch_uploads(channel.source, limit=fetch_limit)
+            videos = discover(
+                channel.source, limit=limit,
+                includes=channel.title_includes, excludes=channel.title_excludes,
+            )
         except FeedError as err:
-            skipped.append(f"{channel.label}: {err}")
+            skips.append(Skip("feed-failure", channel.source, str(err)))
             continue
-        uploads = _uploads_matching_title(uploads, channel.title_includes, channel.title_excludes)
 
-        for upload in uploads:
-            if upload.video_id in seen or upload.video_id in processed:
-                continue
-            processed.add(upload.video_id)
-            entry = _summarize_upload(upload, channel, backend, language=language)
-            if entry is not None:
-                entries.append(entry)
-
-    entries.sort(key=lambda entry: entry.importance.score, reverse=True)
-
-    # A synthesis needs at least two videos -- one source cannot agree or disagree
-    # with itself -- and costs one extra backend call, so it is opt-in.
-    synthesis = None
-    if with_synthesis:
-        synthesis = synthesize(
-            [entry.summary for entry in entries], backend, language=language
+        fresh = tuple(
+            video for video in videos
+            if video.video_id not in seen and video.video_id not in processed
         )
-    digest = Digest(date=date, entries=tuple(entries), skipped=tuple(skipped), synthesis=synthesis)
-    return digest, processed
+        result = summarize_videos(
+            fresh, backend, detail=channel.detail, language=language, store=store,
+        )
+        all_summaries.extend(result.summaries)
+        skips.extend(result.skipped)
+        processed |= result.processed
 
-
-def _uploads_matching_title(
-    uploads:  tuple[Upload, ...],
-    includes: tuple[str, ...],
-    excludes: tuple[str, ...],
-) -> tuple[Upload, ...]:
-    """Keep uploads whose title contains every ``includes`` keyword and none of
-    the ``excludes`` keywords (case-insensitive). Empty ``includes`` keeps all;
-    empty ``excludes`` drops none."""
-    if not includes and not excludes:
-        return uploads
-    wanted   = [word.lower() for word in includes]
-    unwanted = [word.lower() for word in excludes]
-
-    def matches(upload: Upload) -> bool:
-        title = upload.title.lower()   # lower once per upload, not once per keyword
-        return (all(word in title for word in wanted)
-                and not any(word in title for word in unwanted))
-
-    return tuple(upload for upload in uploads if matches(upload))
-
-
-def _summarize_upload(
-    upload: Upload, channel: Channel, backend: LLMBackend, *, language: str
-) -> DigestEntry | None:
-    video = Video(
-        video_id = upload.video_id,
-        title    = upload.title,
-        url      = f"https://www.youtube.com/watch?v={upload.video_id}",
-        channel  = upload.channel or channel.label,
+    digest = curate(
+        all_summaries, backend, period=period, language=language,
+        with_synthesis=with_synthesis, skipped=skips,
     )
-    try:
-        transcript = fetch_transcript(video)
-    except TranscriptUnavailable:
-        return None
-
-    summary    = summarize_transcript(video, transcript, backend, detail=channel.detail, language=language)
-    importance = score([summary], backend, language=language)[0]
-    return DigestEntry(
-        channel=channel.label, upload=upload, summary=summary,
-        importance=importance, transcript=transcript,
-    )
+    return DigestRun(digest, frozenset(seen) | processed)
 
 
-def record_entry(entry: DigestEntry, captured: str, *, root: Path | None = None) -> None:
-    """Archive one digest entry to the corpus: append its summary as a record
-    (under the channel it was captured for, dated ``captured``) and archive its
-    source transcript once.
+def recompute(
+    backend:        LLMBackend,
+    store:          Store,
+    *,
+    since:          str | None = None,
+    until:          str | None = None,
+    channel:        str | None = None,
+    language:       str = DEFAULT_LANGUAGE,
+    with_synthesis: bool = True,
+) -> Digest:
+    """Re-assemble a digest from previously stored summaries over ``[since,
+    until)``, without fetching or discovering anything.
 
-    This owns the projection from a ``DigestEntry`` to a durable ``CorpusEntry``
-    -- which of the summary/importance/upload fields make up the record -- so a
-    caller only orchestrates the loop over the entries and decides how to report a
-    failure. It lives here, beside ``DigestEntry``, and calls down into the corpus
-    storage layer (the orchestration -> storage direction), rather than the corpus
-    reaching up for a ``DigestEntry`` it should not know about.
+    Reads summaries from ``store`` (optionally narrowed to one ``channel``),
+    keeps the most recent per video, and curates them. The ``period`` label is
+    derived from the range. Read-only: it never writes to the store. Its default
+    ``with_synthesis=True`` reflects its purpose -- a cross-source read over a
+    span -- unlike a fresh run's opt-in synthesis.
 
     Raises:
-        CorpusError: the summary record or the transcript could not be written.
+        LLMError: propagated from the backend.
     """
-    append_entry(
-        CorpusEntry(
-            channel    = entry.channel,
-            captured   = captured,
-            published  = entry.upload.published,
-            video      = entry.summary.video,
-            tldr       = entry.summary.tldr,
-            points     = entry.summary.points,
-            importance = entry.importance,
-            language   = entry.summary.language,
-        ),
-        root=root,
+    stored    = store.load_summaries(since=since, until=until, channel=channel)
+    summaries = _latest_per_video(stored)
+    return curate(
+        summaries, backend, period=_range_label(since, until),
+        language=language, with_synthesis=with_synthesis,
     )
-    archive_transcript(entry.transcript, root=root)
+
+
+def _latest_per_video(summaries: Sequence[Summary]) -> list[Summary]:
+    """One summary per video: the last in the store's (oldest-first) load order,
+    so the most recent stored summary of each video wins and ``curate`` never
+    double-counts a video that has several stored variants (different detail or
+    language)."""
+    latest: dict[str, Summary] = {}
+    for summary in summaries:
+        latest[summary.video.video_id] = summary
+    return list(latest.values())
+
+
+def _range_label(since: str | None, until: str | None) -> str:
+    """A display label for a recompute's span: ``since..until`` (an open end left
+    blank), or ``all`` when the range is unbounded."""
+    if since is None and until is None:
+        return "all"
+    return f"{since or ''}..{until or ''}"

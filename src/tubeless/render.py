@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import get_args
 
-from tubeless.digest import Digest, DigestEntry
+from tubeless.digest import Digest, Entry, Skip
 from tubeless.importance import ImportanceTier
 from tubeless.synthesis import Synthesis
 
@@ -25,18 +25,15 @@ assert set(_TIER_MARKER) == set(get_args(ImportanceTier)), "every ImportanceTier
 
 
 def to_markdown(digest: Digest) -> str:
-    """Render one day's digest as a Markdown document."""
-    lines = [f"# YouTube digest — {digest.date}", ""]
+    """Render one digest as a Markdown document."""
+    lines = [f"# YouTube digest — {digest.period}", ""]
     if digest.synthesis is not None:
         lines.extend(_synthesis_lines(digest.synthesis))
     if not digest.entries:
         lines.append("_No new videos._")
     for entry in digest.entries:
         lines.extend(_entry_lines(entry))
-    if digest.skipped:
-        lines.append("---")
-        lines.append("### Skipped channels")
-        lines.extend(f"- {note}" for note in digest.skipped)
+    lines.extend(_skipped_lines(digest.skipped))
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -60,10 +57,11 @@ def _synthesis_lines(synthesis: Synthesis) -> list[str]:
     return lines
 
 
-def _entry_lines(entry: DigestEntry) -> list[str]:
+def _entry_lines(entry: Entry) -> list[str]:
     summary = entry.summary
     marker  = _TIER_MARKER[entry.importance.tier]
-    lines   = [f"## {marker} {entry.channel} — {summary.video.title} (importance {entry.importance.score:.2f})"]
+    channel = summary.video.channel or "Unknown channel"
+    lines   = [f"## {marker} {channel} — {summary.video.title} (importance {entry.importance.score:.2f})"]
     if entry.importance.reason:
         lines.append(f"> {entry.importance.reason}")
     lines.append(summary.video.url)
@@ -73,4 +71,22 @@ def _entry_lines(entry: DigestEntry) -> list[str]:
         lines.append("")
         lines.extend(f"- {point}" for point in summary.points)
     lines.append("")
+    return lines
+
+
+def _skipped_lines(skipped: tuple[Skip, ...]) -> list[str]:
+    """List what was left out, split by kind: channels whose feed could not be
+    read, and videos with no transcript. Kept distinct so an empty digest caused
+    by a feed outage reads differently from a genuinely quiet day."""
+    if not skipped:
+        return []
+    feed_failures  = [skip for skip in skipped if skip.category == "feed-failure"]
+    no_transcripts = [skip for skip in skipped if skip.category == "no-transcript"]
+    lines = ["---"]
+    if feed_failures:
+        lines.append("### Skipped channels")
+        lines += [f"- {skip.item}: {skip.message}" for skip in feed_failures]
+    if no_transcripts:
+        lines.append("### Videos without a transcript")
+        lines += [f"- {skip.item}: {skip.message}" for skip in no_transcripts]
     return lines

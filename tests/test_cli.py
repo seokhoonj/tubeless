@@ -123,19 +123,19 @@ def test_configured_flag_reads_a_boolean(_no_config_file, monkeypatch) -> None:
     assert _configured_flag("TUBELESS_SYNTHESIZE") is False
 
 
-def test_digest_synthesize_flag_reaches_curate(
+def test_digest_synthesize_flag_reaches_run_digest(
     _no_config_file, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from tubeless.digest import Digest
+    from tubeless.digest import Digest, DigestRun
     seen_kwargs: dict[str, object] = {}
     monkeypatch.setattr(cli_module, "load_channels", lambda path: ())
     monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
 
-    def fake_build(channels, backend, **kwargs):
+    def fake_run(channels, backend, **kwargs):
         seen_kwargs.update(kwargs)
-        return Digest(date="d", entries=(), skipped=()), set()
+        return DigestRun(Digest(period="d", entries=()), frozenset())
 
-    monkeypatch.setattr(cli_module, "curate", fake_build)
+    monkeypatch.setattr(cli_module, "run_digest", fake_run)
 
     assert main(["digest", "--synthesize", "--dry-run"]) == 0
     assert seen_kwargs["with_synthesis"] is True
@@ -280,27 +280,20 @@ def test_explicit_summarize_subcommand_works(
 def test_digest_dry_run_prints_markdown_without_writing(
     _no_config_file, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    from tubeless.digest import Digest, DigestEntry
-    from tubeless.feed import Upload
+    from tubeless.digest import Digest, DigestRun, Entry
     from tubeless.importance import Importance
     from tubeless.summary import Summary
-    from tubeless.transcript import Transcript
 
-    entry = DigestEntry(
-        channel="Example Channel",
-        upload=Upload(video_id="dQw4w9WgXcQ", title="Example Video", published="",
-                      channel_id="UC", channel="Example Channel"),
-        summary=Summary(video=SAMPLE_VIDEO, tldr="gist", points=("a",), language="ko", detail="normal"),
-        importance=Importance(score=0.9, reason="big news"),
-        transcript=Transcript(video_id="dQw4w9WgXcQ", language="ko",
-                              is_auto_generated=False, segments=()),
+    entry = Entry(
+        summary    = Summary(video=SAMPLE_VIDEO, tldr="gist", points=("a",), language="ko", detail="normal"),
+        importance = Importance(score=0.9, reason="big news"),
     )
     monkeypatch.setattr(cli_module, "load_channels", lambda path: ())
     monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
     monkeypatch.setattr(
-        cli_module, "curate",
-        lambda channels, backend, **kw: (
-            Digest(date="2026-07-21", entries=(entry,), skipped=()), {"dQw4w9WgXcQ"}
+        cli_module, "run_digest",
+        lambda channels, backend, **kw: DigestRun(
+            Digest(period="2026-07-21", entries=(entry,)), frozenset({"dQw4w9WgXcQ"})
         ),
     )
 
@@ -309,36 +302,23 @@ def test_digest_dry_run_prints_markdown_without_writing(
     captured = capsys.readouterr()
     assert exit_code == 0
     assert "YouTube digest — 2026-07-21" in captured.out
-    # header uses the summary's video title (SAMPLE_VIDEO), tier from the score
-    assert "🔴 Example Channel — A talk about ducks" in captured.out
+    # header uses the summary's own video channel and title, tier from the score
+    assert "🔴 Duck Channel — A talk about ducks" in captured.out
 
 
-def test_digest_records_summaries_and_transcripts_to_the_corpus(
+def test_digest_writes_summaries_and_transcripts_to_the_store(
     _no_config_file, monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
-    from tubeless.corpus import load_summaries, load_transcript
-    from tubeless.digest import Digest, DigestEntry
-    from tubeless.feed import Upload
-    from tubeless.importance import Importance
-    from tubeless.summary import Summary
+    import tubeless.digest as digest_module
+    from tubeless.channels import Channel
+    from tubeless.store import FileStore
 
-    entry = DigestEntry(
-        channel    = "Duck Channel",
-        upload     = Upload(video_id="dQw4w9WgXcQ", title="A talk about ducks",
-                            published="2026-07-21T09:00:00+00:00",
-                            channel_id="UC", channel="Duck Channel"),
-        summary    = Summary(video=SAMPLE_VIDEO, tldr="gist", points=("a", "b"), language="en", detail="normal"),
-        importance = Importance(score=0.8, reason="quacks"),
-        transcript = SAMPLE_TRANSCRIPT,
-    )
-    monkeypatch.setattr(cli_module, "load_channels", lambda path: ())
+    monkeypatch.setattr(cli_module, "load_channels",
+                        lambda path: (Channel(source="@x", label="Duck Channel"),))
     monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
-    monkeypatch.setattr(
-        cli_module, "curate",
-        lambda channels, backend, **kw: (
-            Digest(date="2026-07-21", entries=(entry,), skipped=()), {"dQw4w9WgXcQ"}
-        ),
-    )
+    monkeypatch.setattr(digest_module, "discover",
+                        lambda source, *, limit, includes=(), excludes=(): (SAMPLE_VIDEO,))
+    monkeypatch.setattr(digest_module, "fetch_transcript", lambda video: SAMPLE_TRANSCRIPT)
     corpus_dir = tmp_path / "corpus"
 
     exit_code = main([
@@ -349,92 +329,31 @@ def test_digest_records_summaries_and_transcripts_to_the_corpus(
     ])
 
     assert exit_code == 0
-    records = load_summaries("Duck Channel", root=corpus_dir)
-    assert len(records) == 1
-    assert records[0].video.video_id == "dQw4w9WgXcQ"
-    assert records[0].tldr           == "gist"
-    assert records[0].importance.score == 0.8
-    assert records[0].captured       == "2026-07-21"
-    archived = load_transcript("dQw4w9WgXcQ", root=corpus_dir)
+    store     = FileStore(corpus_dir)
+    summaries = store.load_summaries()
+    assert [s.video.video_id for s in summaries] == ["dQw4w9WgXcQ"]
+    assert summaries[0].tldr == "Ducks are great."
+    archived = store.load_transcript("dQw4w9WgXcQ")
     assert archived is not None
     assert archived.text == "ducks are great"
 
 
-def test_digest_corpus_failure_on_one_entry_does_not_abort_the_rest(
-    _no_config_file, monkeypatch: pytest.MonkeyPatch, tmp_path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    from tubeless.corpus import load_summaries
-    from tubeless.digest import Digest, DigestEntry
-    from tubeless.digest import record_entry as real_record_entry
-    from tubeless.errors import CorpusError
-    from tubeless.feed import Upload
-    from tubeless.importance import Importance
-    from tubeless.summary import Summary
-
-    def _entry(video_id: str) -> DigestEntry:
-        video = Video(video_id=video_id, title=f"V {video_id}",
-                      url=f"https://www.youtube.com/watch?v={video_id}", channel="Duck Channel")
-        return DigestEntry(
-            channel    = "Duck Channel",
-            upload     = Upload(video_id=video_id, title=f"V {video_id}",
-                                published="2026-07-21T09:00:00+00:00",
-                                channel_id="UC", channel="Duck Channel"),
-            summary    = Summary(video=video, tldr="gist", points=("a",), language="en", detail="normal"),
-            importance = Importance(score=0.8, reason="quacks"),
-            transcript = Transcript(video_id=video_id, language="en",
-                                    is_auto_generated=False, segments=()),
-        )
-
-    bad, good = _entry("aaaaaaaaaaa"), _entry("bbbbbbbbbbb")
-    monkeypatch.setattr(cli_module, "load_channels", lambda path: ())
-    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
-    monkeypatch.setattr(
-        cli_module, "curate",
-        lambda channels, backend, **kw: (
-            Digest(date="2026-07-21", entries=(bad, good), skipped=()),
-            {"aaaaaaaaaaa", "bbbbbbbbbbb"},
-        ),
-    )
-    corpus_dir = tmp_path / "corpus"
-
-    def flaky_record(entry, captured, *, root=None):
-        if entry.upload.video_id == "aaaaaaaaaaa":
-            raise CorpusError("disk full")
-        real_record_entry(entry, captured, root=root)
-
-    monkeypatch.setattr(cli_module, "record_entry", flaky_record)
-
-    exit_code = main([
-        "digest",
-        "--out",    str(tmp_path / "digests"),
-        "--state",  str(tmp_path / "state.json"),
-        "--corpus", str(corpus_dir),
-    ])
-
-    captured = capsys.readouterr()
-    assert exit_code == 0                       # one entry's failure is not fatal
-    assert "aaaaaaaaaaa" in captured.err        # the failing entry is reported by id
-    records = load_summaries("Duck Channel", root=corpus_dir)
-    assert [record.video.video_id for record in records] == ["bbbbbbbbbbb"]  # the rest survived
-
-
 def test_digest_only_filters_channels_by_label(_no_config_file, monkeypatch: pytest.MonkeyPatch) -> None:
     from tubeless.channels import Channel
-    from tubeless.digest import Digest
+    from tubeless.digest import Digest, DigestRun
 
     monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
     monkeypatch.setattr(cli_module, "load_channels", lambda path: (
         Channel(source="@a", label="Market Inside"),
         Channel(source="@b", label="Closing Bell"),
     ))
-    seen_channels = {}
+    seen_channels: dict[str, object] = {}
 
     def capture(channels, backend, **kw):
         seen_channels["labels"] = [c.label for c in channels]
-        return Digest(date="2026-07-21", entries=(), skipped=()), set()
+        return DigestRun(Digest(period="d", entries=()), frozenset())
 
-    monkeypatch.setattr(cli_module, "curate", capture)
+    monkeypatch.setattr(cli_module, "run_digest", capture)
 
     assert main(["digest", "--only", "closing", "--dry-run"]) == 0
     assert seen_channels["labels"] == ["Closing Bell"]

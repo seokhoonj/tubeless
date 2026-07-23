@@ -21,11 +21,11 @@ from pathlib import Path
 
 from tubeless import config
 from tubeless.channels import CHANNELS_PATH, load_channels
-from tubeless.corpus import CORPUS_ROOT
-from tubeless.digest import DEFAULT_PER_CHANNEL_LIMIT, Digest, curate, record_entry
-from tubeless.errors import ConfigError, CorpusError, ScheduleError, TubelessError
+from tubeless.digest import DEFAULT_PER_CHANNEL_LIMIT, run_digest
+from tubeless.errors import ConfigError, ScheduleError, TubelessError
 from tubeless.llm import BACKENDS, make_backend
 from tubeless.render import to_markdown
+from tubeless.store import CORPUS_ROOT, FileStore
 from tubeless.schedule import (
     DEFAULT_DAILY_TIME,
     DigestSchedule,
@@ -99,45 +99,32 @@ def _run_digest(args: argparse.Namespace) -> int:
         channels = tuple(c for c in channels if args.only.lower() in c.label.lower())
         if not channels:
             raise ConfigError(f"no channel label contains {args.only!r} in {args.channels}")
-    backend           = make_backend(args.backend, model=args.model)
+    backend = make_backend(args.backend, model=args.model)
     _print_run_settings(args.backend, backend.model, lang=args.lang, limit=args.limit)
-    seen              = read_seen(args.state)
-    digest, processed = curate(
+    seen  = read_seen(args.state)
+    # A dry run persists nothing (store=None): the summaries and transcripts a
+    # real run writes through to the corpus are skipped, and the seen-set is left
+    # untouched, so the run can be repeated.
+    store = None if args.dry_run else FileStore(args.corpus)
+    run   = run_digest(
         channels, backend,
-        date              = _today(),
-        seen              = seen,
+        period            = _today(),
+        seen              = frozenset(seen),
         language          = args.lang,
         per_channel_limit = args.limit,
         with_synthesis    = args.synthesize,
+        store             = store,
     )
-    markdown = to_markdown(digest)
+    markdown = to_markdown(run.digest)
     if args.dry_run:
         print(markdown)
         return 0
 
-    out_path = _write_digest(args.out, digest.date, markdown)
-    write_seen(seen | processed, args.state)
-    _record_to_corpus(digest, root=args.corpus)
-    skipped_note = f", {len(digest.skipped)} channels skipped" if digest.skipped else ""
-    print(f"digest written: {out_path} ({len(digest.entries)} videos{skipped_note})")
+    out_path = _write_digest(args.out, run.digest.period, markdown)
+    write_seen(set(run.seen), args.state)
+    skipped_note = f", {len(run.digest.skipped)} skipped" if run.digest.skipped else ""
+    print(f"digest written: {out_path} ({len(run.digest.entries)} videos{skipped_note})")
     return 0
-
-
-def _record_to_corpus(digest: Digest, *, root: Path) -> None:
-    """Archive each summarized video to the on-disk corpus (see
-    ``corpus.record_entry`` for the record it builds).
-
-    Best-effort per entry: the corpus is a secondary archive, and the digest file
-    and seen-set are already persisted by now, so one entry's I/O failure is
-    reported and skipped rather than aborting the loop and dropping every entry
-    that follows -- those are already marked seen and would never be retried.
-    """
-    for entry in digest.entries:
-        try:
-            record_entry(entry, digest.date, root=root)
-        except CorpusError as err:
-            print(f"tubeless: corpus not updated for {entry.upload.video_id} ({err})",
-                  file=sys.stderr)
 
 
 def _run_schedule_install(args: argparse.Namespace) -> int:

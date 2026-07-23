@@ -1,25 +1,34 @@
-"""Digest orchestration with fakes: sorting, seen-skip, captionless-skip, feed error.
-
-The feed and transcript boundaries are monkeypatched; summarize and
-importance scoring runs for real against a fake backend, so the assembly logic and
-the score-driven sort are exercised end to end without a network call.
+"""Digest orchestration with fakes: the engine (summarize_videos), the pure
+assembler (curate), the top orchestrator (run_digest), and the store-backed
+recompute. The discover and transcript boundaries are monkeypatched; summarizing
+and importance scoring run for real against a fake backend, so the assembly logic
+and the score-driven sort are exercised end to end without a network call.
 """
 
 import pytest
 
 import tubeless.digest as digest_module
 from tubeless.channels import Channel
-from tubeless.digest import curate
+from tubeless.digest import (
+    DEFAULT_PER_CHANNEL_LIMIT,
+    Skip,
+    curate,
+    recompute,
+    run_digest,
+    summarize_videos,
+)
+from tubeless.discover import DEFAULT_SCAN
 from tubeless.errors import FeedError, TranscriptFetchBlocked, TranscriptUnavailable
-from tubeless.feed import Upload
+from tubeless.source import Video
+from tubeless.summary import Summary
 from tubeless.transcript import Transcript, TranscriptSegment
 
-_CHANNEL_ID = "UCabcdefghijklmnopqrstuv"
 
-
-def _upload(video_id: str, title: str) -> Upload:
-    return Upload(video_id=video_id, title=title, published="",
-                  channel_id=_CHANNEL_ID, channel="Example Channel")
+def _video(video_id: str, title: str, *, channel: str = "Example Channel", published: str | None = None) -> Video:
+    return Video(
+        video_id=video_id, title=title,
+        url=f"https://www.youtube.com/watch?v={video_id}", channel=channel, published=published,
+    )
 
 
 def _transcript(video_id: str) -> Transcript:
@@ -29,24 +38,23 @@ def _transcript(video_id: str) -> Transcript:
     )
 
 
+def _summary(video_id: str, *, channel: str = "Example Channel", published: str | None = None) -> Summary:
+    return Summary(
+        video=_video(video_id, f"V {video_id}", channel=channel, published=published),
+        tldr="gist", points=("a", "b"), language="en", detail="normal",
+    )
+
+
 class ScoringBackend:
-    """Fake backend: a summary-shaped reply for summarize, a score-shaped reply
-    for importance scoring. The score is high when the prompt names a 'big'
-    video, so sorting has something to order by."""
+    """Fake backend: a summary-shaped reply for summarizing, a score-shaped reply
+    for importance scoring. The score is high when the prompt names a 'big' video,
+    so sorting has something to order by."""
 
     def complete(self, prompt: str, *, system: str | None = None) -> str:
         if "importance" in prompt.lower():
             score = 0.9 if "big" in prompt.lower() else 0.2
             return f"SCORE: {score}\nREASON: reason"
         return "TLDR: gist\n- point one\n- point two"
-
-
-@pytest.fixture
-def two_uploads(monkeypatch):
-    monkeypatch.setattr(digest_module, "fetch_uploads",
-                        lambda source, limit: (_upload("aaaaaaaaaaa", "small note"),
-                                               _upload("bbbbbbbbbbb", "big news")))
-    monkeypatch.setattr(digest_module, "fetch_transcript", lambda video: _transcript(video.video_id))
 
 
 class SynthesizingBackend(ScoringBackend):
@@ -59,189 +67,277 @@ class SynthesizingBackend(ScoringBackend):
         return super().complete(prompt, system=system)
 
 
+class FakeStore:
+    """In-memory Store: records what was written through, serves what it holds."""
+
+    def __init__(self) -> None:
+        self.summaries:   list[Summary] = []
+        self.transcripts: list[Transcript] = []
+
+    def save_summary(self, summary: Summary) -> None:
+        self.summaries.append(summary)
+
+    def save_transcript(self, transcript: Transcript) -> None:
+        self.transcripts.append(transcript)
+
+    def load_summaries(self, *, since=None, until=None, channel=None) -> tuple[Summary, ...]:
+        return tuple(self.summaries)
+
+    def load_transcript(self, video_id: str):
+        return next((t for t in self.transcripts if t.video_id == video_id), None)
+
+
 _ONE_CHANNEL = (Channel(source="@x", label="Example Channel", detail="normal"),)
 
 
-def test_curate_scans_the_full_window_for_a_filtered_channel(monkeypatch):
-    # A channel with a title filter must scan the full ~15-entry feed window, not
-    # just per_channel_limit -- the wanted uploads are sparse among the rest, so a
-    # small window silently drops them (the documented missed-video incident). A
-    # plain channel keeps the small per-channel limit.
-    seen_limits: dict[str, int] = {}
+# --- summarize_videos (the channel-agnostic engine) ---------------------------
 
-    def recording_fetch(source, limit):
-        seen_limits[source] = limit
-        return ()
+def test_summarize_videos_summarizes_each_and_reports_processed(monkeypatch):
+    monkeypatch.setattr(digest_module, "fetch_transcript", lambda video: _transcript(video.video_id))
+    videos = (_video("aaaaaaaaaaa", "one"), _video("bbbbbbbbbbb", "two"))
 
-    monkeypatch.setattr(digest_module, "fetch_uploads", recording_fetch)
-    channels = (
-        Channel(source="@filtered", label="Filtered", title_includes=("live",)),
-        Channel(source="@plain", label="Plain"),
-    )
+    result = summarize_videos(videos, ScoringBackend(), detail="normal")
 
-    curate(channels, ScoringBackend(), date="d", seen=set(), per_channel_limit=5)
-
-    assert seen_limits["@filtered"] == digest_module._FILTERED_FETCH_LIMIT
-    assert seen_limits["@plain"] == 5
+    assert [s.video.video_id for s in result.summaries] == ["aaaaaaaaaaa", "bbbbbbbbbbb"]
+    assert result.skipped == []
+    assert result.processed == frozenset({"aaaaaaaaaaa", "bbbbbbbbbbb"})
 
 
-def test_curate_adds_a_synthesis_when_requested(two_uploads):
-    digest, _ = curate(
-        _ONE_CHANNEL, SynthesizingBackend(), date="d", seen=set(), with_synthesis=True,
-    )
+def test_summarize_videos_records_a_captionless_video_as_a_skip_but_processed(monkeypatch):
+    def fetch(video):
+        if video.video_id == "ccccccccccc":
+            raise TranscriptUnavailable("captions off")
+        return _transcript(video.video_id)
 
-    assert digest.synthesis is not None
-    assert digest.synthesis.tone == "cautious"
-    assert digest.synthesis.agreements == ("chips fell",)
+    monkeypatch.setattr(digest_module, "fetch_transcript", fetch)
+    videos = (_video("aaaaaaaaaaa", "ok"), _video("ccccccccccc", "no captions"))
+
+    result = summarize_videos(videos, ScoringBackend(), detail="normal")
+
+    assert [s.video.video_id for s in result.summaries] == ["aaaaaaaaaaa"]
+    assert result.skipped == [Skip("no-transcript", "ccccccccccc", "captions off")]
+    # the captionless video still counts as processed, so it is not retried
+    assert result.processed == frozenset({"aaaaaaaaaaa", "ccccccccccc"})
 
 
-def test_curate_omits_the_synthesis_by_default(two_uploads):
-    digest, _ = curate(_ONE_CHANNEL, SynthesizingBackend(), date="d", seen=set())
+def test_summarize_videos_writes_through_to_the_store(monkeypatch):
+    monkeypatch.setattr(digest_module, "fetch_transcript", lambda video: _transcript(video.video_id))
+    store = FakeStore()
 
-    assert digest.synthesis is None
+    summarize_videos((_video("aaaaaaaaaaa", "one"),), ScoringBackend(), detail="normal", store=store)
+
+    assert [t.video_id for t in store.transcripts] == ["aaaaaaaaaaa"]
+    assert [s.video.video_id for s in store.summaries] == ["aaaaaaaaaaa"]
 
 
-def test_curate_skips_the_synthesis_for_a_single_video(monkeypatch):
-    monkeypatch.setattr(digest_module, "fetch_uploads",
-                        lambda source, limit: (_upload("aaaaaaaaaaa", "only one"),))
+def test_summarize_videos_dry_run_persists_nothing(monkeypatch):
     monkeypatch.setattr(digest_module, "fetch_transcript", lambda video: _transcript(video.video_id))
 
-    # requested, but one source cannot agree or disagree with itself
-    digest, _ = curate(
-        _ONE_CHANNEL, SynthesizingBackend(), date="d", seen=set(), with_synthesis=True,
-    )
+    result = summarize_videos((_video("aaaaaaaaaaa", "one"),), ScoringBackend(), detail="normal", store=None)
 
-    assert len(digest.entries) == 1
-    assert digest.synthesis is None
+    assert len(result.summaries) == 1   # still summarized, just not stored
 
 
-def test_curate_sorts_entries_by_importance(two_uploads):
-    digest, processed = curate(
-        _ONE_CHANNEL, ScoringBackend(), date="2026-07-21", seen=set(),
-    )
-
-    assert [e.upload.title for e in digest.entries] == ["big news", "small note"]
-    assert processed == {"aaaaaaaaaaa", "bbbbbbbbbbb"}
-
-
-def test_curate_skips_already_seen_videos(two_uploads):
-    digest, processed = curate(
-        _ONE_CHANNEL, ScoringBackend(), date="d", seen={"aaaaaaaaaaa"},
-    )
-
-    assert [e.upload.video_id for e in digest.entries] == ["bbbbbbbbbbb"]
-    assert processed == {"bbbbbbbbbbb"}
-
-
-def test_curate_marks_captionless_videos_processed_but_drops_them(monkeypatch):
-    monkeypatch.setattr(digest_module, "fetch_uploads",
-                        lambda source, limit: (_upload("ccccccccccc", "no captions"),))
-
-    def no_transcript(video_id):
-        raise TranscriptUnavailable("captions off")
-
-    monkeypatch.setattr(digest_module, "fetch_transcript", no_transcript)
-
-    digest, processed = curate(_ONE_CHANNEL, ScoringBackend(), date="d", seen=set())
-
-    assert digest.entries == ()
-    assert processed == {"ccccccccccc"}  # marked, so it is not retried tomorrow
-
-
-def test_curate_aborts_on_a_transient_transcript_block(monkeypatch):
-    # A transient IP block must abort the whole run (propagate), NOT be swallowed
-    # like a captionless video -- otherwise curate would report the video as
-    # processed and the caller would persist it, losing it forever.
-    monkeypatch.setattr(digest_module, "fetch_uploads",
-                        lambda source, limit: (_upload("ddddddddddd", "blocked"),))
-
-    def blocked(video_id):
+def test_summarize_videos_propagates_a_transient_block(monkeypatch):
+    def blocked(video):
         raise TranscriptFetchBlocked("ip blocked")
 
     monkeypatch.setattr(digest_module, "fetch_transcript", blocked)
 
     with pytest.raises(TranscriptFetchBlocked):
-        curate(_ONE_CHANNEL, ScoringBackend(), date="d", seen=set())
+        summarize_videos((_video("aaaaaaaaaaa", "one"),), ScoringBackend(), detail="normal")
 
 
-def test_curate_processes_a_repeated_video_only_once(monkeypatch):
-    # The same upload served by two channel sources must be summarized once.
-    monkeypatch.setattr(digest_module, "fetch_uploads",
-                        lambda source, limit: (_upload("aaaaaaaaaaa", "shared upload"),))
-    fetched: list[str] = []
+# --- curate (the pure assembler) ----------------------------------------------
 
-    def record(video):
-        fetched.append(video.video_id)
-        return _transcript(video.video_id)
+def test_curate_ranks_entries_by_importance():
+    summaries = [_summary("aaaaaaaaaaa"), _summary("bbbbbbbbbbb")]
+    summaries[1] = Summary(video=_video("bbbbbbbbbbb", "big news"), tldr="g", points=("a",),
+                           language="en", detail="normal")
 
-    monkeypatch.setattr(digest_module, "fetch_transcript", record)
-    two_channels = (Channel(source="@a", label="A", detail="normal"),
-                    Channel(source="@b", label="B", detail="normal"))
+    digest = curate(summaries, ScoringBackend(), period="2026-07-21")
 
-    digest, processed = curate(two_channels, ScoringBackend(), date="d", seen=set())
-
-    assert len(digest.entries) == 1
-    assert processed == {"aaaaaaaaaaa"}
-    assert fetched == ["aaaaaaaaaaa"]  # summarized once, not per channel
+    assert [e.summary.video.title for e in digest.entries] == ["big news", "V aaaaaaaaaaa"]
+    assert digest.period == "2026-07-21"
 
 
-def test_curate_title_filter_ignores_case(monkeypatch):
-    monkeypatch.setattr(digest_module, "fetch_uploads",
-                        lambda source, limit: (_upload("aaaaaaaaaaa", "Morning SHOW with ALICE"),))
-    monkeypatch.setattr(digest_module, "fetch_transcript", lambda video: _transcript(video.video_id))
-    channels = (Channel(source="@x", label="Show", detail="normal",
-                        title_includes=("show", "alice")),)   # lowercase filter, mixed-case title
+def test_curate_surfaces_the_skips_it_is_given():
+    skip = Skip("feed-failure", "@dead", "feed down")
 
-    digest, processed = curate(channels, ScoringBackend(), date="d", seen=set())
+    digest = curate([_summary("aaaaaaaaaaa")], ScoringBackend(), period="d", skipped=[skip])
 
-    assert [e.upload.video_id for e in digest.entries] == ["aaaaaaaaaaa"]
+    assert digest.skipped == (skip,)
 
 
-def test_curate_applies_a_title_filter(monkeypatch):
-    monkeypatch.setattr(
-        digest_module, "fetch_uploads",
-        lambda source, limit: (_upload("aaaaaaaaaaa", "[Show] with Alice"),
-                               _upload("bbbbbbbbbbb", "[Show] with Bob"),
-                               _upload("ccccccccccc", "[Other] with Alice too")),
-    )
-    monkeypatch.setattr(digest_module, "fetch_transcript", lambda video: _transcript(video.video_id))
-    channels = (Channel(source="@x", label="Show", detail="normal",
-                        title_includes=("[Show]", "Alice")),)
+def test_curate_adds_a_synthesis_when_requested():
+    summaries = [_summary("aaaaaaaaaaa"), _summary("bbbbbbbbbbb")]
 
-    digest, processed = curate(channels, ScoringBackend(), date="d", seen=set())
+    digest = curate(summaries, SynthesizingBackend(), period="d", with_synthesis=True)
 
-    # only the upload whose title contains BOTH "[Show]" and "Alice"
-    assert [e.upload.video_id for e in digest.entries] == ["aaaaaaaaaaa"]
-    assert processed == {"aaaaaaaaaaa"}
+    assert digest.synthesis is not None
+    assert digest.synthesis.tone == "cautious"
 
 
-def test_curate_drops_titles_matching_an_exclude(monkeypatch):
-    # A channel posts a LIVE broadcast and an edited replay of the same episode;
-    # title_excludes=["LIVE"] keeps only the replay.
-    monkeypatch.setattr(
-        digest_module, "fetch_uploads",
-        lambda source, limit: (_upload("aaaaaaaaaaa", "[7/22 Market] recap"),
-                               _upload("bbbbbbbbbbb", "[LIVE 7/22 Market] recap")),
-    )
-    monkeypatch.setattr(digest_module, "fetch_transcript", lambda video: _transcript(video.video_id))
-    channels = (Channel(source="@x", label="Show", detail="normal",
-                        title_includes=("Market",), title_excludes=("live",)),)  # case-insensitive
+def test_curate_omits_the_synthesis_by_default():
+    summaries = [_summary("aaaaaaaaaaa"), _summary("bbbbbbbbbbb")]
 
-    digest, processed = curate(channels, ScoringBackend(), date="d", seen=set())
+    digest = curate(summaries, SynthesizingBackend(), period="d")
 
-    assert [e.upload.video_id for e in digest.entries] == ["aaaaaaaaaaa"]
-    assert processed == {"aaaaaaaaaaa"}
+    assert digest.synthesis is None
 
 
-def test_curate_records_a_channel_whose_feed_fails(monkeypatch):
-    def feed_down(source, limit):
-        raise FeedError("feed unreachable")
-
-    monkeypatch.setattr(digest_module, "fetch_uploads", feed_down)
-
-    digest, processed = curate(_ONE_CHANNEL, ScoringBackend(), date="d", seen=set())
+def test_curate_of_no_summaries_is_an_empty_digest():
+    digest = curate([], ScoringBackend(), period="d")
 
     assert digest.entries == ()
-    assert processed == set()
-    assert len(digest.skipped) == 1
-    assert "Example Channel" in digest.skipped[0]
+
+
+# --- run_digest (the top orchestrator) ----------------------------------------
+
+def _discover_returns(monkeypatch, by_source):
+    def fake_discover(source, *, limit, includes=(), excludes=()):
+        return by_source.get(source, ())
+    monkeypatch.setattr(digest_module, "discover", fake_discover)
+    monkeypatch.setattr(digest_module, "fetch_transcript", lambda video: _transcript(video.video_id))
+
+
+def test_run_digest_discovers_summarizes_and_ranks(monkeypatch):
+    _discover_returns(monkeypatch, {
+        "@x": (_video("aaaaaaaaaaa", "small note"), _video("bbbbbbbbbbb", "big news")),
+    })
+
+    run = run_digest(_ONE_CHANNEL, ScoringBackend(), period="2026-07-21")
+
+    assert [e.summary.video.title for e in run.digest.entries] == ["big news", "small note"]
+    assert run.seen == frozenset({"aaaaaaaaaaa", "bbbbbbbbbbb"})
+
+
+def test_run_digest_skips_already_seen_videos(monkeypatch):
+    _discover_returns(monkeypatch, {
+        "@x": (_video("aaaaaaaaaaa", "one"), _video("bbbbbbbbbbb", "two")),
+    })
+
+    run = run_digest(_ONE_CHANNEL, ScoringBackend(), period="d", seen=frozenset({"aaaaaaaaaaa"}))
+
+    assert [e.summary.video.video_id for e in run.digest.entries] == ["bbbbbbbbbbb"]
+    # the merged seen keeps the old id and adds the new one
+    assert run.seen == frozenset({"aaaaaaaaaaa", "bbbbbbbbbbb"})
+
+
+def test_run_digest_handles_a_video_shared_by_two_channels_once(monkeypatch):
+    _discover_returns(monkeypatch, {
+        "@a": (_video("aaaaaaaaaaa", "shared"),),
+        "@b": (_video("aaaaaaaaaaa", "shared"),),
+    })
+    channels = (Channel(source="@a", label="A"), Channel(source="@b", label="B"))
+
+    run = run_digest(channels, ScoringBackend(), period="d")
+
+    assert len(run.digest.entries) == 1
+
+
+def test_run_digest_records_a_feed_failure_as_a_skip_and_continues(monkeypatch):
+    def fake_discover(source, *, limit, includes=(), excludes=()):
+        if source == "@dead":
+            raise FeedError("feed down")
+        return (_video("aaaaaaaaaaa", "one"),)
+
+    monkeypatch.setattr(digest_module, "discover", fake_discover)
+    monkeypatch.setattr(digest_module, "fetch_transcript", lambda video: _transcript(video.video_id))
+    channels = (Channel(source="@dead", label="Dead"), Channel(source="@x", label="Live"))
+
+    run = run_digest(channels, ScoringBackend(), period="d")
+
+    assert len(run.digest.entries) == 1                       # the live channel still produced
+    assert run.digest.skipped == (Skip("feed-failure", "@dead", "feed down"),)
+
+
+def test_run_digest_scans_the_full_window_for_a_filtered_channel(monkeypatch):
+    # A channel with a title filter must scan the full feed window, not just
+    # per_channel_limit -- the wanted uploads are sparse among the rest (the
+    # documented missed-video incident). A plain channel keeps the small limit.
+    seen_limits: dict[str, int] = {}
+
+    def fake_discover(source, *, limit, includes=(), excludes=()):
+        seen_limits[source] = limit
+        return ()
+
+    monkeypatch.setattr(digest_module, "discover", fake_discover)
+    channels = (
+        Channel(source="@filtered", label="Filtered", title_includes=("live",)),
+        Channel(source="@plain", label="Plain"),
+    )
+
+    run_digest(channels, ScoringBackend(), period="d", per_channel_limit=5)
+
+    assert seen_limits["@filtered"] == DEFAULT_SCAN
+    assert seen_limits["@plain"] == 5
+
+
+def test_run_digest_surfaces_a_captionless_video_as_a_skip(monkeypatch):
+    def fetch(video):
+        raise TranscriptUnavailable("captions off")
+
+    def fake_discover(source, *, limit, includes=(), excludes=()):
+        return (_video("ccccccccccc", "no captions"),)
+
+    monkeypatch.setattr(digest_module, "discover", fake_discover)
+    monkeypatch.setattr(digest_module, "fetch_transcript", fetch)
+
+    run = run_digest(_ONE_CHANNEL, ScoringBackend(), period="d")
+
+    assert run.digest.entries == ()
+    assert run.digest.skipped == (Skip("no-transcript", "ccccccccccc", "captions off"),)
+    assert run.seen == frozenset({"ccccccccccc"})   # not retried tomorrow
+
+
+def test_run_digest_aborts_on_a_transient_block_before_persisting(monkeypatch):
+    def fake_discover(source, *, limit, includes=(), excludes=()):
+        return (_video("ddddddddddd", "blocked"),)
+
+    def blocked(video):
+        raise TranscriptFetchBlocked("ip blocked")
+
+    monkeypatch.setattr(digest_module, "discover", fake_discover)
+    monkeypatch.setattr(digest_module, "fetch_transcript", blocked)
+
+    with pytest.raises(TranscriptFetchBlocked):
+        run_digest(_ONE_CHANNEL, ScoringBackend(), period="d")
+
+
+def test_run_digest_writes_through_to_the_store(monkeypatch):
+    _discover_returns(monkeypatch, {"@x": (_video("aaaaaaaaaaa", "one"),)})
+    store = FakeStore()
+
+    run_digest(_ONE_CHANNEL, ScoringBackend(), period="d", store=store)
+
+    assert [s.video.video_id for s in store.summaries] == ["aaaaaaaaaaa"]
+
+
+# --- recompute (store-backed re-assembly) -------------------------------------
+
+def test_recompute_reassembles_a_digest_from_stored_summaries():
+    store = FakeStore()
+    store.summaries.extend([_summary("aaaaaaaaaaa"), _summary("bbbbbbbbbbb")])
+
+    digest = recompute(ScoringBackend(), store, since="2026-07-01", until="2026-07-08")
+
+    assert {e.summary.video.video_id for e in digest.entries} == {"aaaaaaaaaaa", "bbbbbbbbbbb"}
+    assert digest.period == "2026-07-01..2026-07-08"
+
+
+def test_recompute_keeps_one_summary_per_video():
+    # The store may hold several variants of one video (different detail); recompute
+    # keeps the most recent (last in load order) so curate never double-counts it.
+    store = FakeStore()
+    old = Summary(video=_video("aaaaaaaaaaa", "old"), tldr="old", points=("a",),
+                  language="en", detail="brief")
+    new = Summary(video=_video("aaaaaaaaaaa", "new"), tldr="new", points=("a",),
+                  language="en", detail="deep")
+    store.summaries.extend([old, new])   # load order is oldest-first
+
+    digest = recompute(ScoringBackend(), store)
+
+    assert len(digest.entries) == 1
+    assert digest.entries[0].summary.tldr == "new"
+    assert digest.period == "all"
