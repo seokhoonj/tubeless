@@ -87,7 +87,7 @@ class FakeStore:
         return next((t for t in self.transcripts if t.video_id == video_id), None)
 
 
-_ONE_CHANNEL = (Channel(source="@x", label="Example Channel", detail="normal"),)
+_ONE_CHANNEL = (Channel(source="@x", detail="normal"),)
 
 
 # --- summarize_videos (the channel-agnostic engine) ---------------------------
@@ -229,7 +229,7 @@ def test_run_digest_handles_a_video_shared_by_two_channels_once(monkeypatch):
         "@a": (_video("aaaaaaaaaaa", "shared"),),
         "@b": (_video("aaaaaaaaaaa", "shared"),),
     })
-    channels = (Channel(source="@a", label="A"), Channel(source="@b", label="B"))
+    channels = (Channel(source="@a"), Channel(source="@b"))
 
     run = run_digest(channels, ScoringBackend(), period="d")
 
@@ -244,7 +244,7 @@ def test_run_digest_records_a_feed_failure_as_a_skip_and_continues(monkeypatch):
 
     monkeypatch.setattr(digest_module, "discover", fake_discover)
     monkeypatch.setattr(digest_module, "fetch_transcript", lambda video: _transcript(video.video_id))
-    channels = (Channel(source="@dead", label="Dead"), Channel(source="@x", label="Live"))
+    channels = (Channel(source="@dead"), Channel(source="@x"))
 
     run = run_digest(channels, ScoringBackend(), period="d")
 
@@ -264,8 +264,8 @@ def test_run_digest_scans_the_full_window_for_a_filtered_channel(monkeypatch):
 
     monkeypatch.setattr(digest_module, "discover", fake_discover)
     channels = (
-        Channel(source="@filtered", label="Filtered", title_includes=("live",)),
-        Channel(source="@plain", label="Plain"),
+        Channel(source="@filtered", includes=("live",)),
+        Channel(source="@plain"),
     )
 
     run_digest(channels, ScoringBackend(), period="d", per_channel_limit=5)

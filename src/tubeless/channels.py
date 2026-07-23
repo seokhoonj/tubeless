@@ -1,27 +1,25 @@
 """The set of channels the user follows, read from ``~/.tubeless/channels.toml``.
 
-Each entry names where to look (a handle, URL, id, or playlist), a label for the
-digest, how deeply to summarize, and optionally a title filter to keep only some
-of the source's uploads. This module only reads config; resolving a handle to an
-id and fetching uploads is ``feed.py``'s job.
+Each entry names where to look (a handle, URL, id, or playlist), how deeply to
+summarize, and optionally a title filter to keep only some of the source's
+uploads. This module only reads config; resolving a source and listing its
+recent videos is ``discover.py``'s job.
 
 Example ``channels.toml``::
 
     [[channel]]
     source = "@examplechannel"   # a handle, channel URL, 'UC...' id, or playlist
-    label  = "Example Channel"
     detail = "deep"
 
     [[channel]]
-    # a playlist narrows a channel to one series; title_includes narrows it
-    # further to uploads whose title contains every listed word (e.g. one host).
-    # title_excludes drops uploads carrying any listed word -- e.g. a channel
-    # that posts a "LIVE" broadcast and an edited replay of the same episode.
-    source         = "PLxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-    label          = "A Daily Show"
-    detail         = "deep"
-    title_includes = ["Some Host"]
-    title_excludes = ["LIVE"]
+    # a playlist narrows a channel to one series; includes narrows it further to
+    # uploads whose title contains every listed word (e.g. one host). excludes
+    # drops uploads carrying any listed word -- e.g. a channel that posts a "LIVE"
+    # broadcast and an edited replay of the same episode.
+    source   = "PLxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    detail   = "deep"
+    includes = ["Some Host"]
+    excludes = ["LIVE"]
 """
 
 from __future__ import annotations
@@ -41,20 +39,16 @@ CHANNELS_PATH = Path.home() / ".tubeless" / "channels.toml"
 @dataclass(frozen=True, slots=True)
 class Channel:
     """One followed channel and how to summarize it. ``source`` is whatever the
-    user wrote (handle / URL / id / playlist); ``feed.fetch_uploads`` resolves it
-    at digest time. ``title_includes`` keeps only uploads whose title contains
-    every listed word (case-insensitive) -- empty means keep all.
-    ``title_excludes`` then drops any upload whose title contains any listed word
-    (e.g. ``"LIVE"`` to skip a live broadcast kept alongside its edited replay) --
-    empty means drop none. ``preset`` is reserved for a future domain profile and
-    is unused by the neutral core."""
+    user wrote (handle / URL / id / playlist); ``discover`` resolves it at digest
+    time. ``includes`` keeps only uploads whose title contains every listed word
+    (case-insensitive) -- empty means keep all. ``excludes`` then drops any upload
+    whose title contains any listed word (e.g. ``"LIVE"`` to skip a live broadcast
+    kept alongside its edited replay) -- empty means drop none."""
 
-    source:         str
-    label:          str
-    detail:         DetailLevel = "deep"
-    preset:         str | None = None
-    title_includes: tuple[str, ...] = ()
-    title_excludes: tuple[str, ...] = ()
+    source:   str
+    detail:   DetailLevel = "deep"
+    includes: tuple[str, ...] = ()
+    excludes: tuple[str, ...] = ()
 
 
 def load_channels(path: Path | None = None) -> tuple[Channel, ...]:
@@ -67,7 +61,7 @@ def load_channels(path: Path | None = None) -> tuple[Channel, ...]:
     if not path.exists():
         raise ConfigError(
             f"no channels file at {path}; create it with [[channel]] entries "
-            "(each needs a source and a label)"
+            "(each needs a source)"
         )
     try:
         parsed = tomllib.loads(path.read_text(encoding="utf-8"))
@@ -90,12 +84,10 @@ def _channel_from(entry: dict[str, object], path: Path) -> Channel:
             f"channel {source!r}: detail must be one of {DETAIL_LEVELS}, got {detail!r}"
         )
     return Channel(
-        source         = source,
-        label          = entry.get("label") or source,
-        detail         = detail,
-        preset         = entry.get("preset"),
-        title_includes = _keywords(entry.get("title_includes", ()), "title_includes", source),
-        title_excludes = _keywords(entry.get("title_excludes", ()), "title_excludes", source),
+        source   = source,
+        detail   = detail,
+        includes = _keywords(entry.get("includes", ()), "includes", source),
+        excludes = _keywords(entry.get("excludes", ()), "excludes", source),
     )
 
 

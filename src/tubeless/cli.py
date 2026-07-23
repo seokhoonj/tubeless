@@ -93,9 +93,9 @@ def _run_summarize(args: argparse.Namespace) -> int:
 def _run_digest(args: argparse.Namespace) -> int:
     channels = load_channels(args.channels)
     if args.only:
-        channels = tuple(c for c in channels if args.only.lower() in c.label.lower())
+        channels = tuple(c for c in channels if args.only.lower() in c.source.lower())
         if not channels:
-            raise ConfigError(f"no channel label contains {args.only!r} in {args.channels}")
+            raise ConfigError(f"no channel source contains {args.only!r} in {args.channels}")
     backend = make_backend(args.backend, model=args.model)
     _print_run_settings(args.backend, backend.model, lang=args.lang, limit=args.limit)
     seen  = read_seen(args.state)
@@ -208,7 +208,7 @@ def _build_parser() -> argparse.ArgumentParser:
                                help=f"directory for the analysis corpus of summaries and "
                                     f"transcripts (default: {CORPUS_ROOT})")
     digest_parser.add_argument("--only", default=None,
-                               help="run only channels whose label contains this text")
+                               help="run only channels whose source contains this text")
     digest_parser.add_argument("--limit", type=_positive_int,
                                default=_configured_positive_int("TUBELESS_LIMIT", DEFAULT_PER_CHANNEL_LIMIT),
                                help=f"max recent uploads to check per channel "

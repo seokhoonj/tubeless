@@ -229,12 +229,12 @@ def run_digest(
         # A filtered channel scans the full feed window, not just per_channel_limit:
         # the wanted uploads are sparse among the rest, so a small window silently
         # drops them (the documented missed-video incident).
-        has_filter = bool(channel.title_includes or channel.title_excludes)
+        has_filter = bool(channel.includes or channel.excludes)
         limit      = DEFAULT_SCAN if has_filter else per_channel_limit
         try:
             videos = discover(
                 channel.source, limit=limit,
-                includes=channel.title_includes, excludes=channel.title_excludes,
+                includes=channel.includes, excludes=channel.excludes,
             )
         except FeedError as err:
             skips.append(Skip("feed-failure", channel.source, str(err)))

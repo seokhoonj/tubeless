@@ -317,7 +317,7 @@ def test_digest_writes_summaries_and_transcripts_to_the_store(
     from tubeless.store import FileStore
 
     monkeypatch.setattr(cli_module, "load_channels",
-                        lambda path: (Channel(source="@x", label="Duck Channel"),))
+                        lambda path: (Channel(source="@x"),))
     monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
     monkeypatch.setattr(digest_module, "discover",
                         lambda source, *, limit, includes=(), excludes=(): (SAMPLE_VIDEO,))
@@ -341,32 +341,32 @@ def test_digest_writes_summaries_and_transcripts_to_the_store(
     assert archived.text == "ducks are great"
 
 
-def test_digest_only_filters_channels_by_label(_no_config_file, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_digest_only_filters_channels_by_source(_no_config_file, monkeypatch: pytest.MonkeyPatch) -> None:
     from tubeless.channels import Channel
     from tubeless.digest import Digest, DigestRun
 
     monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
     monkeypatch.setattr(cli_module, "load_channels", lambda path: (
-        Channel(source="@a", label="Market Inside"),
-        Channel(source="@b", label="Closing Bell"),
+        Channel(source="@market-inside"),
+        Channel(source="@closing-bell"),
     ))
     seen_channels: dict[str, object] = {}
 
     def capture(channels, backend, **kw):
-        seen_channels["labels"] = [c.label for c in channels]
+        seen_channels["sources"] = [c.source for c in channels]
         return DigestRun(Digest(period="d", entries=()), frozenset())
 
     monkeypatch.setattr(cli_module, "run_digest", capture)
 
     assert main(["digest", "--only", "closing", "--dry-run"]) == 0
-    assert seen_channels["labels"] == ["Closing Bell"]
+    assert seen_channels["sources"] == ["@closing-bell"]
 
 
 def test_digest_only_with_no_match_errors(_no_config_file, monkeypatch: pytest.MonkeyPatch,
                                           capsys: pytest.CaptureFixture[str]) -> None:
     from tubeless.channels import Channel
     monkeypatch.setattr(cli_module, "load_channels",
-                        lambda path: (Channel(source="@a", label="Market Inside"),))
+                        lambda path: (Channel(source="@market-inside"),))
 
     exit_code = main(["digest", "--only", "nonexistent", "--dry-run"])
 

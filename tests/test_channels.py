@@ -17,77 +17,69 @@ def test_load_channels_reads_entries_with_defaults(tmp_path):
         tmp_path,
         '[[channel]]\n'
         'source = "@examplechannel"\n'
-        'label  = "Example Channel"\n'
         'detail = "deep"\n'
         '\n'
         '[[channel]]\n'
-        'source = "@anotherchannel"\n'
-        'label  = "Other Channel"\n',
+        'source = "@anotherchannel"\n',
     )
     channels = load_channels(path)
 
-    assert channels[0] == Channel(source="@examplechannel", label="Example Channel", detail="deep")
+    assert channels[0] == Channel(source="@examplechannel", detail="deep")
     assert channels[1].detail == "deep"  # default when omitted
 
 
 def test_load_channels_reads_a_title_filter(tmp_path):
     path = _write(
         tmp_path,
-        '[[channel]]\nsource = "PLxxxxxxxxxx"\nlabel = "S"\ntitle_includes = ["Alice", "News"]\n',
+        '[[channel]]\nsource = "PLxxxxxxxxxx"\nincludes = ["Alice", "News"]\n',
     )
-    assert load_channels(path)[0].title_includes == ("Alice", "News")
+    assert load_channels(path)[0].includes == ("Alice", "News")
 
 
 def test_load_channels_reads_a_title_exclude_filter(tmp_path):
     path = _write(
         tmp_path,
-        '[[channel]]\nsource = "@x"\nlabel = "X"\ntitle_excludes = ["LIVE"]\n',
+        '[[channel]]\nsource = "@x"\nexcludes = ["LIVE"]\n',
     )
     channel = load_channels(path)[0]
-    assert channel.title_excludes == ("LIVE",)
-    assert channel.title_includes == ()
+    assert channel.excludes == ("LIVE",)
+    assert channel.includes == ()
 
 
 def test_load_channels_rejects_a_non_string_non_list_title_filter(tmp_path):
-    path = _write(
-        tmp_path,
-        '[[channel]]\nsource = "@x"\nlabel = "X"\ntitle_includes = 123\n',
-    )
+    path = _write(tmp_path, '[[channel]]\nsource = "@x"\nincludes = 123\n')
     with pytest.raises(ConfigError):
         load_channels(path)
 
 
 def test_load_channels_rejects_a_non_string_non_list_title_exclude(tmp_path):
-    path = _write(
-        tmp_path,
-        '[[channel]]\nsource = "@x"\nlabel = "X"\ntitle_excludes = 123\n',
-    )
+    path = _write(tmp_path, '[[channel]]\nsource = "@x"\nexcludes = 123\n')
     with pytest.raises(ConfigError):
         load_channels(path)
 
 
 def test_load_channels_wraps_a_bare_string_filter(tmp_path):
-    path = _write(tmp_path, '[[channel]]\nsource = "@x"\ntitle_includes = "Alice"\n')
+    path = _write(tmp_path, '[[channel]]\nsource = "@x"\nincludes = "Alice"\n')
 
-    assert load_channels(path)[0].title_includes == ("Alice",)
+    assert load_channels(path)[0].includes == ("Alice",)
 
 
 def test_load_channels_wraps_a_bare_string_exclude(tmp_path):
-    path = _write(tmp_path, '[[channel]]\nsource = "@x"\ntitle_excludes = "LIVE"\n')
+    path = _write(tmp_path, '[[channel]]\nsource = "@x"\nexcludes = "LIVE"\n')
 
-    assert load_channels(path)[0].title_excludes == ("LIVE",)
+    assert load_channels(path)[0].excludes == ("LIVE",)
 
 
 def test_load_channels_defaults_to_no_filter(tmp_path):
-    path = _write(tmp_path, '[[channel]]\nsource = "@x"\nlabel = "X"\n')
+    path = _write(tmp_path, '[[channel]]\nsource = "@x"\n')
 
     channel = load_channels(path)[0]
-    assert channel.title_includes == ()
-    assert channel.title_excludes == ()
+    assert channel.includes == ()
+    assert channel.excludes == ()
 
 
 def test_load_channels_accepts_a_legacy_handle_key(tmp_path):
-    path = _write(tmp_path, '[[channel]]\nhandle = "@x"\nlabel = "X"\n')
+    path = _write(tmp_path, '[[channel]]\nhandle = "@x"\n')
 
     assert load_channels(path)[0].source == "@x"
 
@@ -104,7 +96,7 @@ def test_load_channels_no_entries_raises(tmp_path):
 
 def test_load_channels_missing_source_raises(tmp_path):
     with pytest.raises(ConfigError):
-        load_channels(_write(tmp_path, '[[channel]]\nlabel = "no source"\n'))
+        load_channels(_write(tmp_path, '[[channel]]\ndetail = "deep"\n'))
 
 
 def test_load_channels_bad_detail_raises(tmp_path):
