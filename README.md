@@ -8,6 +8,26 @@ Fetch a YouTube video's transcript and summarize it with an LLM — one video fr
 the command line, or a daily digest of the channels and series you follow.
 Works with Gemini (free), OpenAI, Claude, or a local model via Ollama.
 
+```mermaid
+flowchart TD
+    subgraph ONE["one video — a URL or id"]
+        direction LR
+        V(["video"])
+        V -->|"tubeless transcript"| T["raw captions<br/>(no LLM)"]
+        V -->|"tubeless summarize"| S["Summary<br/>(TL;DR + key points)"]
+    end
+
+    subgraph MANY["many channels — channels.toml"]
+        direction LR
+        C(["sources"])
+        C -->|"tubeless videos"| L["preview<br/>recent uploads"]
+        C -->|"tubeless digest"| P["discover new → summarize each →<br/>score · rank · synthesize"]
+        P --> M["ranked digest<br/>→ dated .md file"]
+    end
+```
+
+*(`tubeless schedule` just runs `digest` for you every day via cron.)*
+
 **[English](#english) · [한국어](#한국어)**
 
 ---
@@ -237,7 +257,7 @@ OPENAI_API_KEY=sk-...
 # TUBELESS_DETAIL=deep      # default --detail (brief|normal|deep)
 # TUBELESS_MAX_POINTS=20    # default --max-points
 # TUBELESS_LANG=ko          # summary language (default: en; set ko for Korean)
-# TUBELESS_LIMIT=5          # default --limit (digest)
+# TUBELESS_PER_CHANNEL=5    # default --per-channel (digest)
 EOF
 ```
 
@@ -298,6 +318,10 @@ tubeless VIDEO_ID_XX --detail deep
 tubeless VIDEO_ID_XX --detail deep --max-points 30
 ```
 
+**Just the transcript?** `tubeless transcript "<url>"` prints the raw captions
+with no LLM call (add `--json` for the structured form) — handy to read or pipe
+the text yourself, or to check a video even has captions before summarizing.
+
 ### Daily digest
 
 Instead of one video, tubeless can watch a set of channels and produce one
@@ -325,6 +349,13 @@ source   = "PLxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 detail   = "deep"
 includes = ["Some Host"]
 excludes = ["LIVE"]
+```
+
+Not sure what a source posts, or which words to filter on? Preview its recent
+uploads (id, published date, title; no LLM, no state):
+
+```sh
+tubeless videos @examplechannel
 ```
 
 Then run:
@@ -355,8 +386,8 @@ tubeless digest --since 2026-07-01 --until 2026-07-08
 
 | digest option | what it does | default |
 |---|---|---|
-| `--only TEXT` | Fresh run: only channels whose source contains this text. | all |
-| `--limit N` | Fresh run: max recent uploads to check per channel. | `5` |
+| `--source-match TEXT` | Fresh run: only channels whose source contains this text. | all |
+| `--per-channel N` | Fresh run: max recent uploads to check per channel. | `5` |
 | `--since` / `--until DATE` | Re-curate stored summaries over `[since, until)` instead of a fresh run. | fresh run |
 | `--channel NAME` | With `--since`/`--until`, re-curate only that channel's stored summaries. | all |
 | `--dry-run` | Print the digest instead of writing it / updating state. | off |
@@ -720,7 +751,7 @@ OPENAI_API_KEY=sk-...
 # TUBELESS_DETAIL=deep      # 기본 --detail (brief|normal|deep)
 # TUBELESS_MAX_POINTS=20    # 기본 --max-points
 # TUBELESS_LANG=ko          # 요약 언어 (기본 en; 한국어 요약은 이 줄의 주석을 푸세요)
-# TUBELESS_LIMIT=5          # 기본 --limit (다이제스트)
+# TUBELESS_PER_CHANNEL=5    # 기본 --per-channel (다이제스트)
 EOF
 ```
 
@@ -781,6 +812,10 @@ tubeless VIDEO_ID_XX --detail deep
 tubeless VIDEO_ID_XX --detail deep --max-points 30
 ```
 
+**자막만 필요하면?** `tubeless transcript "<url>"`은 LLM 없이 원문 자막을 그대로
+출력합니다(`--json`이면 구조화된 형태). 직접 읽거나 파이프로 넘길 때, 또는 요약 전에
+자막이 있는지 확인할 때 유용합니다.
+
 ### 데일리 다이제스트
 
 영상 한 개 대신, tubeless는 여러 채널을 지켜보며 하루에 마크다운 한 파일을,
@@ -810,6 +845,13 @@ includes = ["진행자이름"]
 excludes = ["LIVE"]
 ```
 
+어떤 소스가 뭘 올리는지, 어떤 단어로 거를지 모르겠다면? 최근 업로드를 미리 보세요
+(id·게시일·제목; LLM·상태 없음):
+
+```sh
+tubeless videos @examplechannel
+```
+
 그리고:
 
 ```sh
@@ -836,8 +878,8 @@ tubeless digest --since 2026-07-01 --until 2026-07-08
 
 | digest 옵션 | 뜻 | 기본값 |
 |---|---|---|
-| `--only TEXT` | fresh 실행: source에 이 텍스트가 든 채널만. | 전체 |
-| `--limit N` | fresh 실행: 채널당 확인할 최근 업로드 최대 개수. | `5` |
+| `--source-match TEXT` | fresh 실행: source에 이 텍스트가 든 채널만. | 전체 |
+| `--per-channel N` | fresh 실행: 채널당 확인할 최근 업로드 최대 개수. | `5` |
 | `--since` / `--until DATE` | fresh 대신 저장된 요약을 `[since, until)` 구간으로 다시 큐레이트. | fresh |
 | `--channel NAME` | `--since`/`--until`과 함께, 그 채널의 저장 요약만 다시 큐레이트. | 전체 |
 | `--dry-run` | 저장/상태 갱신 없이 화면 출력만. | 꺼짐 |
