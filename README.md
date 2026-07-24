@@ -238,7 +238,6 @@ OPENAI_API_KEY=sk-...
 # TUBELESS_MAX_POINTS=20    # default --max-points
 # TUBELESS_LANG=ko          # summary language (default: en; set ko for Korean)
 # TUBELESS_LIMIT=5          # default --limit (digest)
-# TUBELESS_SYNTHESIZE=1     # default --synthesize (digest)
 EOF
 ```
 
@@ -340,17 +339,26 @@ key), summarizes and importance-scores them, and writes one Markdown file per da
 ranked most-important first. A JSON "seen" set remembers what it already handled,
 so running it again (or daily from cron) never re-summarizes the same video.
 
-**Add `--synthesize`** (or `TUBELESS_SYNTHESIZE=1`) to lead the file with a
-cross-video read of the day — the overall tone, what the sources agree on, and
-where they diverge — combining every summary into one briefing. This is the thing
-a per-link paste into a chatbot can't do: it synthesizes *across* the channels you
-follow. Needs two or more videos.
+The digest always **leads with a cross-video read of the day** — the overall
+tone, what the sources agree on, and where they diverge — combining every summary
+into one briefing. This is the thing a per-link paste into a chatbot can't do: it
+synthesizes *across* the channels you follow (whenever there are two or more
+videos; with fewer it is simply omitted).
+
+Pass **`--since` / `--until`** instead to re-curate already-stored summaries over
+a date range — a weekly or monthly read — without discovering or re-fetching
+anything:
+
+```sh
+tubeless digest --since 2026-07-01 --until 2026-07-08
+```
 
 | digest option | what it does | default |
 |---|---|---|
-| `--only TEXT` | Run only channels whose source contains this text. | all |
-| `--limit N` | Max recent uploads to check per channel. | `5` |
-| `--synthesize` | Lead the digest with a cross-video synthesis — overall tone, agreement, and divergence. Needs 2+ videos. | off |
+| `--only TEXT` | Fresh run: only channels whose source contains this text. | all |
+| `--limit N` | Fresh run: max recent uploads to check per channel. | `5` |
+| `--since` / `--until DATE` | Re-curate stored summaries over `[since, until)` instead of a fresh run. | fresh run |
+| `--channel NAME` | With `--since`/`--until`, re-curate only that channel's stored summaries. | all |
 | `--dry-run` | Print the digest instead of writing it / updating state. | off |
 | `--channels PATH` | Channels TOML file. | `~/.tubeless/channels.toml` |
 | `--state PATH` | The "already seen" state file. | `~/.tubeless/state.json` |
@@ -445,22 +453,23 @@ Show the TL;DR and key points back to the user.
 ### Use it as a Python library
 
 ```python
-from tubeless import OpenAIBackend, summarize
+from tubeless import OpenAIBackend, fetch_transcript, fetch_video, summarize_transcript
 
-# One call: fetch the video's metadata and transcript, then summarize.
-summary = summarize("https://youtu.be/VIDEO_ID_XX", OpenAIBackend(), detail="deep")
+# Compose the atoms: fetch the video's metadata and transcript, then summarize.
+transcript = fetch_transcript(fetch_video("https://youtu.be/VIDEO_ID_XX"))
+summary    = summarize_transcript(transcript, OpenAIBackend(), detail="deep")
 print(summary.tldr)
 for point in summary.points:
     print("-", point)
 ```
 
-If you already hold a transcript, call the core directly:
-`summarize_transcript(video, transcript, backend, detail=...)` (with
-`fetch_video` and `fetch_transcript` to obtain the two).
+The transcript carries its own video, so `summarize_transcript(transcript,
+backend, detail=...)` is the whole core once you already hold one.
 
 `ClaudeBackend` and `OllamaBackend` are drop-in replacements for
-`OpenAIBackend`. The digest pieces (`discover`, `run_digest`, `curate`,
-`recompute`, `to_markdown`, `FileStore`) are exported too.
+`OpenAIBackend`. The digest pieces (`fetch_recent_videos`, `summarize_videos`,
+`curate_summaries`, `render_markdown`, `FileStore`, `latest_per_video`) are
+exported too.
 
 ### How it works
 
@@ -712,7 +721,6 @@ OPENAI_API_KEY=sk-...
 # TUBELESS_MAX_POINTS=20    # 기본 --max-points
 # TUBELESS_LANG=ko          # 요약 언어 (기본 en; 한국어 요약은 이 줄의 주석을 푸세요)
 # TUBELESS_LIMIT=5          # 기본 --limit (다이제스트)
-# TUBELESS_SYNTHESIZE=1     # 기본 --synthesize (다이제스트)
 EOF
 ```
 
@@ -809,21 +817,29 @@ tubeless digest              # ~/.tubeless/digests/YYYY-MM-DD.md 로 저장
 tubeless digest --dry-run    # 저장 없이 화면에만 출력
 ```
 
-**`--synthesize`**(또는 `TUBELESS_SYNTHESIZE=1`)를 켜면 파일 맨 위에 그날의 영상
-종합 — 전반 톤, 출처들이 합의하는 것, 갈리는 지점 — 이 붙습니다. 하루치 요약을 하나로
-합치는 것으로, 링크를 챗봇에 붙여넣는 걸로는 못 하는 것(내가 챙겨보는 채널들 *사이를
-가로질러* 종합). 영상 2개 이상 필요합니다.
+다이제스트는 **항상 파일 맨 위에 그날의 영상 종합** — 전반 톤, 출처들이 합의하는 것,
+갈리는 지점 — 을 답니다. 하루치 요약을 하나로 합치는 것으로, 링크를 챗봇에 붙여넣는
+걸로는 못 하는 것(내가 챙겨보는 채널들 *사이를 가로질러* 종합)입니다. 영상 2개
+이상일 때 붙고, 그보다 적으면 생략됩니다.
 
-매 실행마다 각 채널의 새 영상을 유튜브 공개 RSS(키 불필요)로 찾아 요약·중요도
+대신 **`--since` / `--until`**을 주면 새로 발견·수집하지 않고 **저장된 요약을 날짜
+구간으로 다시 큐레이트**합니다 — 주간·월간 다이제스트:
+
+```sh
+tubeless digest --since 2026-07-01 --until 2026-07-08
+```
+
+매 (fresh) 실행마다 각 채널의 새 영상을 유튜브 공개 RSS(키 불필요)로 찾아 요약·중요도
 채점하고, 하루에 마크다운 한 파일을 중요도순으로 씁니다. 처리한 영상은 JSON
 "seen" 세트가 기억하므로 다시 돌리거나(cron으로 매일 돌려도) 같은 영상을 두 번
 요약하지 않습니다.
 
 | digest 옵션 | 뜻 | 기본값 |
 |---|---|---|
-| `--only TEXT` | source에 이 텍스트가 든 채널만 실행. | 전체 |
-| `--limit N` | 채널당 확인할 최근 업로드 최대 개수. | `5` |
-| `--synthesize` | 다이제스트 맨 위에 영상 종합 — 전반 톤·합의·이견. 영상 2개 이상 필요. | 꺼짐 |
+| `--only TEXT` | fresh 실행: source에 이 텍스트가 든 채널만. | 전체 |
+| `--limit N` | fresh 실행: 채널당 확인할 최근 업로드 최대 개수. | `5` |
+| `--since` / `--until DATE` | fresh 대신 저장된 요약을 `[since, until)` 구간으로 다시 큐레이트. | fresh |
+| `--channel NAME` | `--since`/`--until`과 함께, 그 채널의 저장 요약만 다시 큐레이트. | 전체 |
 | `--dry-run` | 저장/상태 갱신 없이 화면 출력만. | 꺼짐 |
 | `--channels PATH` | 채널 TOML 파일. | `~/.tubeless/channels.toml` |
 | `--state PATH` | "이미 본" 상태 파일. | `~/.tubeless/state.json` |
@@ -916,22 +932,23 @@ TL;DR과 핵심 포인트를 사용자에게 돌려준다.
 ### 파이썬 라이브러리로 쓰기
 
 ```python
-from tubeless import OpenAIBackend, summarize
+from tubeless import OpenAIBackend, fetch_transcript, fetch_video, summarize_transcript
 
-# 한 번의 호출로 영상 메타데이터와 자막을 받아 요약합니다.
-summary = summarize("https://youtu.be/VIDEO_ID_XX", OpenAIBackend(), detail="deep")
+# 원자를 조합합니다: 영상 메타데이터와 자막을 받아 요약합니다.
+transcript = fetch_transcript(fetch_video("https://youtu.be/VIDEO_ID_XX"))
+summary    = summarize_transcript(transcript, OpenAIBackend(), detail="deep")
 print(summary.tldr)
 for point in summary.points:
     print("-", point)
 ```
 
-이미 자막을 갖고 있으면 코어를 직접 부릅니다:
-`summarize_transcript(video, transcript, backend, detail=...)`
-(`fetch_video`·`fetch_transcript`로 둘을 얻습니다).
+자막은 자기 영상을 품고 있으므로, 이미 자막을 갖고 있으면
+`summarize_transcript(transcript, backend, detail=...)` 하나가 코어 전부입니다.
 
 `ClaudeBackend`·`OllamaBackend`는 `OpenAIBackend`와 그대로 바꿔 끼울 수
-있습니다. 다이제스트 조각(`discover`, `run_digest`, `curate`, `recompute`,
-`to_markdown`, `FileStore`)도 export되어 있습니다.
+있습니다. 다이제스트 조각(`fetch_recent_videos`, `summarize_videos`,
+`curate_summaries`, `render_markdown`, `FileStore`, `latest_per_video`)도
+export되어 있습니다.
 
 ### 동작 방식
 
