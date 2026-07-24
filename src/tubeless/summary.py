@@ -12,8 +12,8 @@ from dataclasses import dataclass
 from typing import Literal, get_args
 
 from tubeless.llm import LLMBackend
-from tubeless.source import Video, fetch_video
-from tubeless.transcript import Transcript, fetch_transcript
+from tubeless.source import Video
+from tubeless.transcript import Transcript
 
 __all__ = [
     "DEFAULT_DETAIL",
@@ -22,7 +22,6 @@ __all__ = [
     "DetailLevel",
     "Summary",
     "language_name",
-    "summarize",
     "summarize_transcript",
 ]
 
@@ -197,7 +196,8 @@ def summarize_transcript(
 
     This is the core: it takes the transcript the caller already has (which
     carries its own ``video``), so a digest that fetched many transcripts
-    summarizes each without re-fetching. ``summarize`` is the one-URL wrapper.
+    summarizes each without re-fetching. The CLI's single-video path composes it
+    with ``fetch_video`` and ``fetch_transcript``.
 
     ``detail`` ('brief' / 'normal' / 'deep') sets how fully the summary is
     written -- the TL;DR length, how many sentences each point carries, and the
@@ -255,31 +255,6 @@ def summarize_transcript(
 
     tldr, points = _parse_reply(reply, max_points=cap)
     return Summary(video=video, tldr=tldr, points=points, language=language, detail=detail)
-
-
-def summarize(
-    url_or_id:  str,
-    backend:    LLMBackend,
-    *,
-    detail:     DetailLevel = DEFAULT_DETAIL,
-    language:   str = DEFAULT_LANGUAGE,
-    max_points: int | None = None,
-) -> Summary:
-    """Summarize one video from its URL or id: fetch its metadata and transcript,
-    then summarize. The convenience path for a single video -- ``fetch_video``
-    then ``fetch_transcript`` then ``summarize_transcript`` in one call.
-
-    Raises:
-        InvalidVideoURL: ``url_or_id`` is not a recognizable video URL or id.
-        TranscriptUnavailable / TranscriptFetchBlocked: from ``fetch_transcript``.
-        ValueError: bad ``detail`` or ``max_points`` (see ``summarize_transcript``).
-        LLMError: propagated from the backend.
-    """
-    transcript = fetch_transcript(fetch_video(url_or_id))
-    return summarize_transcript(
-        transcript, backend,
-        detail=detail, language=language, max_points=max_points,
-    )
 
 
 def _split_into_chunks(text: str, *, word_limit: int) -> list[str]:

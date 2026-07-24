@@ -314,23 +314,3 @@ def test_summarize_transcript_records_the_detail_it_was_written_at() -> None:
     summary = summarize_transcript(make_transcript(n_words=50), backend, detail="deep")
 
     assert summary.detail == "deep"
-
-
-def test_summarize_wrapper_fetches_metadata_and_transcript_then_summarizes(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    # The one-URL wrapper resolves the video and transcript itself, then delegates
-    # to summarize_transcript -- so a caller with only a URL needs one call.
-    import tubeless.summary as summary_module
-    from tubeless import summarize
-
-    backend = RecordingBackend()
-    monkeypatch.setattr(summary_module, "fetch_video", lambda url_or_id: SAMPLE_VIDEO)
-    monkeypatch.setattr(summary_module, "fetch_transcript", lambda video: make_transcript(n_words=50))
-
-    summary = summarize(SAMPLE_VIDEO.url, backend, detail="deep", language="ko")
-
-    assert summary.video    == SAMPLE_VIDEO
-    assert summary.detail   == "deep"
-    assert summary.language == "ko"
-    assert "Answer in Korean" in backend.prompts[0]

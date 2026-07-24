@@ -7,13 +7,10 @@ happens inside the functions the caller invokes.
 from tubeless.channels import Channel, load_channels
 from tubeless.digest import (
     Digest,
-    DigestRun,
     Entry,
     Skip,
     SummarizeVideosResult,
     curate_summaries,
-    recompute,
-    run_digest,
     summarize_videos,
 )
 from tubeless.discover import DEFAULT_SCAN, fetch_recent_videos
@@ -39,12 +36,11 @@ from tubeless.llm import (
 )
 from tubeless.render import render_markdown
 from tubeless.source import Video, extract_video_id, fetch_video
-from tubeless.store import CORPUS_ROOT, FileStore, Store
+from tubeless.store import CORPUS_ROOT, FileStore, Store, latest_per_video
 from tubeless.summary import (
     DETAIL_LEVELS,
     DetailLevel,
     Summary,
-    summarize,
     summarize_transcript,
 )
 from tubeless.synthesis import Synthesis
@@ -61,7 +57,6 @@ __all__ = [
     "DETAIL_LEVELS",
     "DetailLevel",
     "Digest",
-    "DigestRun",
     "Entry",
     "FeedError",
     "FileStore",
@@ -89,12 +84,10 @@ __all__ = [
     "fetch_recent_videos",
     "fetch_transcript",
     "fetch_video",
+    "latest_per_video",
     "load_channels",
     "make_backend",
-    "recompute",
     "render_markdown",
-    "run_digest",
-    "summarize",
     "summarize_transcript",
     "summarize_videos",
 ]

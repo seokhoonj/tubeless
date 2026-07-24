@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Sequence
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
@@ -26,7 +27,7 @@ from tubeless.source import Video
 from tubeless.summary import DETAIL_LEVELS, Summary
 from tubeless.transcript import Transcript, TranscriptSegment
 
-__all__ = ["CORPUS_ROOT", "FileStore", "Store"]
+__all__ = ["CORPUS_ROOT", "FileStore", "Store", "latest_per_video"]
 
 CORPUS_ROOT = Path.home() / ".tubeless" / "corpus"
 
@@ -102,7 +103,7 @@ class FileStore:
 
         When the same video has several stored variants (different detail or
         language), each is returned in save order -- oldest ``saved_at`` first --
-        so a caller keeping the last per video (see ``digest.recompute``) gets the
+        so a caller keeping the last per video (see ``latest_per_video``) gets the
         most recently stored one."""
         rows: list[tuple[str, str, Summary]] = []
         for path in sorted(self._summaries_dir.glob("*.json")):
@@ -128,6 +129,18 @@ class FileStore:
         """Return the stored transcript for ``video_id``, or ``None`` if none is
         stored (or the file is corrupt -- treated as absent)."""
         return _transcript_from_envelope(_read_json(self._transcripts_dir / f"{video_id}.json"))
+
+
+def latest_per_video(summaries: Sequence[Summary]) -> list[Summary]:
+    """Keep one summary per video: the last in ``summaries``. ``load_summaries``
+    orders variants of one video by save time (oldest first), so the last
+    occurrence of each video id is its most recently stored summary -- which lets
+    a re-curate over a date range never double-count a video that has several
+    stored variants (different detail or language)."""
+    latest: dict[str, Summary] = {}
+    for summary in summaries:
+        latest[summary.video.video_id] = summary
+    return list(latest.values())
 
 
 def _now() -> str:

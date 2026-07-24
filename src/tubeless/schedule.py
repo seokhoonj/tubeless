@@ -132,9 +132,9 @@ def find_executable() -> tuple[str, ...]:
 def resolve_digest_command() -> tuple[str, ...]:
     """The full argv a scheduled run executes: ``<tubeless> digest``.
 
-    Backend, language, and synthesis are deliberately not baked in -- the
-    scheduled ``tubeless digest`` reads them from ``~/.tubeless/config.env`` like
-    any other run, so they change in one place without reinstalling the job.
+    Backend and language are deliberately not baked in -- the scheduled
+    ``tubeless digest`` reads them from ``~/.tubeless/config.env`` like any other
+    run, so they change in one place without reinstalling the job.
     """
     return (*find_executable(), "digest")
 

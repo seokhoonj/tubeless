@@ -6,7 +6,7 @@ import pytest
 
 from tubeless.errors import CorpusError
 from tubeless.source import Video
-from tubeless.store import FileStore
+from tubeless.store import FileStore, latest_per_video
 from tubeless.summary import Summary
 from tubeless.transcript import Transcript, TranscriptSegment
 
@@ -220,3 +220,22 @@ def test_a_corrupt_transcript_file_reads_as_absent(tmp_path):
     assert store.load_transcript("aaaaaaaaaaa") is not None
     assert store.load_transcript("bbbbbbbbbbb") is None
     assert store.load_transcript("ccccccccccc") is None
+
+
+def test_latest_per_video_keeps_the_last_summary_per_video():
+    # load_summaries returns variants oldest-first, so the last occurrence of a
+    # video id is its most recently stored summary -- the one a re-curate keeps.
+    video    = _video("aaaaaaaaaaa")
+    older    = _summary(video, tldr="old", detail="brief")
+    newer    = _summary(video, tldr="new", detail="deep")
+    other    = _summary(_video("bbbbbbbbbbb"), tldr="other")
+
+    result = latest_per_video([older, newer, other])
+
+    assert {s.video.video_id for s in result} == {"aaaaaaaaaaa", "bbbbbbbbbbb"}
+    kept = next(s for s in result if s.video.video_id == "aaaaaaaaaaa")
+    assert kept.tldr == "new"   # the later variant wins, not the earlier
+
+
+def test_latest_per_video_of_nothing_is_empty():
+    assert latest_per_video([]) == []

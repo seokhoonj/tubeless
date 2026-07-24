@@ -1,7 +1,10 @@
 """Command-line entry point.
 
-Two subcommands: ``summarize <url>`` prints one video's summary, and ``digest``
-builds the daily multi-channel digest into a Markdown file. A bare
+Five subcommands compose the library's atoms into user-facing actions:
+``summarize <url>`` prints one video's summary, ``transcript <url>`` prints one
+video's raw captions, ``videos <source>`` lists a channel's recent uploads,
+``digest`` builds the ranked multi-channel digest (fresh, or ``--since/--until``
+over stored summaries), and ``schedule`` registers the daily digest job. A bare
 ``tubeless <url>`` with no subcommand still runs summarize, so the original
 one-shot form keeps working.
 
@@ -21,11 +24,11 @@ import sys
 from pathlib import Path
 
 from tubeless import config
-from tubeless.channels import CHANNELS_PATH, load_channels
-from tubeless.digest import DEFAULT_PER_CHANNEL_LIMIT, recompute, run_digest
+from tubeless.channels import CHANNELS_PATH, Channel, load_channels
+from tubeless.digest import Skip, curate_summaries, summarize_videos
 from tubeless.discover import DEFAULT_SCAN, fetch_recent_videos
-from tubeless.errors import ConfigError, ScheduleError, TubelessError
-from tubeless.llm import BACKENDS, make_backend
+from tubeless.errors import ConfigError, FeedError, ScheduleError, TubelessError
+from tubeless.llm import BACKENDS, LLMBackend, make_backend
 from tubeless.render import render_markdown
 from tubeless.schedule import (
     DEFAULT_DAILY_TIME,
@@ -34,20 +37,28 @@ from tubeless.schedule import (
     resolve_digest_command,
     scheduler_for_platform,
 )
+from tubeless.source import fetch_video
 from tubeless.state import STATE_PATH, read_seen, write_seen
-from tubeless.store import CORPUS_ROOT, FileStore
+from tubeless.store import CORPUS_ROOT, FileStore, latest_per_video
 from tubeless.summary import (
     DEFAULT_DETAIL,
     DEFAULT_LANGUAGE,
     DETAIL_LEVELS,
     Summary,
-    summarize,
+    summarize_transcript,
 )
+from tubeless.transcript import fetch_transcript
 
 __all__ = ["main"]
 
-_SUBCOMMANDS = ("summarize", "digest", "recompute", "discover", "schedule")
+_SUBCOMMANDS = ("summarize", "transcript", "videos", "digest", "schedule")
 _DIGEST_DIR  = Path.home() / ".tubeless" / "digests"
+
+# How many recent uploads to check per plain channel on a fresh digest when the
+# caller does not say. A channel with a title filter scans the full feed window
+# instead (matches are sparse among the rest), so this cap applies only to
+# unfiltered channels.
+DEFAULT_PER_CHANNEL_LIMIT = 5
 
 # A YouTube id is 11 base64url characters, so ~1 in 64 starts with '-'. argparse
 # would read such a bare id as an option flag, so a leading-dash id is rewritten
@@ -97,8 +108,9 @@ def _run_summarize(args: argparse.Namespace) -> int:
     backend = make_backend(args.backend, model=args.model)
     _print_run_settings(args.backend, backend.model,
                         detail=args.detail, max_points=args.max_points, lang=args.lang)
-    summary = summarize(
-        args.url, backend,
+    transcript = fetch_transcript(fetch_video(args.url))
+    summary    = summarize_transcript(
+        transcript, backend,
         detail     = args.detail,
         language   = args.lang,
         max_points = args.max_points,
@@ -110,54 +122,99 @@ def _run_summarize(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_transcript(args: argparse.Namespace) -> int:
+    # Raw captions, no LLM: fetch the video and its transcript and print the
+    # plain text (or the full structure with --json).
+    transcript = fetch_transcript(fetch_video(args.url))
+    if args.json:
+        print(json.dumps(dataclasses.asdict(transcript), ensure_ascii=False, indent=2))
+    else:
+        print(transcript.text)
+    return 0
+
+
+def _run_videos(args: argparse.Namespace) -> int:
+    for video in fetch_recent_videos(args.source, limit=args.limit):
+        print(f"{video.video_id}  {video.published or '?':<20}  {video.title}")
+    return 0
+
+
 def _run_digest(args: argparse.Namespace) -> int:
-    channels = load_channels(args.channels)
-    if args.only:
-        only = args.only.lower()
-        channels = tuple(channel for channel in channels if only in channel.source.lower())
-        if not channels:
-            raise ConfigError(f"no channel source contains {args.only!r} in {args.channels}")
+    """Build a digest. A fresh run discovers each channel's new videos,
+    summarizes and ranks them; --since/--until instead re-curates already-stored
+    summaries over a date range (no discovery, no fetching)."""
     backend = make_backend(args.backend, model=args.model)
+    if args.since or args.until:
+        return _digest_stored(args, backend)
+    return _digest_fresh(args, backend)
+
+
+def _digest_fresh(args: argparse.Namespace, backend: LLMBackend) -> int:
+    channels = _selected_channels(args.channels, args.only)
     _print_run_settings(args.backend, backend.model, lang=args.lang, limit=args.limit)
-    seen  = read_seen(args.state)
+    seen = frozenset(read_seen(args.state))
     # A dry run persists nothing (store=None): the summaries and transcripts a
     # real run writes through to the corpus are skipped, and the seen-set is left
     # untouched, so the run can be repeated.
     store = None if args.dry_run else FileStore(args.corpus)
-    run   = run_digest(
-        channels, backend,
-        period            = _today(),
-        seen              = frozenset(seen),
-        language          = args.lang,
-        per_channel_limit = args.limit,
-        with_synthesis    = args.synthesize,
-        store             = store,
-    )
-    markdown = render_markdown(run.digest)
+
+    summaries: list[Summary] = []
+    skipped:   list[Skip] = []
+    processed: set[str] = set()
+    for channel in channels:
+        # A filtered channel scans the full feed window, not just --limit: the
+        # wanted uploads are sparse among the rest, so a small window silently
+        # drops them (the documented missed-video incident). A plain channel
+        # keeps the small limit.
+        has_filter = bool(channel.includes or channel.excludes)
+        limit      = DEFAULT_SCAN if has_filter else args.limit
+        try:
+            videos = fetch_recent_videos(
+                channel.source, limit=limit,
+                includes=channel.includes, excludes=channel.excludes,
+            )
+        except FeedError as err:
+            skipped.append(Skip("feed-failure", channel.source, str(err)))
+            continue
+        # Only ids not already seen (or handled earlier this run) are summarized,
+        # so a video shared by two channel sources is handled once.
+        fresh = tuple(
+            video for video in videos
+            if video.video_id not in seen and video.video_id not in processed
+        )
+        result = summarize_videos(
+            fresh, backend, detail=channel.detail, language=args.lang, store=store,
+        )
+        summaries.extend(result.summaries)
+        skipped.extend(result.skipped)
+        processed |= result.processed
+
+    digest   = curate_summaries(summaries, backend, period=_today(),
+                                language=args.lang, skipped=skipped)
+    markdown = render_markdown(digest)
     if args.dry_run:
         print(markdown)
         return 0
 
-    out_path = _write_digest(args.out, run.digest.period, markdown)
-    write_seen(set(run.seen), args.state)
-    skipped_note = f", {len(run.digest.skipped)} skipped" if run.digest.skipped else ""
-    print(f"digest written: {out_path} ({len(run.digest.entries)} videos{skipped_note})")
+    out_path = _write_digest(args.out, digest.period, markdown)
+    write_seen(set(seen | processed), args.state)
+    skipped_note = f", {len(digest.skipped)} skipped" if digest.skipped else ""
+    print(f"digest written: {out_path} ({len(digest.entries)} videos{skipped_note})")
     return 0
 
 
-def _run_recompute(args: argparse.Namespace) -> int:
-    backend = make_backend(args.backend, model=args.model)
+def _digest_stored(args: argparse.Namespace, backend: LLMBackend) -> int:
+    # Re-curate stored summaries over [since, until): no discovery or fetching,
+    # read-only on the corpus. Keeps the most recent summary per video so a video
+    # with several stored variants is never double-counted.
     _print_run_settings(args.backend, backend.model, lang=args.lang,
                         since=args.since, until=args.until, channel=args.channel)
-    digest = recompute(
-        backend, FileStore(args.corpus),
-        since          = args.since,
-        until          = args.until,
-        channel        = args.channel,
-        language       = args.lang,
-        with_synthesis = not args.no_synthesize,
-    )
-    markdown = render_markdown(digest)
+    stored    = FileStore(args.corpus).load_summaries(
+        since=args.since, until=args.until, channel=args.channel)
+    summaries = latest_per_video(stored)
+    digest    = curate_summaries(summaries, backend,
+                                 period=_range_label(args.since, args.until), language=args.lang)
+    markdown  = render_markdown(digest)
     if args.dry_run:
         print(markdown)
         return 0
@@ -167,18 +224,12 @@ def _run_recompute(args: argparse.Namespace) -> int:
     return 0
 
 
-def _run_discover(args: argparse.Namespace) -> int:
-    for video in fetch_recent_videos(args.source, limit=args.limit):
-        print(f"{video.video_id}  {video.published or '?':<20}  {video.title}")
-    return 0
-
-
 def _run_schedule_install(args: argparse.Namespace) -> int:
     schedule = DigestSchedule(command=resolve_digest_command(), daily_time=args.at)
     status   = scheduler_for_platform().install(schedule)
     print(f"scheduled: {' '.join(schedule.command)}  daily at {args.at:%H:%M}")
     print(f"  {status.description}")
-    print("Backend, language, and synthesis come from ~/.tubeless/config.env.")
+    print("Backend and language come from ~/.tubeless/config.env.")
     return 0
 
 
@@ -215,60 +266,49 @@ def _build_parser() -> argparse.ArgumentParser:
                                   help="print the summary as JSON instead of text")
     summarize_parser.set_defaults(run=_run_summarize)
 
-    digest_parser = subparsers.add_parser("digest", help="build the daily multi-channel digest")
+    transcript_parser = subparsers.add_parser(
+        "transcript", help="print one video's raw transcript (no LLM)")
+    transcript_parser.add_argument("url", help="YouTube URL or bare 11-character video id")
+    transcript_parser.add_argument("--json", action="store_true",
+                                   help="print the full transcript structure as JSON instead of plain text")
+    transcript_parser.set_defaults(run=_run_transcript)
+
+    videos_parser = subparsers.add_parser(
+        "videos", help="list a channel or playlist's recent videos (id, published, title)")
+    videos_parser.add_argument("source", help="a channel @handle / URL / 'UC...' id, or a playlist")
+    videos_parser.add_argument("--limit", type=_positive_int, default=DEFAULT_SCAN,
+                               help=f"how many recent feed entries to scan (default: {DEFAULT_SCAN})")
+    videos_parser.set_defaults(run=_run_videos)
+
+    digest_parser = subparsers.add_parser(
+        "digest", help="build the ranked multi-channel digest (fresh, or --since/--until over stored summaries)")
     _add_backend_args(digest_parser)
     digest_parser.add_argument("--lang", default=config.setting("TUBELESS_LANG") or DEFAULT_LANGUAGE,
                                help=f"language of the summaries (default: {DEFAULT_LANGUAGE}, or $TUBELESS_LANG)")
     digest_parser.add_argument("--channels", type=Path, default=CHANNELS_PATH,
-                               help=f"channels TOML file (default: {CHANNELS_PATH})")
+                               help=f"channels TOML file for a fresh run (default: {CHANNELS_PATH})")
     digest_parser.add_argument("--state", type=Path, default=STATE_PATH,
-                               help=f"processed-id state file (default: {STATE_PATH})")
+                               help=f"processed-id state file for a fresh run (default: {STATE_PATH})")
     digest_parser.add_argument("--out", type=Path, default=_DIGEST_DIR,
                                help=f"directory for the digest file (default: {_DIGEST_DIR})")
     digest_parser.add_argument("--corpus", type=Path, default=CORPUS_ROOT,
                                help=f"directory for the analysis corpus of summaries and "
                                     f"transcripts (default: {CORPUS_ROOT})")
     digest_parser.add_argument("--only", default=None,
-                               help="run only channels whose source contains this text")
+                               help="fresh run: only channels whose source contains this text")
     digest_parser.add_argument("--limit", type=_positive_int,
                                default=_configured_positive_int("TUBELESS_LIMIT", DEFAULT_PER_CHANNEL_LIMIT),
-                               help=f"max recent uploads to check per channel "
+                               help=f"fresh run: max recent uploads to check per channel "
                                     f"(default: {DEFAULT_PER_CHANNEL_LIMIT}, or $TUBELESS_LIMIT)")
-    digest_parser.add_argument("--synthesize", action="store_true",
-                               default=_configured_flag("TUBELESS_SYNTHESIZE"),
-                               help="lead the digest with a cross-video synthesis (tone, "
-                                    "agreement, divergence); needs 2+ videos (or $TUBELESS_SYNTHESIZE)")
+    digest_parser.add_argument("--since", default=None,
+                               help="re-curate stored summaries from this date, inclusive (e.g. 2026-07-01)")
+    digest_parser.add_argument("--until", default=None,
+                               help="re-curate stored summaries up to this date, exclusive (e.g. 2026-07-08)")
+    digest_parser.add_argument("--channel", default=None,
+                               help="re-curate only stored summaries whose channel matches this name")
     digest_parser.add_argument("--dry-run", action="store_true",
                                help="print the digest instead of writing it and updating state")
     digest_parser.set_defaults(run=_run_digest)
-
-    recompute_parser = subparsers.add_parser(
-        "recompute", help="re-assemble a digest from stored summaries over a date range")
-    _add_backend_args(recompute_parser)
-    recompute_parser.add_argument("--lang", default=config.setting("TUBELESS_LANG") or DEFAULT_LANGUAGE,
-                                  help=f"language of the synthesis (default: {DEFAULT_LANGUAGE}, or $TUBELESS_LANG)")
-    recompute_parser.add_argument("--since", default=None,
-                                  help="start date, inclusive (e.g. 2026-07-01); omit for no lower bound")
-    recompute_parser.add_argument("--until", default=None,
-                                  help="end date, exclusive (e.g. 2026-07-08); omit for no upper bound")
-    recompute_parser.add_argument("--channel", default=None,
-                                  help="limit to summaries whose channel matches this name")
-    recompute_parser.add_argument("--corpus", type=Path, default=CORPUS_ROOT,
-                                  help=f"the stored corpus to read (default: {CORPUS_ROOT})")
-    recompute_parser.add_argument("--out", type=Path, default=_DIGEST_DIR,
-                                  help=f"directory for the digest file (default: {_DIGEST_DIR})")
-    recompute_parser.add_argument("--no-synthesize", action="store_true",
-                                  help="skip the cross-source synthesis (on by default for recompute)")
-    recompute_parser.add_argument("--dry-run", action="store_true",
-                                  help="print the digest instead of writing it")
-    recompute_parser.set_defaults(run=_run_recompute)
-
-    discover_parser = subparsers.add_parser(
-        "discover", help="list a channel or playlist's recent videos (id, published, title)")
-    discover_parser.add_argument("source", help="a channel @handle / URL / 'UC...' id, or a playlist")
-    discover_parser.add_argument("--limit", type=_positive_int, default=DEFAULT_SCAN,
-                                 help=f"how many recent feed entries to scan (default: {DEFAULT_SCAN})")
-    discover_parser.set_defaults(run=_run_discover)
 
     schedule_parser  = subparsers.add_parser("schedule",
                                              help="install/remove the daily digest in your OS scheduler (Linux cron)")
@@ -294,6 +334,26 @@ def _add_backend_args(sub: argparse.ArgumentParser) -> None:
                      help="model id; default is the backend's small-tier model (or $TUBELESS_MODEL)")
 
 
+def _selected_channels(path: Path, only: str | None) -> tuple[Channel, ...]:
+    """Load the channel list, optionally narrowed to sources containing ``only``
+    (case-insensitive). Raises ``ConfigError`` when ``only`` matches nothing."""
+    channels = load_channels(path)
+    if only is None:
+        return channels
+    matched = tuple(channel for channel in channels if only.lower() in channel.source.lower())
+    if not matched:
+        raise ConfigError(f"no channel source contains {only!r} in {path}")
+    return matched
+
+
+def _range_label(since: str | None, until: str | None) -> str:
+    """A display label for a stored re-curate's span: ``since..until`` (an open
+    end left blank), or ``all`` when the range is unbounded."""
+    if since is None and until is None:
+        return "all"
+    return f"{since or ''}..{until or ''}"
+
+
 def _configured_choice(name: str, choices: tuple[str, ...], fallback: str) -> str:
     """A CLI default read from the environment/config.env, constrained to a closed
     set. Unset -> ``fallback``; set-but-invalid -> a clean ConfigError."""
@@ -314,13 +374,6 @@ def _configured_positive_int(name: str, fallback: int | None) -> int | None:
         return _as_positive_int(value)
     except ValueError as err:
         raise ConfigError(f"{name} must be a positive integer: {err}") from None
-
-
-def _configured_flag(name: str) -> bool:
-    """A boolean CLI default read from the environment/config.env: true for
-    ``1`` / ``true`` / ``yes`` / ``on`` (case-insensitive), false otherwise."""
-    value = config.setting(name)
-    return value is not None and value.strip().lower() in ("1", "true", "yes", "on")
 
 
 def _default_backend() -> str:
@@ -349,7 +402,7 @@ def _daily_time(text: str) -> datetime.time:
 
 def _positive_int(text: str) -> int:
     """argparse ``type=`` for --max-points/--limit (a non-positive cap slices
-    instead of capping -- see summary.summarize)."""
+    instead of capping -- see summary.summarize_transcript)."""
     try:
         return _as_positive_int(text)
     except ValueError as err:
