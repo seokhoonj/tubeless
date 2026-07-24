@@ -1,125 +1,107 @@
-"""Importance scoring: reply parsing, clamping, and the neutral fallback."""
+"""Importance scoring: batched id-keyed parsing, clamping, focus, neutral fallback."""
 
 import pytest
 
-from tubeless.importance import Importance, _parse_importance, score
+from tubeless.importance import Importance, _parse_scores, score
 from tubeless.source import Video
 from tubeless.summary import Summary
 
-SAMPLE_VIDEO = Video(
-    video_id = "dQw4w9WgXcQ",
-    title    = "A talk",
-    url      = "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-    channel  = "Chan",
-)
-SAMPLE_SUMMARY = Summary(
-    video=SAMPLE_VIDEO, tldr="gist", points=("a", "b"), language="ko", detail="normal",
-)
+
+def _summary(video_id: str, *, tldr: str = "gist", points: tuple[str, ...] = ("a", "b")) -> Summary:
+    video = Video(video_id=video_id, title=f"V {video_id}",
+                  url=f"https://www.youtube.com/watch?v={video_id}", channel="Chan")
+    return Summary(video=video, tldr=tldr, points=points, language="ko", detail="normal")
+
+
+SAMPLE_SUMMARY = _summary("dQw4w9WgXcQ")
 
 
 class OneReplyBackend:
+    """Fake backend: records the prompt and call count, returns one canned reply."""
+
     def __init__(self, reply: str) -> None:
-        self.reply = reply
+        self.reply  = reply
+        self.calls  = 0
+        self.prompt = ""
 
     def complete(self, prompt: str, *, system: str | None = None) -> str:
+        self.calls += 1
+        self.prompt = prompt
         return self.reply
 
 
-def test_parse_importance_reads_score_and_reason():
-    got = _parse_importance("SCORE: 0.8\nREASON: big market news")
+# --- _parse_scores (one reply line per video, keyed by id) --------------------
 
-    assert got.score  == pytest.approx(0.8)
-    assert got.reason == "big market news"
+def test_parse_scores_reads_id_score_and_reason():
+    got = _parse_scores("dQw4w9WgXcQ SCORE: 0.8 REASON: big market news")
 
-
-def test_parse_importance_score_only_reply_has_no_reason():
-    # A reply with only a SCORE line has no reason; it must NOT echo the SCORE line
-    # itself as the reason (which the score-line filter exists to prevent).
-    got = _parse_importance("SCORE: 0.8")
-
-    assert got.score  == pytest.approx(0.8)
-    assert got.reason == ""
+    assert got["dQw4w9WgXcQ"].score  == pytest.approx(0.8)
+    assert got["dQw4w9WgXcQ"].reason == "big market news"
 
 
-def test_parse_importance_clamps_out_of_range_scores():
-    # The model occasionally overshoots the 0..1 range ("SCORE: 1.5") or writes a
-    # negative; the parser pulls each to the nearest bound rather than discarding.
-    assert _parse_importance("SCORE: 1.5\nREASON: x").score  == pytest.approx(1.0)
-    assert _parse_importance("SCORE: -0.3\nREASON: y").score == pytest.approx(0.0)
-    assert _parse_importance("SCORE: 42\nREASON: z").score   == pytest.approx(1.0)
+def test_parse_scores_accepts_a_bracketed_id_and_a_missing_reason():
+    got = _parse_scores("[dQw4w9WgXcQ] SCORE: 0.8")
 
-
-def test_parse_importance_reads_a_comma_decimal_and_skips_the_score_line():
-    # A locale-formatted "0,7" must parse (not truncate to 0), and when there is no
-    # REASON line the reason must fall to real text, not the SCORE line itself.
-    got = _parse_importance("SCORE: 0,7\nMarket rallied on chip demand")
-
-    assert got.score  == pytest.approx(0.7)
-    assert got.reason == "Market rallied on chip demand"
-
-
-def test_parse_importance_falls_back_to_neutral_when_unparseable():
-    got = _parse_importance("I could not decide.")
-
-    assert got.score  == pytest.approx(0.5)
-    assert got.reason == "I could not decide."
+    assert got["dQw4w9WgXcQ"].score  == pytest.approx(0.8)
+    assert got["dQw4w9WgXcQ"].reason == ""
 
 
 @pytest.mark.parametrize(
-    "score, expected_tier",
+    "line, expected",
     [
-        (0.95, "high"),
-        (0.70, "high"),   # cutoff is inclusive
-        (0.69, "mid"),
-        (0.40, "mid"),    # cutoff is inclusive
-        (0.39, "low"),
-        (0.00, "low"),
+        ("aaaaaaaaaaa SCORE: 1 REASON: r",     1.0),   # integer
+        ("aaaaaaaaaaa SCORE: 1.0 REASON: r",   1.0),
+        ("aaaaaaaaaaa SCORE: 0.85 REASON: r",  0.85),
+        ("aaaaaaaaaaa score = 0.5 reason: r",  0.5),   # '=' separator, lower-case
+        ("aaaaaaaaaaa SCORE: 1.5 REASON: r",   1.0),   # clamp high
+        ("aaaaaaaaaaa SCORE: -0.3 REASON: r",  0.0),   # clamp low
+        ("aaaaaaaaaaa SCORE: 0,7 REASON: r",   0.7),   # comma decimal
     ],
 )
-def test_importance_tier_classifies_the_score(score, expected_tier):
-    assert Importance(score=score, reason="r").tier == expected_tier
+def test_parse_scores_reads_the_number_forms(line, expected):
+    assert _parse_scores(line)["aaaaaaaaaaa"].score == pytest.approx(expected)
 
 
-def test_score_calls_the_backend_and_returns_one_importance_per_summary():
-    got = score([SAMPLE_SUMMARY], OneReplyBackend("SCORE: 0.42\nREASON: moderate"))
+def test_parse_scores_skips_lines_that_do_not_match():
+    got = _parse_scores("here are the ratings:\ndQw4w9WgXcQ SCORE: 0.5 REASON: r\nthanks!")
 
-    assert len(got) == 1
-    assert got[0].score  == pytest.approx(0.42)
-    assert got[0].reason == "moderate"
+    assert set(got) == {"dQw4w9WgXcQ"}
 
+
+# --- tier ---------------------------------------------------------------------
 
 @pytest.mark.parametrize(
-    "reply, expected_score",
-    [
-        ("SCORE: 1\nREASON: r",   1.0),    # integer form
-        ("SCORE: 1.0\nREASON: r", 1.0),    # one-point-zero
-        ("SCORE: 0.85\nREASON: r", 0.85),  # decimal
-        ("score = 0.5\nreason: r", 0.5),   # '=' separator, lower-case
-        ("no score anywhere here", 0.5),   # unparseable -> neutral fallback
-    ],
+    "score_value, expected_tier",
+    [(0.95, "high"), (0.70, "high"), (0.69, "mid"), (0.40, "mid"), (0.39, "low"), (0.00, "low")],
 )
-def test_score_parses_the_score_forms(reply, expected_score):
-    got = score([SAMPLE_SUMMARY], OneReplyBackend(reply))
-
-    assert got[0].score == pytest.approx(expected_score)
+def test_importance_tier_classifies_the_score(score_value, expected_tier):
+    assert Importance(score=score_value, reason="r").tier == expected_tier
 
 
-def test_score_is_an_order_preserving_map_over_the_summaries():
-    # One Importance per input, in input order, no drops -- so the caller can zip
-    # the scores back onto the summaries positionally.
-    class _PerCallBackend:
-        def __init__(self) -> None:
-            self.calls = 0
+# --- score (one batched call) -------------------------------------------------
 
-        def complete(self, prompt: str, *, system: str | None = None) -> str:
-            self.calls += 1
-            return f"SCORE: 0.{self.calls}\nREASON: reason {self.calls}"
+def test_score_returns_one_importance_per_summary_in_input_order():
+    # The reply lists the videos in a DIFFERENT order than the input; matching by
+    # id must still align each score to its own summary, in input order.
+    backend = OneReplyBackend(
+        "bbbbbbbbbbb SCORE: 0.9 REASON: big\naaaaaaaaaaa SCORE: 0.2 REASON: small"
+    )
 
-    backend = _PerCallBackend()
-    got = score([SAMPLE_SUMMARY, SAMPLE_SUMMARY, SAMPLE_SUMMARY], backend)
+    got = score([_summary("aaaaaaaaaaa"), _summary("bbbbbbbbbbb")], backend)
 
-    assert [imp.reason for imp in got] == ["reason 1", "reason 2", "reason 3"]
-    assert backend.calls == 3
+    assert [round(imp.score, 1) for imp in got] == [0.2, 0.9]   # input order
+    assert [imp.reason for imp in got] == ["small", "big"]
+    assert backend.calls == 1                                    # ONE call, not one-per-summary
+
+
+def test_score_fills_a_summary_the_reply_omitted_with_neutral():
+    backend = OneReplyBackend("aaaaaaaaaaa SCORE: 0.9 REASON: big")   # bbbb... omitted
+
+    got = score([_summary("aaaaaaaaaaa"), _summary("bbbbbbbbbbb")], backend)
+
+    assert got[0].score  == pytest.approx(0.9)
+    assert got[1].score  == pytest.approx(0.5)   # neutral fallback, no drop, no shift
+    assert got[1].reason == ""
 
 
 def test_score_of_no_summaries_makes_no_backend_call():
@@ -128,3 +110,19 @@ def test_score_of_no_summaries_makes_no_backend_call():
             raise AssertionError("backend must not be called for an empty input")
 
     assert score([], _ExplodingBackend()) == []
+
+
+def test_score_focus_reaches_the_prompt():
+    backend = OneReplyBackend("dQw4w9WgXcQ SCORE: 0.5 REASON: r")
+
+    score([SAMPLE_SUMMARY], backend, focus="semiconductors, the Fed")
+
+    assert "semiconductors, the Fed" in backend.prompt
+
+
+def test_score_without_focus_uses_the_neutral_criterion():
+    backend = OneReplyBackend("dQw4w9WgXcQ SCORE: 0.5 REASON: r")
+
+    score([SAMPLE_SUMMARY], backend)
+
+    assert "regular follower" in backend.prompt

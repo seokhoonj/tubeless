@@ -5,6 +5,8 @@ and importance scoring run for real against a fake backend, so the assembly logi
 and the score-driven sort are exercised end to end without a network call.
 """
 
+import re
+
 import pytest
 
 import tubeless.digest as digest_module
@@ -45,14 +47,18 @@ def _summary(video_id: str, *, channel: str = "Example Channel", published: str 
 
 
 class ScoringBackend:
-    """Fake backend: a summary-shaped reply for summarizing, a score-shaped reply
-    for importance scoring. The score is high when the prompt names a 'big' video,
-    so sorting has something to order by."""
+    """Fake backend: a summary-shaped reply for summarizing, and a batched
+    id-keyed reply for importance scoring -- one line per video block, high when
+    that video's title names a 'big' one, so sorting has something to order by."""
 
     def complete(self, prompt: str, *, system: str | None = None) -> str:
         if "importance" in prompt.lower():
-            score = 0.9 if "big" in prompt.lower() else 0.2
-            return f"SCORE: {score}\nREASON: reason"
+            lines = []
+            for match in re.finditer(r"\[([A-Za-z0-9_-]{11})\] (.+)", prompt):
+                video_id, title = match.group(1), match.group(2)
+                importance = 0.9 if "big" in title.lower() else 0.2
+                lines.append(f"{video_id} SCORE: {importance} REASON: reason")
+            return "\n".join(lines)
         return "TLDR: gist\n- point one\n- point two"
 
 

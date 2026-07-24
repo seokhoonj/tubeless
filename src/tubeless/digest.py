@@ -165,6 +165,7 @@ def curate(
     language:       str = DEFAULT_LANGUAGE,
     with_synthesis: bool = False,
     skipped:        Sequence[Skip] = (),
+    focus:          str | None = None,
 ) -> Digest:
     """Assemble a ``Digest`` from already-produced summaries: score each, rank by
     importance, and optionally synthesize across them.
@@ -180,7 +181,7 @@ def curate(
     # score is a total, order-preserving map, so zip(strict=True) pairs each
     # summary with its own importance and raises (even under -O) if that ever
     # breaks -- no separate length assert needed.
-    importances = score(summaries, backend, language=language)
+    importances = score(summaries, backend, language=language, focus=focus)
     entries = [Entry(summary=summary, importance=importance)
                for summary, importance in zip(summaries, importances, strict=True)]
     entries.sort(key=lambda entry: entry.importance.score, reverse=True)
