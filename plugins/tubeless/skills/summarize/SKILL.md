@@ -19,7 +19,7 @@ pipx install tubeless        # 또는: pip install tubeless
 ```
 
 설치하면 `tubeless` 명령이 PATH에 올라간다. **키는 tubeless가 스스로 찾는다** --
-`~/.tubeless/config.env`(또는 환경변수)의 `OPENAI_API_KEY` / `CLAUDE_API_KEY` /
+`~/.config/tubeless/credentials.json`(또는 환경변수)의 `OPENAI_API_KEY` / `CLAUDE_API_KEY` /
 `GEMINI_API_KEY`를 백엔드에 맞춰 읽으므로, 이 skill이 키를 꺼내 넘길 필요가 없다.
 키 값은 어디에도 출력하지 말 것.
 
@@ -36,7 +36,7 @@ tubeless summarize "<URL>" [옵션]
 
 옵션 (정확한 기본값·모델은 `tubeless summarize --help`가 정본):
 - `--backend claude|openai|gemini|ollama` — LLM 벤더. 미지정 시 openai(또는
-  `config.env`의 `TUBELESS_BACKEND`). gemini는 무료 티어, ollama는 로컬(키 불필요).
+  `config.toml`의 `backend`). gemini는 무료 티어, ollama는 로컬(키 불필요).
   각 백엔드의 기본 모델은 CLI가 정한다 — 여기 숫자/모델명을 적어두지 않는다.
 - `--model <id>` — 백엔드의 기본 모델을 덮어씀 (예: `--backend gemini --model gemini-2.5-pro`).
 - `--lang <code>` — 요약 언어 (미지정 시 CLI 기본).
@@ -53,14 +53,14 @@ tubeless summarize "<URL>" [옵션]
 1. **URL 확보.** 사용자 메시지에서 유튜브 URL(또는 11자 video id)을 찾는다. 없으면
    하나 물어본다. 여러 개면 하나씩 순서대로 처리.
 
-2. **실행.** 그냥 CLI를 부른다 — 키는 tubeless가 `~/.tubeless/config.env`에서 찾는다.
+2. **실행.** 그냥 CLI를 부른다 — 키는 tubeless가 `~/.config/tubeless/credentials.json`에서 찾는다.
 
    ```bash
    tubeless summarize "<URL>"
    ```
 
    기본(openai)이 아닌 백엔드로 돌릴 때만 `--backend`를 붙인다. 예: 무료로 돌리려면
-   `--backend gemini`(`config.env`에 `GEMINI_API_KEY` 필요), Claude면
+   `--backend gemini`(`credentials.json`에 `GEMINI_API_KEY` 필요), Claude면
    `--backend claude`(`CLAUDE_API_KEY` 필요), 완전 로컬이면 `--backend ollama`(키 불필요,
    `ollama` 서버가 떠 있어야 함).
 
@@ -78,7 +78,7 @@ tubeless summarize "<URL>" [옵션]
    - `transcript fetch blocked` (`TranscriptFetchBlocked`) → YouTube가 이 실행의
      IP를 일시 차단/속도제한한 것. 자막이 없는 게 아니라 일시적 차단이므로,
      잠시 후 재시도하거나 다른 네트워크에서 실행. 영상 자체 문제가 아니다.
-   - `no ... API key` → `~/.tubeless/config.env`에 해당 백엔드 키
+   - `no ... API key` → `~/.config/tubeless/credentials.json`에 해당 백엔드 키
      (`OPENAI_API_KEY` / `CLAUDE_API_KEY` / `GEMINI_API_KEY`)가 있는지 확인.
 
 ## 이 skill이 하지 않는 것
