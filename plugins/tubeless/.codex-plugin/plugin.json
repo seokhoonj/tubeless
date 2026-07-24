@@ -1,6 +1,6 @@
 {
   "name": "tubeless",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Summarize a YouTube video's transcript with an LLM, powered by the tubeless CLI",
   "author": { "name": "seokhoonj", "url": "https://github.com/seokhoonj" },
   "homepage": "https://github.com/seokhoonj/tubeless",

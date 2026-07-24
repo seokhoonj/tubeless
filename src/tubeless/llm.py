@@ -106,6 +106,7 @@ class OpenAIBackend:
             raise LLMError(
                 "no OpenAI API key: pass api_key=, set OPENAI_API_KEY in the "
                 "environment, or add it to ~/.config/tubeless/credentials.json"
+                + credentials.legacy_config_note()
             )
         # Imported here, not at module top: constructing a backend is the first
         # moment the SDK is genuinely needed, and this keeps `import tubeless`
@@ -171,6 +172,7 @@ class GeminiBackend:
             raise LLMError(
                 "no Gemini API key: pass api_key=, set GEMINI_API_KEY in the "
                 "environment, or add it to ~/.config/tubeless/credentials.json"
+                + credentials.legacy_config_note()
             )
         from openai import OpenAI  # lazy, like OpenAIBackend (see above)
 
@@ -203,6 +205,7 @@ class ClaudeBackend:
             raise LLMError(
                 "no Claude API key: pass api_key=, set CLAUDE_API_KEY in the "
                 "environment, or add it to ~/.config/tubeless/credentials.json"
+                + credentials.legacy_config_note()
             )
         try:
             from anthropic import Anthropic  # lazy, like OpenAIBackend (see above)

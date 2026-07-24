@@ -29,7 +29,7 @@ from typing import Literal
 from tubeless.config import config_dir
 from tubeless.errors import CredentialsError, InsecureCredentialsError
 
-__all__ = ["Vendor", "api_key", "credentials_path", "secret"]
+__all__ = ["Vendor", "api_key", "credentials_path", "legacy_config_note", "secret"]
 
 # The vendors tubeless resolves a key for. Closed set: a typo is a static error,
 # not a runtime KeyError against the map below.
@@ -49,6 +49,24 @@ def credentials_path() -> Path:
     """Where tubeless looks for stored secrets: ``credentials.json`` beside the
     settings, in ``config_dir()``."""
     return config_dir() / "credentials.json"
+
+
+def legacy_config_note() -> str:
+    """A migration hint if the pre-0.2 ``~/.tubeless/config.env`` still exists, else ``""``.
+
+    The 0.2 redesign moved keys and settings out of that single file into
+    ``credentials.json`` and ``config.toml`` under the XDG config dir. An
+    upgrading user whose keys are still in the old file finds no key at all, so
+    the missing-key error appends this to point them at the move rather than leave
+    them to guess why the upgrade dropped their config.
+    """
+    legacy = Path.home() / ".tubeless" / "config.env"
+    if not legacy.exists():
+        return ""
+    return (
+        f"; a pre-0.2 {legacy} still exists -- its API keys move to "
+        f"{credentials_path()} and its TUBELESS_* settings to config.toml"
+    )
 
 
 def api_key(vendor: Vendor) -> str | None:

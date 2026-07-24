@@ -120,3 +120,17 @@ def test_non_object_json_raises(creds_path, monkeypatch):
     creds_path.chmod(0o600)
     with pytest.raises(CredentialsError):
         credentials.secret("OPENAI_API_KEY")
+
+
+def test_legacy_config_note_is_empty_when_the_old_file_is_absent(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    assert credentials.legacy_config_note() == ""
+
+
+def test_legacy_config_note_points_at_the_move_when_the_old_file_exists(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    legacy_dir = tmp_path / ".tubeless"
+    legacy_dir.mkdir()
+    (legacy_dir / "config.env").write_text("OPENAI_API_KEY=x\n", encoding="utf-8")
+    note = credentials.legacy_config_note()
+    assert ".tubeless" in note and "credentials.json" in note
