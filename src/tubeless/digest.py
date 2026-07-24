@@ -46,13 +46,14 @@ SkipCategory = Literal["feed-failure", "no-transcript"]
 @dataclass(frozen=True, slots=True)
 class Skip:
     """One thing left out of the digest, tagged by why. ``category`` separates a
-    channel-level miss (``feed-failure`` -- ``item`` is the channel source) from a
-    video-level one (``no-transcript`` -- ``item`` is the video id), so an empty
-    digest with a feed failure is never mistaken for a quiet day, and a captionless
-    video is legible rather than silently dropped. ``message`` explains it."""
+    channel-level miss (``feed-failure`` -- ``subject`` is the channel source) from
+    a video-level one (``no-transcript`` -- ``subject`` is the video id), so an
+    empty digest with a feed failure is never mistaken for a quiet day, and a
+    captionless video is legible rather than silently dropped. ``message`` explains
+    it."""
 
     category: SkipCategory
-    item:     str
+    subject:  str
     message:  str
 
 
@@ -111,7 +112,7 @@ class SummarizedVideos:
     @property
     def processed(self) -> frozenset[str]:
         return (frozenset(summary.video.video_id for summary in self.summaries)
-                | frozenset(skip.item for skip in self.skipped))
+                | frozenset(skip.subject for skip in self.skipped))
 
 
 def summarize_videos(

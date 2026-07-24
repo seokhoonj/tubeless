@@ -85,8 +85,8 @@ def _skipped_lines(skipped: tuple[Skip, ...]) -> list[str]:
     lines = ["---"]
     if feed_failures:
         lines.append("### Skipped channels")
-        lines += [f"- {skip.item}: {skip.message}" for skip in feed_failures]
+        lines += [f"- {skip.subject}: {skip.message}" for skip in feed_failures]
     if no_transcripts:
         lines.append("### Videos without a transcript")
-        lines += [f"- {skip.item}: {skip.message}" for skip in no_transcripts]
+        lines += [f"- {skip.subject}: {skip.message}" for skip in no_transcripts]
     return lines
