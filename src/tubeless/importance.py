@@ -17,7 +17,7 @@ from typing import Literal
 from tubeless.llm import LLMBackend
 from tubeless.summary import DEFAULT_LANGUAGE, Summary, language_name
 
-__all__ = ["Importance", "ImportanceTier", "score"]
+__all__ = ["Importance", "ImportanceTier", "score_summaries"]
 
 # Score -> tier cutoffs. At or above _HIGH_TIER is a must-read; at or above
 # _MID_TIER is worth a glance; below that is background. Deliberately coarse (the
@@ -73,7 +73,7 @@ class Importance:
 _NEUTRAL = Importance(score=0.5, reason="")
 
 
-def score(
+def score_summaries(
     summaries: Sequence[Summary],
     backend:   LLMBackend,
     *,

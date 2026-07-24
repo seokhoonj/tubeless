@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from tubeless.llm import LLMBackend
 from tubeless.summary import DEFAULT_LANGUAGE, Summary, language_name
 
-__all__ = ["Synthesis", "synthesize"]
+__all__ = ["Synthesis", "synthesize_summaries"]
 
 _SYSTEM_PROMPT = (
     "You synthesize several video summaries from one day into a single briefing. "
@@ -64,7 +64,7 @@ class Synthesis:
     disagreements: tuple[str, ...]
 
 
-def synthesize(
+def synthesize_summaries(
     summaries: Sequence[Summary],
     backend:   LLMBackend,
     *,

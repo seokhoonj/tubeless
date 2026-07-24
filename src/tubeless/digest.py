@@ -2,10 +2,10 @@
 summarize and score them, and rank the results into one document.
 
 The layering is deliberate. ``summarize_videos`` is the channel-agnostic engine
-that turns videos into stored summaries; ``curate`` is the sole ``Digest``
+that turns videos into stored summaries; ``curate_summaries`` is the sole ``Digest``
 constructor, a pure assembler that scores and ranks already-produced summaries;
 ``run_digest`` is the top orchestrator that discovers per channel and feeds the
-two. ``recompute`` reuses ``curate`` over previously stored summaries, so a
+two. ``recompute`` reuses ``curate_summaries`` over previously stored summaries, so a
 weekly or monthly re-synthesis needs no refetching. None of them holds state
 beyond the run: the caller passes the already-seen ids in and gets the merged
 set back to persist.
@@ -20,7 +20,7 @@ from typing import Literal, NamedTuple
 from tubeless.channels import Channel
 from tubeless.discover import DEFAULT_SCAN, fetch_recent_videos
 from tubeless.errors import FeedError, TranscriptUnavailable
-from tubeless.importance import Importance, score
+from tubeless.importance import Importance, score_summaries
 from tubeless.llm import LLMBackend
 from tubeless.source import Video
 from tubeless.store import Store
@@ -31,7 +31,7 @@ from tubeless.summary import (
     Summary,
     summarize_transcript,
 )
-from tubeless.synthesis import Synthesis, synthesize
+from tubeless.synthesis import Synthesis, synthesize_summaries
 from tubeless.transcript import fetch_transcript
 
 __all__ = [
@@ -41,7 +41,7 @@ __all__ = [
     "Entry",
     "Skip",
     "SummarizeVideosResult",
-    "curate",
+    "curate_summaries",
     "recompute",
     "run_digest",
     "summarize_videos",
@@ -157,7 +157,7 @@ def summarize_videos(
     return SummarizeVideosResult(summaries, skipped)
 
 
-def curate(
+def curate_summaries(
     summaries:      Sequence[Summary],
     backend:        LLMBackend,
     *,
@@ -172,23 +172,23 @@ def curate(
 
     The sole ``Digest`` constructor -- channel-agnostic and pure of I/O (only
     backend calls) -- so a fresh run and a recompute produce the same shape. The
-    scores align to the summaries positionally (``score`` is an order-preserving
+    scores align to the summaries positionally (``score_summaries`` is an order-preserving
     map), asserted below. ``skipped`` is surfaced on the digest unchanged.
 
     Raises:
         LLMError: propagated from the backend.
     """
-    # score is a total, order-preserving map, so zip(strict=True) pairs each
+    # score_summaries is a total, order-preserving map, so zip(strict=True) pairs each
     # summary with its own importance and raises (even under -O) if that ever
     # breaks -- no separate length assert needed.
-    importances = score(summaries, backend, language=language, focus=focus)
+    importances = score_summaries(summaries, backend, language=language, focus=focus)
     entries = [Entry(summary=summary, importance=importance)
                for summary, importance in zip(summaries, importances, strict=True)]
     entries.sort(key=lambda entry: entry.importance.score, reverse=True)
 
     # synthesize returns None below two summaries (and makes no backend call), so
     # with_synthesis alone gates it -- no separate count check here.
-    synthesis = synthesize(summaries, backend, language=language) if with_synthesis else None
+    synthesis = synthesize_summaries(summaries, backend, language=language) if with_synthesis else None
     return Digest(
         period    = period,
         entries   = tuple(entries),
@@ -254,7 +254,7 @@ def run_digest(
         skipped.extend(result.skipped)
         processed |= result.processed
 
-    digest = curate(
+    digest = curate_summaries(
         all_summaries, backend, period=period, language=language,
         with_synthesis=with_synthesis, skipped=skipped,
     )
@@ -285,7 +285,7 @@ def recompute(
     """
     stored    = store.load_summaries(since=since, until=until, channel=channel)
     summaries = _latest_per_video(stored)
-    return curate(
+    return curate_summaries(
         summaries, backend, period=_range_label(since, until),
         language=language, with_synthesis=with_synthesis,
     )
@@ -294,7 +294,7 @@ def recompute(
 def _latest_per_video(summaries: Sequence[Summary]) -> list[Summary]:
     """One summary per video: the last in the store's load order, which orders
     variants of one video by save time, so the most recently stored summary of
-    each video wins and ``curate`` never double-counts a video that has several
+    each video wins and ``curate_summaries`` never double-counts a video that has several
     stored variants (different detail or language)."""
     latest: dict[str, Summary] = {}
     for summary in summaries:

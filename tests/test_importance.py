@@ -2,7 +2,7 @@
 
 import pytest
 
-from tubeless.importance import Importance, _parse_scores, score
+from tubeless.importance import Importance, _parse_scores, score_summaries
 from tubeless.source import Video
 from tubeless.summary import Summary
 
@@ -87,7 +87,7 @@ def test_score_returns_one_importance_per_summary_in_input_order():
         "bbbbbbbbbbb SCORE: 0.9 REASON: big\naaaaaaaaaaa SCORE: 0.2 REASON: small"
     )
 
-    got = score([_summary("aaaaaaaaaaa"), _summary("bbbbbbbbbbb")], backend)
+    got = score_summaries([_summary("aaaaaaaaaaa"), _summary("bbbbbbbbbbb")], backend)
 
     assert [round(imp.score, 1) for imp in got] == [0.2, 0.9]   # input order
     assert [imp.reason for imp in got] == ["small", "big"]
@@ -97,7 +97,7 @@ def test_score_returns_one_importance_per_summary_in_input_order():
 def test_score_fills_a_summary_the_reply_omitted_with_neutral():
     backend = OneReplyBackend("aaaaaaaaaaa SCORE: 0.9 REASON: big")   # bbbb... omitted
 
-    got = score([_summary("aaaaaaaaaaa"), _summary("bbbbbbbbbbb")], backend)
+    got = score_summaries([_summary("aaaaaaaaaaa"), _summary("bbbbbbbbbbb")], backend)
 
     assert got[0].score  == pytest.approx(0.9)
     assert got[1].score  == pytest.approx(0.5)   # neutral fallback, no drop, no shift
@@ -109,13 +109,13 @@ def test_score_of_no_summaries_makes_no_backend_call():
         def complete(self, prompt: str, *, system: str | None = None) -> str:
             raise AssertionError("backend must not be called for an empty input")
 
-    assert score([], _ExplodingBackend()) == []
+    assert score_summaries([], _ExplodingBackend()) == []
 
 
 def test_score_focus_reaches_the_prompt():
     backend = OneReplyBackend("dQw4w9WgXcQ SCORE: 0.5 REASON: r")
 
-    score([SAMPLE_SUMMARY], backend, focus="semiconductors, the Fed")
+    score_summaries([SAMPLE_SUMMARY], backend, focus="semiconductors, the Fed")
 
     assert "semiconductors, the Fed" in backend.prompt
 
@@ -123,6 +123,6 @@ def test_score_focus_reaches_the_prompt():
 def test_score_without_focus_uses_the_neutral_criterion():
     backend = OneReplyBackend("dQw4w9WgXcQ SCORE: 0.5 REASON: r")
 
-    score([SAMPLE_SUMMARY], backend)
+    score_summaries([SAMPLE_SUMMARY], backend)
 
     assert "regular follower" in backend.prompt

@@ -3,7 +3,7 @@
 from tubeless import Synthesis
 from tubeless.source import Video
 from tubeless.summary import Summary
-from tubeless.synthesis import _parse_synthesis, synthesize
+from tubeless.synthesis import _parse_synthesis, synthesize_summaries
 
 _REPLY = (
     "TONE: cautious bearish -- chips and FX\n"
@@ -94,7 +94,7 @@ def test_synthesize_feeds_every_source_into_the_prompt():
         _summary("Video B", "gist B", ("b1",),      channel="Channel B"),
     ]
 
-    got = synthesize(summaries, backend, language="en")
+    got = synthesize_summaries(summaries, backend, language="en")
 
     assert isinstance(got, Synthesis)
     # each source's channel, title, and tldr reached the model
@@ -110,5 +110,5 @@ def test_synthesize_returns_none_below_two_summaries_without_calling_the_backend
             raise AssertionError("backend must not be called for fewer than two summaries")
 
     exploding = _ExplodingBackend()
-    assert synthesize([], exploding) is None
-    assert synthesize([_summary("V", "g", ("p",))], exploding) is None
+    assert synthesize_summaries([], exploding) is None
+    assert synthesize_summaries([_summary("V", "g", ("p",))], exploding) is None

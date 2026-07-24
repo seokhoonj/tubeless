@@ -13,7 +13,7 @@ import tubeless.digest as digest_module
 from tubeless.channels import Channel
 from tubeless.digest import (
     Skip,
-    curate,
+    curate_summaries,
     recompute,
     run_digest,
     summarize_videos,
@@ -160,7 +160,7 @@ def test_curate_ranks_entries_by_importance():
     summaries[1] = Summary(video=_video("bbbbbbbbbbb", "big news"), tldr="g", points=("a",),
                            language="en", detail="normal")
 
-    digest = curate(summaries, ScoringBackend(), period="2026-07-21")
+    digest = curate_summaries(summaries, ScoringBackend(), period="2026-07-21")
 
     assert [e.summary.video.title for e in digest.entries] == ["big news", "V aaaaaaaaaaa"]
     assert digest.period == "2026-07-21"
@@ -169,7 +169,7 @@ def test_curate_ranks_entries_by_importance():
 def test_curate_surfaces_the_skips_it_is_given():
     skip = Skip("feed-failure", "@dead", "feed down")
 
-    digest = curate([_summary("aaaaaaaaaaa")], ScoringBackend(), period="d", skipped=[skip])
+    digest = curate_summaries([_summary("aaaaaaaaaaa")], ScoringBackend(), period="d", skipped=[skip])
 
     assert digest.skipped == (skip,)
 
@@ -177,7 +177,7 @@ def test_curate_surfaces_the_skips_it_is_given():
 def test_curate_adds_a_synthesis_when_requested():
     summaries = [_summary("aaaaaaaaaaa"), _summary("bbbbbbbbbbb")]
 
-    digest = curate(summaries, SynthesizingBackend(), period="d", with_synthesis=True)
+    digest = curate_summaries(summaries, SynthesizingBackend(), period="d", with_synthesis=True)
 
     assert digest.synthesis is not None
     assert digest.synthesis.tone == "cautious"
@@ -186,13 +186,13 @@ def test_curate_adds_a_synthesis_when_requested():
 def test_curate_omits_the_synthesis_by_default():
     summaries = [_summary("aaaaaaaaaaa"), _summary("bbbbbbbbbbb")]
 
-    digest = curate(summaries, SynthesizingBackend(), period="d")
+    digest = curate_summaries(summaries, SynthesizingBackend(), period="d")
 
     assert digest.synthesis is None
 
 
 def test_curate_of_no_summaries_is_an_empty_digest():
-    digest = curate([], ScoringBackend(), period="d")
+    digest = curate_summaries([], ScoringBackend(), period="d")
 
     assert digest.entries == ()
 

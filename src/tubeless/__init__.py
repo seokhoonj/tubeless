@@ -11,7 +11,7 @@ from tubeless.digest import (
     Entry,
     Skip,
     SummarizeVideosResult,
-    curate,
+    curate_summaries,
     recompute,
     run_digest,
     summarize_videos,
@@ -27,7 +27,7 @@ from tubeless.errors import (
     TranscriptUnavailable,
     TubelessError,
 )
-from tubeless.importance import Importance, ImportanceTier, score
+from tubeless.importance import Importance, ImportanceTier, score_summaries
 from tubeless.llm import (
     BACKENDS,
     ClaudeBackend,
@@ -47,7 +47,7 @@ from tubeless.summary import (
     summarize,
     summarize_transcript,
 )
-from tubeless.synthesis import Synthesis, synthesize
+from tubeless.synthesis import Synthesis, synthesize_summaries
 from tubeless.transcript import Transcript, TranscriptSegment, fetch_transcript
 
 __all__ = [
@@ -84,7 +84,7 @@ __all__ = [
     "TranscriptUnavailable",
     "TubelessError",
     "Video",
-    "curate",
+    "curate_summaries",
     "fetch_recent_videos",
     "fetch_transcript",
     "fetch_video",
@@ -94,9 +94,9 @@ __all__ = [
     "recompute",
     "render_markdown",
     "run_digest",
-    "score",
+    "score_summaries",
     "summarize",
     "summarize_transcript",
     "summarize_videos",
-    "synthesize",
+    "synthesize_summaries",
 ]
