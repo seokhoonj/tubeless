@@ -144,7 +144,7 @@ def _run_digest(args: argparse.Namespace) -> int:
     summarizes and ranks them; --since/--until instead re-curates already-stored
     summaries over a date range (no discovery, no fetching)."""
     backend = make_backend(args.backend, model=args.model)
-    if args.since or args.until:
+    if args.since or args.until or args.channel:
         return _digest_stored(args, backend)
     return _digest_fresh(args, backend)
 
@@ -207,6 +207,11 @@ def _digest_stored(args: argparse.Namespace, backend: LLMBackend) -> int:
     # Re-curate stored summaries over [since, until): no discovery or fetching,
     # read-only on the corpus. Keeps the most recent summary per video so a video
     # with several stored variants is never double-counted.
+    if args.only is not None:
+        # --only narrows a fresh discovery; it has no meaning over stored
+        # summaries. Reject it rather than silently ignore it (--channel is the
+        # stored-mode equivalent).
+        raise ConfigError("--only applies to a fresh digest run, not a --since/--until re-curate")
     _print_run_settings(args.backend, backend.model, lang=args.lang,
                         since=args.since, until=args.until, channel=args.channel)
     stored    = FileStore(args.corpus).load_summaries(
@@ -300,9 +305,9 @@ def _build_parser() -> argparse.ArgumentParser:
                                default=_configured_positive_int("TUBELESS_LIMIT", DEFAULT_PER_CHANNEL_LIMIT),
                                help=f"fresh run: max recent uploads to check per channel "
                                     f"(default: {DEFAULT_PER_CHANNEL_LIMIT}, or $TUBELESS_LIMIT)")
-    digest_parser.add_argument("--since", default=None,
+    digest_parser.add_argument("--since", type=_iso_date, default=None,
                                help="re-curate stored summaries from this date, inclusive (e.g. 2026-07-01)")
-    digest_parser.add_argument("--until", default=None,
+    digest_parser.add_argument("--until", type=_iso_date, default=None,
                                help="re-curate stored summaries up to this date, exclusive (e.g. 2026-07-08)")
     digest_parser.add_argument("--channel", default=None,
                                help="re-curate only stored summaries whose channel matches this name")
@@ -340,7 +345,8 @@ def _selected_channels(path: Path, only: str | None) -> tuple[Channel, ...]:
     channels = load_channels(path)
     if only is None:
         return channels
-    matched = tuple(channel for channel in channels if only.lower() in channel.source.lower())
+    needle  = only.lower()
+    matched = tuple(channel for channel in channels if needle in channel.source.lower())
     if not matched:
         raise ConfigError(f"no channel source contains {only!r} in {path}")
     return matched
@@ -389,6 +395,17 @@ def _as_positive_int(text: str) -> int:
     if value < 1:
         raise ValueError(f"must be a positive integer, got {value}")
     return value
+
+
+def _iso_date(text: str) -> str:
+    """argparse ``type=`` for --since/--until: validate a ``YYYY-MM-DD`` date and
+    return it normalised. Without this a malformed bound (e.g. ``2026-7-1``) would
+    slip into ``load_summaries``' lexicographic string compare and silently
+    mis-filter to an empty digest instead of failing as a usage error."""
+    try:
+        return datetime.date.fromisoformat(text).isoformat()
+    except ValueError as err:
+        raise argparse.ArgumentTypeError(f"must be a YYYY-MM-DD date: {err}") from None
 
 
 def _daily_time(text: str) -> datetime.time:

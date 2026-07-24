@@ -5,7 +5,15 @@ import pytest
 import tubeless.cli as cli_module
 import tubeless.digest as digest_module
 import tubeless.llm as llm_module
-from tubeless import Transcript, TranscriptSegment, TranscriptUnavailable, Video, config
+from tubeless import (
+    FeedError,
+    Transcript,
+    TranscriptFetchBlocked,
+    TranscriptSegment,
+    TranscriptUnavailable,
+    Video,
+    config,
+)
 from tubeless.cli import (
     _configured_choice,
     _configured_positive_int,
@@ -425,3 +433,230 @@ def test_videos_lists_the_sources_videos(
     assert "aaaaaaaaaaa" in captured.out
     assert "First" in captured.out
     assert "bbbbbbbbbbb" in captured.out
+
+
+# --- digest fresh-run orchestration (moved into the CLI handler) --------------
+
+def _transcript_for(video: Video) -> Transcript:
+    return Transcript(video=video, language="en", is_auto_generated=False,
+                      segments=(TranscriptSegment(text="ducks", start=0.0, duration=1.0),))
+
+
+def _wire_fresh_digest(monkeypatch, *, channels, by_source) -> None:
+    """Wire the fresh-digest path: channels, per-source discovery, transcript, backend."""
+    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(cli_module, "load_channels", lambda path: channels)
+    monkeypatch.setattr(cli_module, "fetch_recent_videos",
+                        lambda source, *, limit, includes=(), excludes=(): by_source.get(source, ()))
+    monkeypatch.setattr(digest_module, "fetch_transcript", _transcript_for)
+
+
+def test_digest_fresh_scans_filtered_channel_full_window_and_plain_with_limit(
+    _no_config_file, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tubeless.channels import Channel
+    from tubeless.discover import DEFAULT_SCAN
+    seen_limits: dict[str, int] = {}
+
+    def record(source, *, limit, includes=(), excludes=()):
+        seen_limits[source] = limit
+        return ()
+
+    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(cli_module, "load_channels", lambda path: (
+        Channel(source="@filtered", includes=("live",)),
+        Channel(source="@plain"),
+    ))
+    monkeypatch.setattr(cli_module, "fetch_recent_videos", record)
+
+    assert main(["digest", "--limit", "5", "--dry-run"]) == 0
+    # a filtered channel must scan the full window (matches are sparse); a plain
+    # one keeps the small per-channel cap
+    assert seen_limits["@filtered"] == DEFAULT_SCAN
+    assert seen_limits["@plain"] == 5
+
+
+def test_digest_fresh_skips_a_failed_feed_and_still_digests_the_rest(
+    _no_config_file, monkeypatch: pytest.MonkeyPatch, tmp_path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from tubeless.channels import Channel
+
+    def discover(source, *, limit, includes=(), excludes=()):
+        if source == "@dead":
+            raise FeedError("feed down")
+        return (SAMPLE_VIDEO,)
+
+    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(cli_module, "load_channels",
+                        lambda path: (Channel(source="@dead"), Channel(source="@live")))
+    monkeypatch.setattr(cli_module, "fetch_recent_videos", discover)
+    monkeypatch.setattr(digest_module, "fetch_transcript", _transcript_for)
+
+    exit_code = main(["digest", "--out", str(tmp_path / "d"), "--state", str(tmp_path / "s.json"),
+                      "--corpus", str(tmp_path / "c")])
+
+    assert exit_code == 0
+    # the live channel still produced; the dead feed is surfaced as one skip
+    assert "1 videos, 1 skipped" in capsys.readouterr().out
+
+
+def test_digest_fresh_summarizes_a_video_shared_by_two_channels_once(
+    _no_config_file, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    from tubeless.channels import Channel
+    from tubeless.store import FileStore
+    corpus = tmp_path / "c"
+    _wire_fresh_digest(monkeypatch,
+                       channels=(Channel(source="@a"), Channel(source="@b")),
+                       by_source={"@a": (SAMPLE_VIDEO,), "@b": (SAMPLE_VIDEO,)})
+
+    assert main(["digest", "--out", str(tmp_path / "d"), "--state", str(tmp_path / "s.json"),
+                 "--corpus", str(corpus)]) == 0
+    # shared across two channels, summarized once
+    assert [s.video.video_id for s in FileStore(corpus).load_summaries()] == ["dQw4w9WgXcQ"]
+
+
+def test_digest_fresh_skips_a_video_already_in_the_seen_state(
+    _no_config_file, monkeypatch: pytest.MonkeyPatch, tmp_path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from tubeless.channels import Channel
+    from tubeless.state import write_seen
+    from tubeless.store import FileStore
+    state  = tmp_path / "s.json"
+    corpus = tmp_path / "c"
+    write_seen({SAMPLE_VIDEO.video_id}, state)
+    _wire_fresh_digest(monkeypatch, channels=(Channel(source="@a"),),
+                       by_source={"@a": (SAMPLE_VIDEO,)})
+
+    assert main(["digest", "--out", str(tmp_path / "d"), "--state", str(state),
+                 "--corpus", str(corpus)]) == 0
+    # already seen -> not re-summarized
+    assert FileStore(corpus).load_summaries() == ()
+    assert "0 videos" in capsys.readouterr().out
+
+
+def test_digest_fresh_persists_processed_ids_and_writes_the_md(
+    _no_config_file, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    import datetime
+
+    from tubeless.channels import Channel
+    from tubeless.state import read_seen
+    state   = tmp_path / "s.json"
+    out_dir = tmp_path / "d"
+    _wire_fresh_digest(monkeypatch, channels=(Channel(source="@a"),),
+                       by_source={"@a": (SAMPLE_VIDEO,)})
+
+    assert main(["digest", "--out", str(out_dir), "--state", str(state),
+                 "--corpus", str(tmp_path / "c")]) == 0
+    # the processed id is persisted so tomorrow's run does not re-summarize it
+    assert SAMPLE_VIDEO.video_id in read_seen(state)
+    # and the dated markdown file is written with the video
+    md = (out_dir / f"{datetime.date.today().isoformat()}.md").read_text(encoding="utf-8")
+    assert "A talk about ducks" in md
+
+
+def test_digest_fresh_aborts_without_writing_state_when_a_fetch_is_blocked(
+    _no_config_file, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    from tubeless.channels import Channel
+    state = tmp_path / "s.json"
+    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(cli_module, "load_channels", lambda path: (Channel(source="@a"),))
+    monkeypatch.setattr(cli_module, "fetch_recent_videos",
+                        lambda source, *, limit, includes=(), excludes=(): (SAMPLE_VIDEO,))
+
+    def blocked(video):
+        raise TranscriptFetchBlocked("ip blocked")
+
+    monkeypatch.setattr(digest_module, "fetch_transcript", blocked)
+
+    exit_code = main(["digest", "--out", str(tmp_path / "d"), "--state", str(state),
+                      "--corpus", str(tmp_path / "c")])
+
+    assert exit_code == 1
+    # a transient block must not mark the video seen -- it must be retried tomorrow
+    assert not state.exists()
+
+
+# --- digest --since/--until (stored re-curate) --------------------------------
+
+def test_digest_channel_alone_routes_to_stored_not_a_fresh_run(
+    _no_config_file, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # --channel without --since/--until must re-curate STORED summaries, not run a
+    # fresh discovery (which would ignore --channel, call the LLM, and mutate state).
+    from tubeless.digest import Digest
+    seen: dict[str, object] = {}
+
+    class _RecordingStore:
+        def __init__(self, root):
+            pass
+
+        def load_summaries(self, *, since=None, until=None, channel=None):
+            seen["channel"] = channel
+            return ()
+
+    def _went_fresh(path):
+        raise AssertionError("a fresh run was started for a --channel-only digest")
+
+    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(cli_module, "FileStore", _RecordingStore)
+    monkeypatch.setattr(cli_module, "load_channels", _went_fresh)
+    monkeypatch.setattr(cli_module, "curate_summaries",
+                        lambda summaries, backend, **kw: Digest(period=kw["period"], entries=()))
+
+    assert main(["digest", "--channel", "Some Channel", "--dry-run"]) == 0
+    assert seen["channel"] == "Some Channel"   # stored path, filtered by channel
+
+
+def test_digest_only_combined_with_a_stored_recurate_is_rejected(
+    _no_config_file, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # --only is a fresh-run flag; mixed with --since/--until it must error, not be
+    # silently dropped.
+    class _EmptyStore:
+        def __init__(self, root):
+            pass
+
+        def load_summaries(self, *, since=None, until=None, channel=None):
+            return ()
+
+    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(cli_module, "FileStore", _EmptyStore)
+
+    exit_code = main(["digest", "--since", "2026-07-01", "--only", "foo", "--dry-run"])
+
+    assert exit_code == 1
+    assert "tubeless:" in capsys.readouterr().err
+
+
+def test_digest_rejects_a_malformed_since_date(_no_config_file) -> None:
+    # A malformed bound must be a clean usage error, not a silent empty digest via
+    # the lexicographic string compare.
+    with pytest.raises(SystemExit) as exc:
+        main(["digest", "--since", "2026-7-1", "--dry-run"])
+    assert exc.value.code == 2   # argparse usage error
+
+
+def test_digest_since_until_dedups_stored_variants_before_curating(
+    _no_config_file, monkeypatch: pytest.MonkeyPatch, tmp_path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Two stored variants of one video (different detail) must reach curate as one
+    # (the most recent), exercising load_summaries -> latest_per_video -> curate.
+    from tubeless.store import FileStore
+    from tubeless.summary import Summary
+    corpus = tmp_path / "c"
+    store  = FileStore(corpus)
+    video  = Video(video_id="dQw4w9WgXcQ", title="ducks", url="u", channel="C",
+                   published="2026-07-05T09:00:00Z")
+    store.save_summary(Summary(video=video, tldr="old", points=("a",), language="en", detail="brief"))
+    store.save_summary(Summary(video=video, tldr="new", points=("a",), language="en", detail="deep"))
+    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
+
+    exit_code = main(["digest", "--since", "2026-07-01", "--until", "2026-07-08",
+                      "--corpus", str(corpus), "--out", str(tmp_path / "d")])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "(1 videos)" in captured.out   # two stored variants deduped to one

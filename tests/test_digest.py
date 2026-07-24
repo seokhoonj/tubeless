@@ -92,7 +92,7 @@ def test_summarize_videos_summarizes_each_and_reports_processed(monkeypatch):
     result = summarize_videos(videos, ScoringBackend(), detail="normal")
 
     assert [s.video.video_id for s in result.summaries] == ["aaaaaaaaaaa", "bbbbbbbbbbb"]
-    assert result.skipped == []
+    assert result.skipped == ()
     assert result.processed == frozenset({"aaaaaaaaaaa", "bbbbbbbbbbb"})
 
 
@@ -108,7 +108,7 @@ def test_summarize_videos_records_a_captionless_video_as_a_skip_but_processed(mo
     result = summarize_videos(videos, ScoringBackend(), detail="normal")
 
     assert [s.video.video_id for s in result.summaries] == ["aaaaaaaaaaa"]
-    assert result.skipped == [Skip("no-transcript", "ccccccccccc", "captions off")]
+    assert result.skipped == (Skip("no-transcript", "ccccccccccc", "captions off"),)
     # the captionless video still counts as processed, so it is not retried
     assert result.processed == frozenset({"aaaaaaaaaaa", "ccccccccccc"})
 

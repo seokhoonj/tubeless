@@ -9,7 +9,7 @@ from tubeless.digest import (
     Digest,
     Entry,
     Skip,
-    SummarizeVideosResult,
+    SummarizedVideos,
     curate_summaries,
     summarize_videos,
 )
@@ -70,8 +70,8 @@ __all__ = [
     "OpenAIBackend",
     "Skip",
     "Store",
+    "SummarizedVideos",
     "Summary",
-    "SummarizeVideosResult",
     "Synthesis",
     "Transcript",
     "TranscriptFetchBlocked",

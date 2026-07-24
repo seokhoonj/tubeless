@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Literal, NamedTuple
+from typing import Literal
 
 from tubeless.errors import TranscriptUnavailable
 from tubeless.importance import Importance, score_summaries
@@ -35,7 +35,7 @@ __all__ = [
     "Digest",
     "Entry",
     "Skip",
-    "SummarizeVideosResult",
+    "SummarizedVideos",
     "curate_summaries",
     "summarize_videos",
 ]
@@ -80,14 +80,15 @@ class Digest:
     synthesis: Synthesis | None = None
 
 
-class SummarizeVideosResult(NamedTuple):
-    """What ``summarize_videos`` produced: the finished summaries and the videos
-    it skipped for having no transcript. ``processed`` is derived (not stored, so
-    it cannot drift): every id that was handled -- summarized or skipped -- and so
-    must not be retried."""
+@dataclass(frozen=True, slots=True)
+class SummarizedVideos:
+    """What ``summarize_videos`` produced from a set of videos: the finished
+    summaries and the videos it skipped for having no transcript. ``processed`` is
+    derived (not stored, so it cannot drift): every id that was handled --
+    summarized or skipped -- and so must not be retried."""
 
-    summaries: list[Summary]
-    skipped:   list[Skip]
+    summaries: tuple[Summary, ...]
+    skipped:   tuple[Skip, ...]
 
     @property
     def processed(self) -> frozenset[str]:
@@ -102,7 +103,7 @@ def summarize_videos(
     detail:   DetailLevel = DEFAULT_DETAIL,
     language: str = DEFAULT_LANGUAGE,
     store:    Store | None = None,
-) -> SummarizeVideosResult:
+) -> SummarizedVideos:
     """Fetch each video's transcript and summarize it, channel-agnostically.
 
     When a ``store`` is given, each transcript and summary is written through as
@@ -133,7 +134,7 @@ def summarize_videos(
         if store is not None:
             store.save_summary(summary)
         summaries.append(summary)
-    return SummarizeVideosResult(summaries, skipped)
+    return SummarizedVideos(tuple(summaries), tuple(skipped))
 
 
 def curate_summaries(
@@ -149,9 +150,10 @@ def curate_summaries(
     importance, and synthesize across them.
 
     The sole ``Digest`` constructor -- channel-agnostic and pure of I/O (only
-    backend calls) -- so a fresh run and a re-curate produce the same shape. The
-    scores align to the summaries positionally (``score_summaries`` is an
-    order-preserving map), asserted below. ``skipped`` is surfaced unchanged.
+    backend calls) -- so a fresh run and a re-curate produce the same shape.
+    ``score_summaries`` returns exactly one score per input, in input order, so
+    ``zip(strict=True)`` pairs each summary with its own importance. ``skipped``
+    is surfaced unchanged.
 
     The synthesis is always attempted; ``synthesize_summaries`` returns ``None``
     (and makes no backend call) below two summaries, so a one-video or empty
@@ -161,9 +163,9 @@ def curate_summaries(
     Raises:
         LLMError: propagated from the backend.
     """
-    # score_summaries is a total, order-preserving map, so zip(strict=True) pairs
-    # each summary with its own importance and raises (even under -O) if that ever
-    # breaks -- no separate length assert needed.
+    # score_summaries returns exactly one score per summary; zip(strict=True) fails
+    # loudly (even under -O) if that count ever diverges from the inputs, so no
+    # separate length assert is needed. (It guards the count, not the order.)
     importances = score_summaries(summaries, backend, language=language, focus=focus)
     entries = [Entry(summary=summary, importance=importance)
                for summary, importance in zip(summaries, importances, strict=True)]

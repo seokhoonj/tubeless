@@ -42,17 +42,33 @@ _TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
 class Store(Protocol):
     """Durable backend for summaries and transcripts: four operations, each
-    bound to a concrete store (there is no store-less call)."""
+    bound to a concrete store (there is no store-less call). The contract each
+    method must honour lives here on the interface -- not only on ``FileStore`` --
+    so an alternate backend (a database, say) has a spec to implement against."""
 
-    def save_summary(self, summary: Summary) -> None: ...
+    def save_summary(self, summary: Summary) -> None:
+        """Persist one summary, keyed so a re-summary at another depth or language
+        coexists while a re-run at the same key overwrites."""
+        ...
 
-    def save_transcript(self, transcript: Transcript) -> None: ...
+    def save_transcript(self, transcript: Transcript) -> None:
+        """Persist one transcript, keyed by video id (one per video)."""
+        ...
 
     def load_summaries(
         self, *, since: str | None = None, until: str | None = None, channel: str | None = None
-    ) -> tuple[Summary, ...]: ...
+    ) -> tuple[Summary, ...]:
+        """Return stored summaries oldest first, optionally narrowed to one
+        ``channel`` and a half-open ISO-8601 date range ``[since, until)`` --
+        compared against each summary's published-or-saved time as strings, so a
+        bare ``YYYY-MM-DD`` bound works by prefix. A corrupt record reads as
+        absent; variants of one video come back in save order (oldest first)."""
+        ...
 
-    def load_transcript(self, video_id: str) -> Transcript | None: ...
+    def load_transcript(self, video_id: str) -> Transcript | None:
+        """Return the stored transcript for ``video_id``, or ``None`` if none is
+        stored or the file is corrupt (treated as absent)."""
+        ...
 
 
 class FileStore:
@@ -213,13 +229,20 @@ def _transcript_from_envelope(record: object) -> Transcript | None:
         return None
     video    = body.get("video")
     segments = body.get("segments")
+    language = body.get("language")
+    auto     = body.get("is_auto_generated")
+    # Validate the leaf values, not just the containers -- as _summary_from_envelope
+    # does -- so a hand-edited or schema-drifted file reads as absent rather than
+    # minting a Transcript whose language/is_auto_generated violate their own types.
     if not isinstance(video, dict) or not isinstance(segments, list):
+        return None
+    if not isinstance(language, str) or not isinstance(auto, bool):
         return None
     try:
         return Transcript(
             video             = Video(**video),
-            language          = body["language"],
-            is_auto_generated = body["is_auto_generated"],
+            language          = language,
+            is_auto_generated = auto,
             segments          = tuple(TranscriptSegment(**segment) for segment in segments),
         )
     except (KeyError, TypeError):
