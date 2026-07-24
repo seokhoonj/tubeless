@@ -19,7 +19,7 @@ flowchart TD
         direction LR
         C(["sources"])
         C -->|"tubeless videos"| L["preview<br/>recent uploads"]
-        C -->|"tubeless digest"| P["discover new → summarize each →<br/>score · rank · synthesize"]
+        C -->|"tubeless digest"| P["new uploads → summarize each →<br/>score · rank · synthesize"]
         P --> M["ranked digest<br/>→ dated .md file"]
     end
 ```
@@ -30,7 +30,7 @@ flowchart TD
 - [빠른 시작](#빠른-시작)
 - [설치](#설치) — macOS, Linux, Windows
 - [백엔드: Gemini(무료), Claude, OpenAI, Ollama — 그리고 결제](#백엔드)
-- [설정: 키와 기본값](#설정-키와-기본값) (`~/.tubeless/config.env`)
+- [설정: 키와 기본값](#설정-키와-기본값) (`config.toml` + `credentials.json`)
 - [영상 한 개 요약](#영상-한-개-요약) (`--detail` / `--max-points` / `--backend` / `--model` / `--lang`)
 - [데일리 다이제스트](#데일리-다이제스트)
 - [cron으로 매일 자동 실행 (Linux)](#cron으로-매일-자동-실행-linux)
@@ -222,42 +222,68 @@ tubeless VIDEO_ID_XX --backend gemini --model gemini-flash-latest --detail deep
 
 ### 설정: 키와 기본값
 
-OpenAI·Claude·Gemini는 API 키가 필요합니다(Ollama는 로컬 실행이라 불필요). 키는
-비밀값이라, tubeless는 저장소가 아니라 홈 디렉터리의 파일에서 읽고 그 값을
-화면·로그에 절대 남기지 않습니다. `~/.tubeless/config.env`에 `KEY=VALUE`를 한 줄씩
-적습니다:
+OpenAI·Claude·Gemini는 API 키가 필요합니다(Ollama는 로컬 실행이라 불필요). tubeless는
+두 파일로 나눠 둡니다 — **비밀**(API 키·프록시 자격증명)은 소유자만 읽는
+`~/.config/tubeless/credentials.json`(권한 `0600`), **비밀 아닌 설정**은
+`~/.config/tubeless/config.toml`. 키 값은 화면·로그에 절대 남기지 않습니다.
 
 ```sh
-mkdir -p ~/.tubeless
-cat > ~/.tubeless/config.env <<'EOF'
-# --- 키: 실제로 쓰는 백엔드만 채우세요 ---
-OPENAI_API_KEY=sk-...
-# CLAUDE_API_KEY=sk-ant-...
-# GEMINI_API_KEY=...
+mkdir -p ~/.config/tubeless
 
-# --- 선택: 기본값(플래그를 매번 안 치도록) ---
-# TUBELESS_BACKEND=gemini   # 기본 --backend
-# TUBELESS_MODEL=...        # 기본 --model
-# TUBELESS_DETAIL=deep      # 기본 --detail (brief|normal|deep)
-# TUBELESS_MAX_POINTS=20    # 기본 --max-points
-# TUBELESS_LANG=ko          # 요약 언어 (기본 en; 한국어 요약은 이 줄의 주석을 푸세요)
-# TUBELESS_PER_CHANNEL=5    # 기본 --per-channel (다이제스트)
+# 비밀 -> credentials.json (실제로 쓰는 백엔드 키만; 소유자만 읽게 0600)
+cat > ~/.config/tubeless/credentials.json <<'EOF'
+{
+  "OPENAI_API_KEY": "sk-..."
+}
+EOF
+chmod 600 ~/.config/tubeless/credentials.json
+
+# 설정 -> config.toml (전부 선택; 플래그를 매번 안 치도록)
+cat > ~/.config/tubeless/config.toml <<'EOF'
+# backend    = "gemini"   # 기본 --backend
+# model      = "..."      # 기본 --model
+# detail     = "deep"     # 기본 --detail (brief|normal|deep)
+# max_points = 20         # 기본 --max-points
+# lang       = "ko"       # 요약 언어 (기본 en; 한국어 요약은 이 줄의 주석을 푸세요)
+# per_channel = 5         # 기본 --per-channel (다이제스트)
 EOF
 ```
+
+`credentials.json`은 `이름: 값` JSON입니다 — 쓰는 백엔드의
+`OPENAI_API_KEY`/`CLAUDE_API_KEY`/`GEMINI_API_KEY`(+ 아래 프록시 키)를 넣으세요.
+`0600`이 아니면 tubeless가 읽기를 거부하고 `chmod 600` 한 줄을 알려줍니다.
 
 - **OpenAI 키 발급:** [platform.openai.com](https://platform.openai.com) → API keys.
 - **Claude 키 발급:** [platform.claude.com](https://platform.claude.com) → API keys.
 - **Gemini 키 발급:** [aistudio.google.com](https://aistudio.google.com) → Get API key.
 
 파일 대신 그냥 환경변수로 둬도 됩니다 — tubeless는 `OPENAI_API_KEY` /
-`CLAUDE_API_KEY` / `GEMINI_API_KEY`를 환경변수에서도 읽고, 환경변수 값이 파일보다
-우선합니다.
+`CLAUDE_API_KEY` / `GEMINI_API_KEY`(와 `TUBELESS_*` 설정)를 환경변수에서도 읽고,
+환경변수 값이 파일보다 우선합니다.
 
 **기본값을 넣어 플래그를 안 치기.** 위의 `TUBELESS_*`는 각각 해당 옵션의 기본값
 입니다. `TUBELESS_BACKEND=gemini`와 `TUBELESS_DETAIL=deep`를 넣으면 `tubeless <url>`
 만 쳐도 Gemini로 deep 요약이 됩니다 — 플래그 없이. 특정 명령에 플래그를 주면 그
 실행에선 그게 우선하고, 이 값들은 그냥 환경변수로도 동작합니다. 잘못된 값(엉뚱한
 detail, 0 이하 숫자)은 한 줄 에러로 알려줍니다.
+
+**`transcript fetch blocked`이 뜰 때 (프록시).** 자막은 YouTube 로그인 없이 익명으로
+받아오는데, YouTube는 이 요청을 소스 IP 단위로 속도제한·차단합니다(계정 밴이 아니라
+IP 차단 — 바쁜 가정용 IP나 데이터센터 IP 모두). 요청에 계정이 안 실리므로 바꿀 수
+있는 건 **출구 IP뿐**이라, 프록시 자격증명을 `credentials.json`에 넣으면 그 IP로
+우회합니다(프록시 자격증명도 비밀이라 여기 둡니다):
+
+```json
+{
+  "TUBELESS_WEBSHARE_USER": "...",
+  "TUBELESS_WEBSHARE_PASS": "..."
+}
+```
+
+`TUBELESS_WEBSHARE_*`가 있으면 Webshare 로테이팅 레지덴셜(차단 시 IP를 돌려가며 재시도
+— 이 용도에 가장 안정적), 없으면 `TUBELESS_PROXY_HTTP`(+ 선택 `TUBELESS_PROXY_HTTPS`,
+미지정 시 HTTP 값 재사용)의 일반 프록시를 씁니다. 데이터센터/무료 프록시는 YouTube가
+함께 막는 경우가 많아 레지덴셜 프록시가 필요할 수 있습니다.
 
 ### 영상 한 개 요약
 
@@ -267,7 +293,7 @@ tubeless VIDEO_ID_XX --detail deep --lang ko --max-points 20
 ```
 
 > **기본 요약 언어는 영어입니다.** 한국어로 요약하려면 `--lang ko`를 붙이거나,
-> `~/.tubeless/config.env`에 `TUBELESS_LANG=ko`를 넣어 매번 안 쳐도 되게 하세요.
+> `~/.config/tubeless/config.toml`에 `lang = "ko"`를 넣어 매번 안 쳐도 되게 하세요.
 
 전체 URL(`watch?v=`, `youtu.be/`, `/shorts/`, `/embed/`, `/live/`)이나 11자리
 영상 id만 줘도 됩니다.
@@ -311,7 +337,7 @@ tubeless VIDEO_ID_XX --detail deep --max-points 30
 영상 한 개 대신, tubeless는 여러 채널을 지켜보며 하루에 마크다운 한 파일을,
 중요한 영상부터 순서대로 만들 수 있습니다.
 
-구독할 채널·시리즈를 `~/.tubeless/channels.toml`에 적습니다:
+구독할 채널·시리즈를 `~/.config/tubeless/channels.toml`에 적습니다:
 
 ```toml
 [[channel]]
@@ -345,7 +371,7 @@ tubeless videos @examplechannel
 그리고:
 
 ```sh
-tubeless digest              # ~/.tubeless/digests/YYYY-MM-DD.md 로 저장
+tubeless digest              # ~/.config/tubeless/digests/YYYY-MM-DD.md 로 저장
 tubeless digest --dry-run    # 저장 없이 화면에만 출력
 ```
 
@@ -373,10 +399,10 @@ tubeless digest --since 2026-07-01 --until 2026-07-08
 | `--since` / `--until DATE` | fresh 대신 저장된 요약을 `[since, until)` 구간으로 다시 큐레이트. | fresh |
 | `--channel NAME` | `--since`/`--until`과 함께, 그 채널의 저장 요약만 다시 큐레이트. | 전체 |
 | `--dry-run` | 저장/상태 갱신 없이 화면 출력만. | 꺼짐 |
-| `--channels PATH` | 채널 TOML 파일. | `~/.tubeless/channels.toml` |
-| `--state PATH` | "이미 본" 상태 파일. | `~/.tubeless/state.json` |
-| `--out DIR` | 날짜별 다이제스트 파일 디렉터리. | `~/.tubeless/digests/` |
-| `--corpus DIR` | 저장된 요약·자막 코퍼스 (`--since`/`--until`이 다시 큐레이트하는 대상). | `~/.tubeless/corpus/` |
+| `--channels PATH` | 채널 TOML 파일. | `~/.config/tubeless/channels.toml` |
+| `--state PATH` | "이미 본" 상태 파일. | `~/.config/tubeless/state.json` |
+| `--out DIR` | 날짜별 다이제스트 파일 디렉터리. | `~/.config/tubeless/digests/` |
+| `--corpus DIR` | 저장된 요약·자막 코퍼스 (`--since`/`--until`이 다시 큐레이트하는 대상). | `~/.config/tubeless/corpus/` |
 | `--backend` / `--model` / `--lang` | 단건 요약과 동일. | |
 
 ### cron으로 매일 자동 실행 (Linux)
@@ -390,14 +416,14 @@ cron은 명령을 정해진 시각에 실행합니다. 매일 밤 22:00에 다�
 2. 한 줄 추가합니다(시각 조정 — `0 22 * * *`은 매일 22:00). cron이 찾을 수 있게
    `tubeless`의 전체 경로를 씁니다. 경로는 `which tubeless`로 확인:
    ```cron
-   0 22 * * * /home/you/.local/bin/tubeless digest >> /home/you/.tubeless/digest.log 2>&1
+   0 22 * * * /home/you/.local/bin/tubeless digest >> /home/you/.config/tubeless/digest.log 2>&1
    ```
    `>> ...digest.log 2>&1`은 정상 출력과 에러를 모두 로그 파일에 덧붙여, 무슨 일이
    있었는지 볼 수 있게 합니다.
 3. 저장하고 나옵니다. `crontab -l`로 등록됐는지 확인.
 
 다이제스트가 "seen" 세트를 유지하므로 매일 실행해도 진짜 새 영상만 요약합니다.
-결과는 매일 아침 `~/.tubeless/digests/`에서 읽으면 됩니다.
+결과는 매일 아침 `~/.config/tubeless/digests/`에서 읽으면 됩니다.
 
 > **macOS**도 cron이 있지만 `launchd` / 캘린더로 트리거하는 Automator가 더
 > 네이티브합니다. **Windows**: 작업 스케줄러로 `tubeless digest`를 실행하세요.
@@ -407,7 +433,7 @@ cron은 명령을 정해진 시각에 실행합니다. 매일 밤 22:00에 다�
 tubeless는 **Claude Code**와 **Codex**용 설치형 플러그인이기도 해서, 에디터를
 떠나지 않고 영상을 요약할 수 있습니다. 플러그인은 `tubeless` 명령을 그대로 호출할
 뿐이니 **CLI를 먼저 설치하세요**(`pip install tubeless`). 키는 각자
-`~/.tubeless/config.env`에 두며, 플러그인은 지시문만 나르고 키는 절대 담지 않습니다.
+`~/.config/tubeless/credentials.json`에 두며, 플러그인은 지시문만 나르고 키는 절대 담지 않습니다.
 
 #### Claude Code
 

@@ -21,7 +21,7 @@ flowchart TD
         direction LR
         C(["sources"])
         C -->|"tubeless videos"| L["preview<br/>recent uploads"]
-        C -->|"tubeless digest"| P["discover new → summarize each →<br/>score · rank · synthesize"]
+        C -->|"tubeless digest"| P["new uploads → summarize each →<br/>score · rank · synthesize"]
         P --> M["ranked digest<br/>→ dated .md file"]
     end
 ```
@@ -35,7 +35,7 @@ flowchart TD
 - [Quick start](#quick-start)
 - [Install](#install) — macOS, Linux, Windows
 - [Backends: Gemini (free), Claude, OpenAI, Ollama — and what each costs](#backends)
-- [Set up config: keys and defaults](#set-up-config-keys-and-defaults) (`~/.tubeless/config.env`)
+- [Set up config: keys and defaults](#set-up-config-keys-and-defaults) (`config.toml` + `credentials.json`)
 - [Summarize one video](#summarize-one-video) (`--detail` / `--max-points` / `--backend` / `--model` / `--lang`)
 - [Daily digest](#daily-digest)
 - [Run it every day with cron (Linux)](#run-it-every-day-with-cron-linux)
@@ -237,35 +237,46 @@ tubeless VIDEO_ID_XX --backend gemini --model gemini-flash-latest --detail deep
 ### Set up config: keys and defaults
 
 OpenAI, Claude, and Gemini need an API key (Ollama runs locally and needs none).
-Keys are secrets, so tubeless reads them from a file in your home directory —
-never from the repo — and never prints or logs the value. Create
-`~/.tubeless/config.env` with one `KEY=VALUE` per line:
+tubeless keeps two files: **secrets** (API keys, proxy credentials) go in
+`~/.config/tubeless/credentials.json`, readable only by you (mode `0600`); the
+**non-secret settings** go in `~/.config/tubeless/config.toml`. The key value is
+never printed or logged.
 
 ```sh
-mkdir -p ~/.tubeless
-cat > ~/.tubeless/config.env <<'EOF'
-# --- keys: fill in only the backend(s) you use ---
-OPENAI_API_KEY=sk-...
-# CLAUDE_API_KEY=sk-ant-...
-# GEMINI_API_KEY=...
+mkdir -p ~/.config/tubeless
 
-# --- optional defaults, so you don't retype flags ---
-# TUBELESS_BACKEND=gemini   # default --backend
-# TUBELESS_MODEL=...        # default --model
-# TUBELESS_DETAIL=deep      # default --detail (brief|normal|deep)
-# TUBELESS_MAX_POINTS=20    # default --max-points
-# TUBELESS_LANG=ko          # summary language (default: en; set ko for Korean)
-# TUBELESS_PER_CHANNEL=5    # default --per-channel (digest)
+# secrets -> credentials.json (only the backend key(s) you use; owner-readable only)
+cat > ~/.config/tubeless/credentials.json <<'EOF'
+{
+  "OPENAI_API_KEY": "sk-..."
+}
+EOF
+chmod 600 ~/.config/tubeless/credentials.json
+
+# settings -> config.toml (all optional; so you don't retype flags)
+cat > ~/.config/tubeless/config.toml <<'EOF'
+# backend    = "gemini"   # default --backend
+# model      = "..."      # default --model
+# detail     = "deep"     # default --detail (brief|normal|deep)
+# max_points = 20         # default --max-points
+# lang       = "ko"       # summary language (default: en; set ko for Korean)
+# per_channel = 5         # default --per-channel (digest)
 EOF
 ```
+
+`credentials.json` is a `name: value` JSON map — put the
+`OPENAI_API_KEY` / `CLAUDE_API_KEY` / `GEMINI_API_KEY` for the backend you use (plus
+the proxy keys below). If it is not `0600`, tubeless refuses to read it and prints
+the one-line `chmod 600` that fixes it.
 
 - **Get an OpenAI key:** [platform.openai.com](https://platform.openai.com) → API keys.
 - **Get a Claude key:** [platform.claude.com](https://platform.claude.com) → API keys.
 - **Get a Gemini key:** [aistudio.google.com](https://aistudio.google.com) → Get API key.
 
-You can also just set these as environment variables instead of using the file —
-tubeless reads `OPENAI_API_KEY` / `CLAUDE_API_KEY` / `GEMINI_API_KEY` from the
-environment too, and an environment value overrides the file.
+You can also just set these as environment variables instead of using the files —
+tubeless reads `OPENAI_API_KEY` / `CLAUDE_API_KEY` / `GEMINI_API_KEY` (and the
+`TUBELESS_*` settings) from the environment too, and an environment value overrides
+the file.
 
 **Set defaults so you never retype a flag.** Each `TUBELESS_*` above is the
 default for the matching option. Put `TUBELESS_BACKEND=gemini` and
@@ -273,6 +284,26 @@ default for the matching option. Put `TUBELESS_BACKEND=gemini` and
 deep detail — no flags. An explicit flag on a command still wins for that run,
 and these work as plain environment variables too. An invalid value (a bad
 detail, a non-positive number) is reported as a one-line error.
+
+**When you hit `transcript fetch blocked` (proxy).** Transcripts are fetched
+anonymously (no YouTube login), and YouTube rate-limits or blocks that request per
+source IP — a busy residential ISP or a datacenter range alike, and it is the IP
+that is blocked, not any account. The request carries no account, so the exit IP
+is the only thing you can change: put proxy credentials in `credentials.json` (they
+are secrets too) and the fetch routes through it:
+
+```json
+{
+  "TUBELESS_WEBSHARE_USER": "...",
+  "TUBELESS_WEBSHARE_PASS": "..."
+}
+```
+
+`TUBELESS_WEBSHARE_*` uses Webshare rotating residential (rotates the IP and retries
+on a block — the most reliable for this); otherwise the generic `TUBELESS_PROXY_HTTP`
+(plus optional `TUBELESS_PROXY_HTTPS`, which reuses the HTTP value if unset) is used.
+Datacenter and free proxies are often blocked by YouTube too, so a residential proxy
+may be required.
 
 ### Summarize one video
 
@@ -325,7 +356,7 @@ the text yourself, or to check a video even has captions before summarizing.
 Instead of one video, tubeless can watch a set of channels and produce one
 Markdown file a day, with the most important videos first.
 
-List the channels and series you follow in `~/.tubeless/channels.toml`:
+List the channels and series you follow in `~/.config/tubeless/channels.toml`:
 
 ```toml
 [[channel]]
@@ -359,7 +390,7 @@ tubeless videos @examplechannel
 Then run:
 
 ```sh
-tubeless digest              # write ~/.tubeless/digests/YYYY-MM-DD.md
+tubeless digest              # write ~/.config/tubeless/digests/YYYY-MM-DD.md
 tubeless digest --dry-run    # print it instead, and don't record state
 ```
 
@@ -389,10 +420,10 @@ tubeless digest --since 2026-07-01 --until 2026-07-08
 | `--since` / `--until DATE` | Re-curate stored summaries over `[since, until)` instead of a fresh run. | fresh run |
 | `--channel NAME` | With `--since`/`--until`, re-curate only that channel's stored summaries. | all |
 | `--dry-run` | Print the digest instead of writing it / updating state. | off |
-| `--channels PATH` | Channels TOML file. | `~/.tubeless/channels.toml` |
-| `--state PATH` | The "already seen" state file. | `~/.tubeless/state.json` |
-| `--out DIR` | Directory for the dated digest file. | `~/.tubeless/digests/` |
-| `--corpus DIR` | Corpus of stored summaries/transcripts (what `--since`/`--until` re-curates). | `~/.tubeless/corpus/` |
+| `--channels PATH` | Channels TOML file. | `~/.config/tubeless/channels.toml` |
+| `--state PATH` | The "already seen" state file. | `~/.config/tubeless/state.json` |
+| `--out DIR` | Directory for the dated digest file. | `~/.config/tubeless/digests/` |
+| `--corpus DIR` | Corpus of stored summaries/transcripts (what `--since`/`--until` re-curates). | `~/.config/tubeless/corpus/` |
 | `--backend` / `--model` / `--lang` | Same as for a single video. | |
 
 ### Run it every day with cron (Linux)
@@ -406,14 +437,14 @@ Cron runs a command on a schedule. To build the digest every night at 22:00:
 2. Add one line (adjust the time — `0 22 * * *` means 22:00 daily). Use the full
    path to `tubeless` so cron can find it; get it with `which tubeless`:
    ```cron
-   0 22 * * * /home/you/.local/bin/tubeless digest >> /home/you/.tubeless/digest.log 2>&1
+   0 22 * * * /home/you/.local/bin/tubeless digest >> /home/you/.config/tubeless/digest.log 2>&1
    ```
    `>> ...digest.log 2>&1` appends both normal output and errors to a log file so
    you can see what happened.
 3. Save and exit. Check it's registered with `crontab -l`.
 
 Because the digest keeps a "seen" set, a daily run only summarizes genuinely new
-uploads. Read the result each morning at `~/.tubeless/digests/`.
+uploads. Read the result each morning at `~/.config/tubeless/digests/`.
 
 > **macOS** has cron too, but `launchd` / a Calendar-triggered Automator action
 > is the native way. **Windows**: use Task Scheduler to run `tubeless digest`.
@@ -423,7 +454,7 @@ uploads. Read the result each morning at `~/.tubeless/digests/`.
 tubeless is also an installable plugin for **Claude Code** and **Codex**, so you
 can summarize a video without leaving your editor. The plugin only shells out to
 the `tubeless` command, so **install the CLI first** (`pip install tubeless`);
-your keys stay in your own `~/.tubeless/config.env` — the plugin ships only the
+your keys stay in your own `~/.config/tubeless/credentials.json` — the plugin ships only the
 instructions, never a key.
 
 #### Claude Code
