@@ -137,7 +137,7 @@ class FileStore:
             rows.append((moment, saved_at, summary))
         # Order by publish time, then by save time -- so two variants of one video
         # (identical published) fall in save order and the most recently stored
-        # one sorts last, which is the one recompute keeps.
+        # one sorts last, which is the one ``latest_per_video`` keeps.
         rows.sort(key=lambda row: (row[0], row[1]))
         return tuple(summary for _, _, summary in rows)
 
