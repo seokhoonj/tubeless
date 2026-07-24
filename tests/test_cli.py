@@ -255,6 +255,19 @@ def test_transcript_prints_the_raw_text(
     assert "ducks are great" in captured.out
 
 
+def test_transcript_json_prints_the_structure(
+    pipeline_with_fakes: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # --json dumps the full transcript structure (video + segments), not the text.
+    exit_code = main(["transcript", SAMPLE_VIDEO.url, "--json"])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert payload["video"]["video_id"] == SAMPLE_VIDEO.video_id
+    assert payload["language"] == "en"
+    assert payload["segments"][0]["text"] == "ducks are great"
+
+
 def test_bare_url_still_routes_to_summarize(
     pipeline_with_fakes: None, capsys: pytest.CaptureFixture[str]
 ) -> None:
