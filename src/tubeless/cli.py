@@ -189,14 +189,14 @@ def _digest_fresh(args: argparse.Namespace, backend: LLMBackend) -> int:
         skipped.extend(result.skipped)
         processed |= result.processed
 
-    digest   = curate_summaries(summaries, backend, period=_today(),
+    digest   = curate_summaries(summaries, backend, created=_today(),
                                 language=args.lang, skipped=skipped)
     markdown = render_markdown(digest)
     if args.dry_run:
         print(markdown)
         return 0
 
-    out_path = _write_digest(args.out, digest.period, markdown)
+    out_path = _write_digest(args.out, digest.label, markdown)
     write_seen(set(seen | processed), args.state)
     skipped_note = f", {len(digest.skipped)} skipped" if digest.skipped else ""
     print(f"digest written: {out_path} ({len(digest.entries)} videos{skipped_note})")
@@ -217,14 +217,14 @@ def _digest_stored(args: argparse.Namespace, backend: LLMBackend) -> int:
     stored    = FileStore(args.corpus).load_summaries(
         since=args.since, until=args.until, channel=args.channel)
     summaries = latest_per_video(stored)
-    digest    = curate_summaries(summaries, backend,
-                                 period=_range_label(args.since, args.until), language=args.lang)
+    digest    = curate_summaries(summaries, backend, created=_today(),
+                                 start=args.since, end=args.until, language=args.lang)
     markdown  = render_markdown(digest)
     if args.dry_run:
         print(markdown)
         return 0
 
-    out_path = _write_digest(args.out, digest.period, markdown)
+    out_path = _write_digest(args.out, digest.label, markdown)
     print(f"digest written: {out_path} ({len(digest.entries)} videos)")
     return 0
 
@@ -350,14 +350,6 @@ def _selected_channels(path: Path, only: str | None) -> tuple[Channel, ...]:
     if not matched:
         raise ConfigError(f"no channel source contains {only!r} in {path}")
     return matched
-
-
-def _range_label(since: str | None, until: str | None) -> str:
-    """A display label for a stored re-curate's span: ``since..until`` (an open
-    end left blank), or ``all`` when the range is unbounded."""
-    if since is None and until is None:
-        return "all"
-    return f"{since or ''}..{until or ''}"
 
 
 def _configured_choice(name: str, choices: tuple[str, ...], fallback: str) -> str:

@@ -9,7 +9,7 @@ import re
 import pytest
 
 import tubeless.digest as digest_module
-from tubeless.digest import Skip, curate_summaries, summarize_videos
+from tubeless.digest import Digest, Skip, curate_summaries, summarize_videos
 from tubeless.errors import TranscriptFetchBlocked, TranscriptUnavailable
 from tubeless.source import Video
 from tubeless.summary import Summary
@@ -148,16 +148,16 @@ def test_curate_ranks_entries_by_importance():
     summaries[1] = Summary(video=_video("bbbbbbbbbbb", "big news"), tldr="g", points=("a",),
                            language="en", detail="normal")
 
-    digest = curate_summaries(summaries, ScoringBackend(), period="2026-07-21")
+    digest = curate_summaries(summaries, ScoringBackend(), created="2026-07-21")
 
     assert [e.summary.video.title for e in digest.entries] == ["big news", "V aaaaaaaaaaa"]
-    assert digest.period == "2026-07-21"
+    assert digest.created == "2026-07-21"
 
 
 def test_curate_surfaces_the_skips_it_is_given():
     skip = Skip("feed-failure", "@dead", "feed down")
 
-    digest = curate_summaries([_summary("aaaaaaaaaaa")], ScoringBackend(), period="d", skipped=[skip])
+    digest = curate_summaries([_summary("aaaaaaaaaaa")], ScoringBackend(), created="d", skipped=[skip])
 
     assert digest.skipped == (skip,)
 
@@ -166,7 +166,7 @@ def test_curate_synthesizes_across_the_sources():
     # Synthesis is always attempted; with 2+ sources it produces one.
     summaries = [_summary("aaaaaaaaaaa"), _summary("bbbbbbbbbbb")]
 
-    digest = curate_summaries(summaries, SynthesizingBackend(), period="d")
+    digest = curate_summaries(summaries, SynthesizingBackend(), created="d")
 
     assert digest.synthesis is not None
     assert digest.synthesis.tone == "cautious"
@@ -175,13 +175,23 @@ def test_curate_synthesizes_across_the_sources():
 def test_curate_has_no_synthesis_below_two_summaries():
     # One source cannot agree or disagree with itself, so synthesize declines and
     # the digest carries no synthesis -- no backend call is spent on it.
-    digest = curate_summaries([_summary("aaaaaaaaaaa")], SynthesizingBackend(), period="d")
+    digest = curate_summaries([_summary("aaaaaaaaaaa")], SynthesizingBackend(), created="d")
 
     assert digest.synthesis is None
 
 
+def test_digest_label_covers_fresh_range_and_open_ended_bounds():
+    # A fresh run is labelled by its created date; a range by start..end; an
+    # open-ended bound reads as since-/until- (no stray-dot filename).
+    assert Digest(created="2026-07-21", entries=()).label == "2026-07-21"
+    assert Digest(created="x", start="2026-07-01", end="2026-07-08",
+                  entries=()).label == "2026-07-01..2026-07-08"
+    assert Digest(created="x", start="2026-07-01", entries=()).label == "since-2026-07-01"
+    assert Digest(created="x", end="2026-07-08", entries=()).label == "until-2026-07-08"
+
+
 def test_curate_of_no_summaries_is_an_empty_digest():
-    digest = curate_summaries([], ScoringBackend(), period="d")
+    digest = curate_summaries([], ScoringBackend(), created="d")
 
     assert digest.entries == ()
     assert digest.synthesis is None

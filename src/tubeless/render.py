@@ -26,7 +26,7 @@ assert set(_TIER_MARKER) == set(get_args(ImportanceTier)), "every ImportanceTier
 
 def render_markdown(digest: Digest) -> str:
     """Render one digest as a Markdown document."""
-    lines = [f"# YouTube digest — {digest.period}", ""]
+    lines = [f"# YouTube digest — {digest.label}", ""]
     if digest.synthesis is not None:
         lines.extend(_synthesis_lines(digest.synthesis))
     if not digest.entries:

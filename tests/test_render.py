@@ -29,7 +29,7 @@ def _entry(*, title: str, score: float, channel: str = "Example Channel") -> Ent
 
 
 def test_render_markdown_renders_header_score_and_points():
-    digest = Digest(period="2026-07-21", entries=(_entry(title="Example Video", score=0.9),))
+    digest = Digest(created="2026-07-21", entries=(_entry(title="Example Video", score=0.9),))
 
     md = render_markdown(digest)
 
@@ -42,7 +42,7 @@ def test_render_markdown_renders_header_score_and_points():
 
 
 def test_render_markdown_header_uses_the_summary_channel():
-    digest = Digest(period="d", entries=(_entry(title="v", score=0.9, channel="Duck Channel"),))
+    digest = Digest(created="d", entries=(_entry(title="v", score=0.9, channel="Duck Channel"),))
 
     assert "Duck Channel — v" in render_markdown(digest)
 
@@ -54,13 +54,13 @@ def test_render_markdown_falls_back_when_the_channel_is_unknown():
         importance = Importance(score=0.9, reason=""),
     )
 
-    assert "Unknown channel — v" in render_markdown(Digest(period="d", entries=(entry,)))
+    assert "Unknown channel — v" in render_markdown(Digest(created="d", entries=(entry,)))
 
 
 def test_render_markdown_tiers_track_the_score():
-    high = render_markdown(Digest(period="d", entries=(_entry(title="a", score=0.8),)))
-    mid  = render_markdown(Digest(period="d", entries=(_entry(title="a", score=0.5),)))
-    low  = render_markdown(Digest(period="d", entries=(_entry(title="a", score=0.1),)))
+    high = render_markdown(Digest(created="d", entries=(_entry(title="a", score=0.8),)))
+    mid  = render_markdown(Digest(created="d", entries=(_entry(title="a", score=0.5),)))
+    low  = render_markdown(Digest(created="d", entries=(_entry(title="a", score=0.1),)))
 
     assert "🔴" in high
     assert "🟡" in mid
@@ -75,7 +75,7 @@ def test_render_markdown_leads_with_the_synthesis_when_present():
         disagreements = ("A says bottomed; B distrusts",),
     )
     digest = Digest(
-        period="2026-07-21", entries=(_entry(title="Example Video", score=0.5),),
+        created="2026-07-21", entries=(_entry(title="Example Video", score=0.5),),
         synthesis=synthesis,
     )
 
@@ -93,20 +93,20 @@ def test_render_markdown_leads_with_the_synthesis_when_present():
 
 
 def test_render_markdown_omits_the_synthesis_section_when_absent():
-    digest = Digest(period="d", entries=(_entry(title="v", score=0.5),))
+    digest = Digest(created="d", entries=(_entry(title="v", score=0.5),))
 
     assert "across the sources" not in render_markdown(digest)
 
 
 def test_render_markdown_notes_an_empty_day():
-    md = render_markdown(Digest(period="2026-07-21", entries=()))
+    md = render_markdown(Digest(created="2026-07-21", entries=()))
 
     assert "No new videos" in md
 
 
 def test_render_markdown_lists_skipped_channels_and_captionless_videos_separately():
     digest = Digest(
-        period="d", entries=(),
+        created="d", entries=(),
         skipped=(
             Skip("feed-failure", "@lectures", "feed down"),
             Skip("no-transcript", "vid00000009", "captions off"),

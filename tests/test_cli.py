@@ -312,7 +312,7 @@ def test_digest_dry_run_prints_markdown_without_writing(
     monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
     monkeypatch.setattr(
         cli_module, "curate_summaries",
-        lambda summaries, backend, **kw: Digest(period="2026-07-21", entries=(entry,)),
+        lambda summaries, backend, **kw: Digest(created="2026-07-21", entries=(entry,)),
     )
 
     exit_code = main(["digest", "--dry-run"])
@@ -405,7 +405,8 @@ def test_digest_since_until_recurates_stored_summaries_and_prints(
 
     def capture(summaries, backend, **kwargs):
         seen_kwargs.update(kwargs)
-        return Digest(period=kwargs["period"], entries=())
+        return Digest(created=kwargs["created"], start=kwargs.get("start"),
+                      end=kwargs.get("end"), entries=())
 
     monkeypatch.setattr(cli_module, "curate_summaries", capture)
 
@@ -413,7 +414,9 @@ def test_digest_since_until_recurates_stored_summaries_and_prints(
 
     captured = capsys.readouterr()
     assert exit_code == 0
-    assert seen_kwargs["period"] == "2026-07-01..2026-07-08"   # the stored path was taken
+    # the stored path was taken with the range passed through
+    assert seen_kwargs["start"] == "2026-07-01"
+    assert seen_kwargs["end"]   == "2026-07-08"
     assert "YouTube digest — 2026-07-01..2026-07-08" in captured.out
 
 
@@ -604,7 +607,9 @@ def test_digest_channel_alone_routes_to_stored_not_a_fresh_run(
     monkeypatch.setattr(cli_module, "FileStore", _RecordingStore)
     monkeypatch.setattr(cli_module, "load_channels", _went_fresh)
     monkeypatch.setattr(cli_module, "curate_summaries",
-                        lambda summaries, backend, **kw: Digest(period=kw["period"], entries=()))
+                        lambda summaries, backend, **kw: Digest(
+                            created=kw["created"], start=kw.get("start"),
+                            end=kw.get("end"), entries=()))
 
     assert main(["digest", "--channel", "Some Channel", "--dry-run"]) == 0
     assert seen["channel"] == "Some Channel"   # stored path, filtered by channel

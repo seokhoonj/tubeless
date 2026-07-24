@@ -70,14 +70,32 @@ class Entry:
 class Digest:
     """One assembled digest (entries most-important first), the things left out
     (feed failures and captionless videos), and an optional cross-source synthesis.
-    ``period`` is a display label for the span it covers -- a single date for a
-    fresh run, a ``since..until`` range for a re-curate; it is never structurally
-    parsed (chronological queries read ``Summary.video.published``)."""
 
-    period:    str
+    ``created`` is when the digest was generated (an ISO date). ``start``/``end``
+    are the date range a re-curate covers -- both ``None`` for a fresh run of
+    newly discovered videos, which has no range and is identified by ``created``.
+    ``label`` derives the display string from these; the fields are structured so
+    a reader need never parse it back."""
+
+    created:   str
     entries:   tuple[Entry, ...]
     skipped:   tuple[Skip, ...] = ()
     synthesis: Synthesis | None = None
+    start:     str | None = None
+    end:       str | None = None
+
+    @property
+    def label(self) -> str:
+        """A display string for the span the digest covers: the ``start..end``
+        range, a single open-ended bound, or -- for a fresh run -- the date it was
+        created. Safe as a filename (no spaces)."""
+        if self.start and self.end:
+            return f"{self.start}..{self.end}"
+        if self.start:
+            return f"since-{self.start}"
+        if self.end:
+            return f"until-{self.end}"
+        return self.created
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,7 +159,9 @@ def curate_summaries(
     summaries: Sequence[Summary],
     backend:   LLMBackend,
     *,
-    period:    str,
+    created:   str,
+    start:     str | None = None,
+    end:       str | None = None,
     language:  str = DEFAULT_LANGUAGE,
     skipped:   Sequence[Skip] = (),
     focus:     str | None = None,
@@ -173,8 +193,10 @@ def curate_summaries(
 
     synthesis = synthesize_summaries(summaries, backend, language=language)
     return Digest(
-        period    = period,
+        created   = created,
         entries   = tuple(entries),
         skipped   = tuple(skipped),
         synthesis = synthesis,
+        start     = start,
+        end       = end,
     )
