@@ -61,7 +61,7 @@ def _no_config_file(monkeypatch: pytest.MonkeyPatch) -> None:
     ~/.tubeless/config.env or a stray export cannot set a default during tests."""
     monkeypatch.setattr(config, "read_config", lambda *a, **k: {})
     for name in ("TUBELESS_BACKEND", "TUBELESS_MODEL", "TUBELESS_DETAIL",
-                 "TUBELESS_MAX_POINTS", "TUBELESS_LANG", "TUBELESS_LIMIT"):
+                 "TUBELESS_MAX_POINTS", "TUBELESS_LANG", "TUBELESS_PER_CHANNEL"):
         monkeypatch.delenv(name, raising=False)
 
 
@@ -355,7 +355,7 @@ def test_digest_writes_summaries_and_transcripts_to_the_store(
     assert archived.text == "ducks are great"
 
 
-def test_digest_only_filters_channels_by_source(_no_config_file, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_digest_source_match_filters_channels(_no_config_file, monkeypatch: pytest.MonkeyPatch) -> None:
     from tubeless.channels import Channel
 
     monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
@@ -371,17 +371,17 @@ def test_digest_only_filters_channels_by_source(_no_config_file, monkeypatch: py
 
     monkeypatch.setattr(cli_module, "fetch_recent_videos", record)
 
-    assert main(["digest", "--only", "closing", "--dry-run"]) == 0
+    assert main(["digest", "--source-match", "closing", "--dry-run"]) == 0
     assert scanned == ["@closing-bell"]
 
 
-def test_digest_only_with_no_match_errors(_no_config_file, monkeypatch: pytest.MonkeyPatch,
+def test_digest_source_match_with_no_match_errors(_no_config_file, monkeypatch: pytest.MonkeyPatch,
                                           capsys: pytest.CaptureFixture[str]) -> None:
     from tubeless.channels import Channel
     monkeypatch.setattr(cli_module, "load_channels",
                         lambda path: (Channel(source="@market-inside"),))
 
-    exit_code = main(["digest", "--only", "nonexistent", "--dry-run"])
+    exit_code = main(["digest", "--source-match", "nonexistent", "--dry-run"])
 
     assert exit_code == 1
     assert "tubeless:" in capsys.readouterr().err
@@ -472,7 +472,7 @@ def test_digest_fresh_scans_filtered_channel_full_window_and_plain_with_limit(
     ))
     monkeypatch.setattr(cli_module, "fetch_recent_videos", record)
 
-    assert main(["digest", "--limit", "5", "--dry-run"]) == 0
+    assert main(["digest", "--per-channel", "5", "--dry-run"]) == 0
     # a filtered channel must scan the full window (matches are sparse); a plain
     # one keeps the small per-channel cap
     assert seen_limits["@filtered"] == DEFAULT_SCAN
@@ -615,7 +615,7 @@ def test_digest_channel_alone_routes_to_stored_not_a_fresh_run(
     assert seen["channel"] == "Some Channel"   # stored path, filtered by channel
 
 
-def test_digest_only_combined_with_a_stored_recurate_is_rejected(
+def test_digest_source_match_combined_with_a_stored_recurate_is_rejected(
     _no_config_file, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     # --only is a fresh-run flag; mixed with --since/--until it must error, not be
@@ -630,7 +630,7 @@ def test_digest_only_combined_with_a_stored_recurate_is_rejected(
     monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
     monkeypatch.setattr(cli_module, "FileStore", _EmptyStore)
 
-    exit_code = main(["digest", "--since", "2026-07-01", "--only", "foo", "--dry-run"])
+    exit_code = main(["digest", "--since", "2026-07-01", "--source-match", "foo", "--dry-run"])
 
     assert exit_code == 1
     assert "tubeless:" in capsys.readouterr().err

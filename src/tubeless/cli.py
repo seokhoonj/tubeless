@@ -150,8 +150,8 @@ def _run_digest(args: argparse.Namespace) -> int:
 
 
 def _digest_fresh(args: argparse.Namespace, backend: LLMBackend) -> int:
-    channels = _selected_channels(args.channels, args.only)
-    _print_run_settings(args.backend, backend.model, lang=args.lang, limit=args.limit)
+    channels = _selected_channels(args.channels, args.source_match)
+    _print_run_settings(args.backend, backend.model, lang=args.lang, per_channel=args.per_channel)
     seen = frozenset(read_seen(args.state))
     # A dry run persists nothing (store=None): the summaries and transcripts a
     # real run writes through to the corpus are skipped, and the seen-set is left
@@ -167,7 +167,7 @@ def _digest_fresh(args: argparse.Namespace, backend: LLMBackend) -> int:
         # drops them (the documented missed-video incident). A plain channel
         # keeps the small limit.
         has_filter = bool(channel.includes or channel.excludes)
-        limit      = DEFAULT_SCAN if has_filter else args.limit
+        limit      = DEFAULT_SCAN if has_filter else args.per_channel
         try:
             videos = fetch_recent_videos(
                 channel.source, limit=limit,
@@ -207,11 +207,11 @@ def _digest_stored(args: argparse.Namespace, backend: LLMBackend) -> int:
     # Re-curate stored summaries over [since, until): no discovery or fetching,
     # read-only on the corpus. Keeps the most recent summary per video so a video
     # with several stored variants is never double-counted.
-    if args.only is not None:
-        # --only narrows a fresh discovery; it has no meaning over stored
+    if args.source_match is not None:
+        # --source-match narrows a fresh discovery; it has no meaning over stored
         # summaries. Reject it rather than silently ignore it (--channel is the
         # stored-mode equivalent).
-        raise ConfigError("--only applies to a fresh digest run, not a --since/--until re-curate")
+        raise ConfigError("--source-match applies to a fresh digest run, not a --since/--until re-curate")
     _print_run_settings(args.backend, backend.model, lang=args.lang,
                         since=args.since, until=args.until, channel=args.channel)
     stored    = FileStore(args.corpus).load_summaries(
@@ -299,12 +299,12 @@ def _build_parser() -> argparse.ArgumentParser:
     digest_parser.add_argument("--corpus", type=Path, default=CORPUS_ROOT,
                                help=f"directory for the analysis corpus of summaries and "
                                     f"transcripts (default: {CORPUS_ROOT})")
-    digest_parser.add_argument("--only", default=None,
+    digest_parser.add_argument("--source-match", default=None,
                                help="fresh run: only channels whose source contains this text")
-    digest_parser.add_argument("--limit", type=_positive_int,
-                               default=_configured_positive_int("TUBELESS_LIMIT", DEFAULT_PER_CHANNEL_LIMIT),
+    digest_parser.add_argument("--per-channel", type=_positive_int,
+                               default=_configured_positive_int("TUBELESS_PER_CHANNEL", DEFAULT_PER_CHANNEL_LIMIT),
                                help=f"fresh run: max recent uploads to check per channel "
-                                    f"(default: {DEFAULT_PER_CHANNEL_LIMIT}, or $TUBELESS_LIMIT)")
+                                    f"(default: {DEFAULT_PER_CHANNEL_LIMIT}, or $TUBELESS_PER_CHANNEL)")
     digest_parser.add_argument("--since", type=_iso_date, default=None,
                                help="re-curate stored summaries from this date, inclusive (e.g. 2026-07-01)")
     digest_parser.add_argument("--until", type=_iso_date, default=None,
@@ -339,16 +339,17 @@ def _add_backend_args(sub: argparse.ArgumentParser) -> None:
                      help="model id; default is the backend's small-tier model (or $TUBELESS_MODEL)")
 
 
-def _selected_channels(path: Path, only: str | None) -> tuple[Channel, ...]:
-    """Load the channel list, optionally narrowed to sources containing ``only``
-    (case-insensitive). Raises ``ConfigError`` when ``only`` matches nothing."""
+def _selected_channels(path: Path, source_match: str | None) -> tuple[Channel, ...]:
+    """Load the channel list, optionally narrowed to sources containing
+    ``source_match`` (case-insensitive). Raises ``ConfigError`` when it matches
+    nothing."""
     channels = load_channels(path)
-    if only is None:
+    if source_match is None:
         return channels
-    needle  = only.lower()
+    needle  = source_match.lower()
     matched = tuple(channel for channel in channels if needle in channel.source.lower())
     if not matched:
-        raise ConfigError(f"no channel source contains {only!r} in {path}")
+        raise ConfigError(f"no channel source contains {source_match!r} in {path}")
     return matched
 
 
