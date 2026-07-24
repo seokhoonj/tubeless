@@ -90,9 +90,9 @@ def _with_default_subcommand(argv: list[str]) -> list[str]:
 
     Also rewrite a leading-dash bare video id (which argparse would treat as an
     option) to its watch URL, whether it heads a bare run or follows an explicit
-    ``summarize``."""
+    ``summarize``/``transcript`` (both take a URL or id)."""
     argv = list(argv)
-    if argv and argv[0] == "summarize" and len(argv) > 1 and _LEADING_DASH_ID.match(argv[1]):
+    if argv and argv[0] in ("summarize", "transcript") and len(argv) > 1 and _LEADING_DASH_ID.match(argv[1]):
         argv[1] = _watch_url(argv[1])
     if argv and argv[0] not in _SUBCOMMANDS and argv[0] not in ("-h", "--help"):
         head = _watch_url(argv[0]) if _LEADING_DASH_ID.match(argv[0]) else argv[0]
@@ -144,12 +144,19 @@ def _run_digest(args: argparse.Namespace) -> int:
     summarizes and ranks them; --since/--until instead re-curates already-stored
     summaries over a date range (no discovery, no fetching)."""
     backend = make_backend(args.backend, model=args.model)
-    if args.since or args.until or args.channel:
+    if args.since or args.until:
         return _digest_stored(args, backend)
     return _digest_fresh(args, backend)
 
 
 def _digest_fresh(args: argparse.Namespace, backend: LLMBackend) -> int:
+    if args.channel is not None:
+        # --channel narrows a stored re-curate; on a fresh run it has no meaning
+        # and (unrouted) would otherwise be silently ignored -- worse, a stored
+        # re-curate with no date range would label itself with today's date and
+        # overwrite the fresh daily digest. Reject it, mirroring --source-match's
+        # rejection in the stored path.
+        raise ConfigError("--channel narrows a --since/--until re-curate, not a fresh run")
     channels = _selected_channels(args.channels, args.source_match)
     _print_run_settings(args.backend, backend.model, lang=args.lang, per_channel=args.per_channel)
     seen = frozenset(read_seen(args.state))
@@ -162,10 +169,10 @@ def _digest_fresh(args: argparse.Namespace, backend: LLMBackend) -> int:
     skipped:   list[Skip] = []
     processed: set[str] = set()
     for channel in channels:
-        # A filtered channel scans the full feed window, not just --limit: the
-        # wanted uploads are sparse among the rest, so a small window silently
-        # drops them (the documented missed-video incident). A plain channel
-        # keeps the small limit.
+        # A filtered channel scans the full feed window, not just --per-channel:
+        # the wanted uploads are sparse among the rest, so a small window silently
+        # drops them (the documented missed-video incident). A plain channel keeps
+        # the small per-channel cap.
         has_filter = bool(channel.includes or channel.excludes)
         limit      = DEFAULT_SCAN if has_filter else args.per_channel
         try:
@@ -445,9 +452,9 @@ def _render_text(summary: Summary) -> str:
     return "\n".join(lines)
 
 
-def _write_digest(out_dir: Path, date: str, markdown: str) -> Path:
+def _write_digest(out_dir: Path, label: str, markdown: str) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
-    path = out_dir / f"{date}.md"
+    path = out_dir / f"{label}.md"
     path.write_text(markdown, encoding="utf-8")
     return path
 

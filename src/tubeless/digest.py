@@ -137,6 +137,8 @@ def summarize_videos(
     Raises:
         TranscriptFetchBlocked: a transient block (propagated so the caller aborts
             before persisting state, rather than marking the video seen).
+        CorpusError: a store write (transcript or summary) failed; propagated so
+            the run aborts rather than continuing with a half-persisted corpus.
         LLMError: propagated from the backend.
     """
     summaries: list[Summary] = []

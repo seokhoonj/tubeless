@@ -597,11 +597,25 @@ def test_digest_fresh_aborts_without_writing_state_when_a_fetch_is_blocked(
 
 # --- digest --since/--until (stored re-curate) --------------------------------
 
-def test_digest_channel_alone_routes_to_stored_not_a_fresh_run(
+def test_digest_channel_without_a_date_range_is_rejected(
+    _no_config_file, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # --channel narrows a --since/--until re-curate; without a date range it must
+    # error, not run a fresh discovery (which would ignore it) nor a stored
+    # re-curate labelled as today (which would overwrite the fresh daily digest).
+    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
+
+    exit_code = main(["digest", "--channel", "Some Channel", "--dry-run"])
+
+    assert exit_code == 1
+    assert "tubeless:" in capsys.readouterr().err
+
+
+def test_digest_since_with_channel_narrows_the_stored_recurate(
     _no_config_file, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # --channel without --since/--until must re-curate STORED summaries, not run a
-    # fresh discovery (which would ignore --channel, call the LLM, and mutate state).
+    # --channel is a modifier on a --since/--until re-curate: it passes through to
+    # the store's channel filter.
     from tubeless.digest import Digest
     seen: dict[str, object] = {}
 
@@ -613,26 +627,22 @@ def test_digest_channel_alone_routes_to_stored_not_a_fresh_run(
             seen["channel"] = channel
             return ()
 
-    def _went_fresh(path):
-        raise AssertionError("a fresh run was started for a --channel-only digest")
-
     monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
     monkeypatch.setattr(cli_module, "FileStore", _RecordingStore)
-    monkeypatch.setattr(cli_module, "load_channels", _went_fresh)
     monkeypatch.setattr(cli_module, "curate_summaries",
                         lambda summaries, backend, **kw: Digest(
                             created=kw["created"], start=kw.get("start"),
                             end=kw.get("end"), entries=()))
 
-    assert main(["digest", "--channel", "Some Channel", "--dry-run"]) == 0
-    assert seen["channel"] == "Some Channel"   # stored path, filtered by channel
+    assert main(["digest", "--since", "2026-07-01", "--channel", "Some Channel", "--dry-run"]) == 0
+    assert seen["channel"] == "Some Channel"
 
 
 def test_digest_source_match_combined_with_a_stored_recurate_is_rejected(
     _no_config_file, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    # --only is a fresh-run flag; mixed with --since/--until it must error, not be
-    # silently dropped.
+    # --source-match is a fresh-run flag; mixed with --since/--until it must error,
+    # not be silently dropped.
     class _EmptyStore:
         def __init__(self, root):
             pass

@@ -1,8 +1,8 @@
 """LLM completion backends behind one structural interface.
 
-``summarize()`` depends only on the ``LLMBackend`` protocol, so tests inject a
-fake and a future backend (another vendor, a local model) plugs in without
-touching the summary logic.
+``summarize_transcript()`` depends only on the ``LLMBackend`` protocol, so tests
+inject a fake and a future backend (another vendor, a local model) plugs in
+without touching the summary logic.
 """
 
 from __future__ import annotations

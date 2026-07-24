@@ -376,6 +376,7 @@ tubeless digest --since 2026-07-01 --until 2026-07-08
 | `--channels PATH` | 채널 TOML 파일. | `~/.tubeless/channels.toml` |
 | `--state PATH` | "이미 본" 상태 파일. | `~/.tubeless/state.json` |
 | `--out DIR` | 날짜별 다이제스트 파일 디렉터리. | `~/.tubeless/digests/` |
+| `--corpus DIR` | 저장된 요약·자막 코퍼스 (`--since`/`--until`이 다시 큐레이트하는 대상). | `~/.tubeless/corpus/` |
 | `--backend` / `--model` / `--lang` | 단건 요약과 동일. | |
 
 ### cron으로 매일 자동 실행 (Linux)
@@ -494,7 +495,7 @@ LLM 백엔드로 요약합니다(긴 자막은 map-reduce로 나눠 아무것도
 
 - **자막이 없는 영상은 요약할 수 없습니다.** tubeless는 자막을 읽을 뿐, 음성을
   직접 받아쓰지 **않습니다**(STT 폴백 없음). 자막이 꺼졌거나 요청 언어에 없는
-  영상은 건너뜁니다(다이제스트에서는 "Skipped channels"로 표시).
+  영상은 건너뜁니다(다이제스트에서는 "Videos without a transcript"로 표시).
 - **자동 생성 자막은 노이즈가 있습니다.** 자막이 자동 생성일 때 tubeless는 모델
   에게 불확실한 이름·숫자를 단정하지 말고 유보하라고 경고하지만, 뭉개진 자막은
   여전히 뭉개진 포인트를 낳을 수 있습니다.

@@ -392,6 +392,7 @@ tubeless digest --since 2026-07-01 --until 2026-07-08
 | `--channels PATH` | Channels TOML file. | `~/.tubeless/channels.toml` |
 | `--state PATH` | The "already seen" state file. | `~/.tubeless/state.json` |
 | `--out DIR` | Directory for the dated digest file. | `~/.tubeless/digests/` |
+| `--corpus DIR` | Corpus of stored summaries/transcripts (what `--since`/`--until` re-curates). | `~/.tubeless/corpus/` |
 | `--backend` / `--model` / `--lang` | Same as for a single video. | |
 
 ### Run it every day with cron (Linux)
@@ -514,7 +515,7 @@ same tool works for a market recap, a lecture, or a match report.
 - **A video with no transcript can't be summarized.** tubeless reads captions; it
   does **not** transcribe audio itself (no speech-to-text fallback). Videos with
   captions disabled, or none in the requested languages, are skipped (in a digest
-  they're listed under "Skipped channels").
+  they're listed under "Videos without a transcript").
 - **Auto-generated captions are noisy.** When the caption track is auto-generated,
   tubeless warns the model to hedge uncertain names and numbers rather than state
   them as fact — but a garbled caption can still produce a garbled point.
