@@ -96,7 +96,7 @@ def fetch_transcript(
 
     Args:
         video:     the video to fetch captions for (``video.video_id`` is a
-                   validated 11-character id; see ``source.parse_video_id``).
+                   validated 11-character id; see ``source.extract_video_id``).
         languages: language codes in preference order.
 
     Raises:

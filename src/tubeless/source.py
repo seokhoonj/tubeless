@@ -15,7 +15,7 @@ import requests
 
 from tubeless.errors import InvalidVideoURL
 
-__all__ = ["Video", "parse_video_id", "fetch_video"]
+__all__ = ["Video", "extract_video_id", "fetch_video"]
 
 # A YouTube video id is exactly 11 characters of this alphabet. The length and
 # alphabet are stable observed facts of every public YouTube URL form, not a
@@ -37,7 +37,7 @@ class Video:
     not be resolved (the summary path must not depend on it). ``published`` is
     the ISO-8601 upload time when a source carries one (a channel feed does),
     and None when it does not (oembed gives no date) -- so the two ways of
-    obtaining a Video, ``fetch_video`` and ``discover``, produce the same type."""
+    obtaining a Video, ``fetch_video`` and ``fetch_recent_videos``, produce the same type."""
 
     video_id:  str
     title:     str
@@ -46,7 +46,7 @@ class Video:
     published: str | None = None
 
 
-def parse_video_id(url_or_id: str) -> str:
+def extract_video_id(url_or_id: str) -> str:
     """Extract the 11-character video id from a YouTube URL or a bare id.
 
     Accepts ``watch?v=``, ``youtu.be/``, ``/shorts/``, ``/embed/``, ``/live/``
@@ -100,7 +100,7 @@ def fetch_video(url_or_id: str) -> Video:
     Raises:
         InvalidVideoURL: the input does not identify a video at all.
     """
-    video_id  = parse_video_id(url_or_id)
+    video_id  = extract_video_id(url_or_id)
     watch_url = f"https://www.youtube.com/watch?v={video_id}"
     try:
         response = requests.get(

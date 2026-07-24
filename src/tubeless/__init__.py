@@ -38,7 +38,7 @@ from tubeless.llm import (
     make_backend,
 )
 from tubeless.render import render_markdown
-from tubeless.source import Video, fetch_video, parse_video_id
+from tubeless.source import Video, extract_video_id, fetch_video
 from tubeless.store import CORPUS_ROOT, FileStore, Store
 from tubeless.summary import (
     DETAIL_LEVELS,
@@ -85,12 +85,12 @@ __all__ = [
     "TubelessError",
     "Video",
     "curate_summaries",
+    "extract_video_id",
     "fetch_recent_videos",
     "fetch_transcript",
     "fetch_video",
     "load_channels",
     "make_backend",
-    "parse_video_id",
     "recompute",
     "render_markdown",
     "run_digest",

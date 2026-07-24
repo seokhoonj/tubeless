@@ -109,7 +109,7 @@ class OpenAIBackend:
             )
         # Imported here, not at module top: constructing a backend is the first
         # moment the SDK is genuinely needed, and this keeps `import tubeless`
-        # working (e.g. for parse_video_id) even where openai is not installed.
+        # working (e.g. for extract_video_id) even where openai is not installed.
         from openai import OpenAI
 
         self.model   = model

@@ -1,7 +1,7 @@
 import pytest
 
 import tubeless.source as source_module
-from tubeless import InvalidVideoURL, fetch_video, parse_video_id
+from tubeless import InvalidVideoURL, extract_video_id, fetch_video
 
 VALID_ID = "dQw4w9WgXcQ"
 
@@ -21,16 +21,16 @@ VALID_ID = "dQw4w9WgXcQ"
         f"https://www.youtube.com/v/{VALID_ID}",
     ],
 )
-def test_parse_video_id_extracts_id_from_every_url_form(url_form: str) -> None:
-    assert parse_video_id(url_form) == VALID_ID
+def test_extract_video_id_extracts_id_from_every_url_form(url_form: str) -> None:
+    assert extract_video_id(url_form) == VALID_ID
 
 
-def test_parse_video_id_accepts_a_bare_eleven_char_id() -> None:
-    assert parse_video_id(VALID_ID) == VALID_ID
+def test_extract_video_id_accepts_a_bare_eleven_char_id() -> None:
+    assert extract_video_id(VALID_ID) == VALID_ID
 
 
-def test_parse_video_id_strips_surrounding_whitespace() -> None:
-    assert parse_video_id(f"  {VALID_ID}\n") == VALID_ID
+def test_extract_video_id_strips_surrounding_whitespace() -> None:
+    assert extract_video_id(f"  {VALID_ID}\n") == VALID_ID
 
 
 @pytest.mark.parametrize(
@@ -45,9 +45,9 @@ def test_parse_video_id_strips_surrounding_whitespace() -> None:
         "abc",                                        # bare but not 11 chars
     ],
 )
-def test_parse_video_id_raises_invalid_video_url_on_junk(junk: str) -> None:
+def test_extract_video_id_raises_invalid_video_url_on_junk(junk: str) -> None:
     with pytest.raises(InvalidVideoURL):
-        parse_video_id(junk)
+        extract_video_id(junk)
 
 
 class _FakeResponse:

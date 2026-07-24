@@ -232,7 +232,7 @@ def test_main_with_json_flag_prints_machine_readable_output(
 def test_main_reports_an_invalid_url_cleanly_without_a_traceback(
     _no_config_file, capsys: pytest.CaptureFixture[str],
 ) -> None:
-    # No fakes needed: parse_video_id rejects the junk before any network call.
+    # No fakes needed: extract_video_id rejects the junk before any network call.
     exit_code = main(["definitely-not-a-video"])
 
     captured = capsys.readouterr()
