@@ -24,7 +24,13 @@ from youtube_transcript_api import (
     YouTubeRequestFailed,
     YouTubeTranscriptApi,
 )
+from youtube_transcript_api.proxies import (
+    GenericProxyConfig,
+    ProxyConfig,
+    WebshareProxyConfig,
+)
 
+from tubeless.credentials import secret
 from tubeless.errors import TranscriptFetchBlocked, TranscriptUnavailable
 from tubeless.source import Video
 
@@ -78,6 +84,36 @@ class Transcript:
         return " ".join(segment.text for segment in self.segments)
 
 
+def _proxy_config() -> ProxyConfig | None:
+    """Route the transcript fetch through a proxy when tubeless is configured for
+    one, else fetch directly (return None -- the default).
+
+    A proxy is the escape hatch for an IP block: YouTube rate-limits or blocks the
+    anonymous transcript endpoint per source IP (busy residential ISPs and
+    datacenter ranges alike), and this request carries no account, so the exit IP
+    is the only thing that can change. Two config sources, checked in order:
+
+      - Webshare rotating residential (``TUBELESS_WEBSHARE_USER`` / ``_PASS``):
+        the vendor library's first-class support, which rotates the exit IP and
+        retries on a block, so one throttled address does not stick.
+      - a generic proxy (``TUBELESS_PROXY_HTTP`` / ``_HTTPS``): any other proxy the
+        user runs; each url defaults to the other when only one is set.
+
+    A proxy credential is a secret, so it comes from ``credentials`` (the
+    environment or ``credentials.json``), the same file the API keys live in, and
+    is never logged.
+    """
+    webshare_user = secret("TUBELESS_WEBSHARE_USER")
+    webshare_pass = secret("TUBELESS_WEBSHARE_PASS")
+    if webshare_user and webshare_pass:
+        return WebshareProxyConfig(proxy_username=webshare_user, proxy_password=webshare_pass)
+    http_url  = secret("TUBELESS_PROXY_HTTP")
+    https_url = secret("TUBELESS_PROXY_HTTPS")
+    if http_url or https_url:
+        return GenericProxyConfig(http_url=http_url, https_url=https_url)
+    return None
+
+
 def fetch_transcript(
     video:      Video,
     *,
@@ -108,7 +144,8 @@ def fetch_transcript(
     video_id = video.video_id
     try:
         with _TimeoutSession() as http_client:
-            listed  = YouTubeTranscriptApi(http_client=http_client).list(video_id)
+            api = YouTubeTranscriptApi(http_client=http_client, proxy_config=_proxy_config())
+            listed  = api.list(video_id)
             chosen  = _choose_transcript(listed, languages)
             fetched = chosen.fetch()
     except (RequestBlocked, IpBlocked, YouTubeRequestFailed) as err:

@@ -13,6 +13,8 @@ __all__ = [
     "InvalidVideoURL",
     "FeedError",
     "ConfigError",
+    "CredentialsError",
+    "InsecureCredentialsError",
     "CorpusError",
     "ScheduleError",
 ]
@@ -54,7 +56,18 @@ class FeedError(TubelessError):
 
 
 class ConfigError(TubelessError):
-    """A tubeless config file (channels list) is missing or malformed."""
+    """A tubeless config file (settings or channels list) is missing or malformed."""
+
+
+class CredentialsError(TubelessError):
+    """The credentials file exists but could not be used -- unreadable, not the
+    JSON object of name-to-secret it must be."""
+
+
+class InsecureCredentialsError(CredentialsError):
+    """The credentials file is readable by more than its owner. Refused rather
+    than trusted, the way ssh refuses a group-readable private key; the fix is a
+    one-line ``chmod 600``."""
 
 
 class CorpusError(TubelessError):

@@ -10,7 +10,7 @@ import types
 
 import pytest
 
-from tubeless import config
+from tubeless import credentials
 from tubeless.errors import LLMError
 from tubeless.llm import (
     _LLM_TIMEOUT_SECONDS,
@@ -24,9 +24,9 @@ from tubeless.llm import (
 
 
 def _no_keys_anywhere(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Blind the key resolver: an empty config file and no env variables, so a
-    real ~/.tubeless/config.env on the test machine cannot satisfy the lookup."""
-    monkeypatch.setattr(config, "read_config", lambda *a, **k: {})
+    """Blind the key resolver: no stored secret and no env variables, so a real
+    ~/.config/tubeless/credentials.json on the test machine cannot satisfy the lookup."""
+    monkeypatch.setattr(credentials, "secret", lambda name: None)
     for name in ("OPENAI_API_KEY", "CLAUDE_API_KEY", "GEMINI_API_KEY"):
         monkeypatch.delenv(name, raising=False)
 

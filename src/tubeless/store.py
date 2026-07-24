@@ -22,6 +22,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
 
+from tubeless.config import config_dir
 from tubeless.errors import CorpusError
 from tubeless.source import Video
 from tubeless.summary import DETAIL_LEVELS, Summary
@@ -29,7 +30,7 @@ from tubeless.transcript import Transcript, TranscriptSegment
 
 __all__ = ["CORPUS_ROOT", "FileStore", "Store", "latest_per_video"]
 
-CORPUS_ROOT = Path.home() / ".tubeless" / "corpus"
+CORPUS_ROOT = config_dir() / "corpus"
 
 _SCHEMA_VERSION      = 1
 _SUMMARIES_DIRNAME   = "summaries"

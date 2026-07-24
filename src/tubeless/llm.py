@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING, Protocol
 
-from tubeless import config
+from tubeless import credentials
 from tubeless.errors import LLMError
 
 if TYPE_CHECKING:
@@ -101,11 +101,11 @@ class OpenAIBackend:
     """
 
     def __init__(self, *, model: str = "gpt-4o-mini", api_key: str | None = None) -> None:
-        resolved_key = api_key if api_key is not None else config.api_key("openai")
+        resolved_key = api_key if api_key is not None else credentials.api_key("openai")
         if not resolved_key:
             raise LLMError(
                 "no OpenAI API key: pass api_key=, set OPENAI_API_KEY in the "
-                "environment, or add it to ~/.tubeless/config.env"
+                "environment, or add it to ~/.config/tubeless/credentials.json"
             )
         # Imported here, not at module top: constructing a backend is the first
         # moment the SDK is genuinely needed, and this keeps `import tubeless`
@@ -166,11 +166,11 @@ class GeminiBackend:
     # gemini-2.5-flash) to 404 for newly created API keys, while the alias tracks
     # the current model and stays on the free tier. Override with model=.
     def __init__(self, *, model: str = "gemini-flash-lite-latest", api_key: str | None = None) -> None:
-        resolved_key = api_key if api_key is not None else config.api_key("gemini")
+        resolved_key = api_key if api_key is not None else credentials.api_key("gemini")
         if not resolved_key:
             raise LLMError(
                 "no Gemini API key: pass api_key=, set GEMINI_API_KEY in the "
-                "environment, or add it to ~/.tubeless/config.env"
+                "environment, or add it to ~/.config/tubeless/credentials.json"
             )
         from openai import OpenAI  # lazy, like OpenAIBackend (see above)
 
@@ -198,11 +198,11 @@ class ClaudeBackend:
 
     def __init__(self, *, model: str = "claude-haiku-4-5-20251001",
                  api_key: str | None = None, max_tokens: int = 2048) -> None:
-        resolved_key = api_key if api_key is not None else config.api_key("claude")
+        resolved_key = api_key if api_key is not None else credentials.api_key("claude")
         if not resolved_key:
             raise LLMError(
                 "no Claude API key: pass api_key=, set CLAUDE_API_KEY in the "
-                "environment, or add it to ~/.tubeless/config.env"
+                "environment, or add it to ~/.config/tubeless/credentials.json"
             )
         try:
             from anthropic import Anthropic  # lazy, like OpenAIBackend (see above)

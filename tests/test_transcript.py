@@ -20,6 +20,15 @@ VIDEO = Video(
 )
 
 
+@pytest.fixture(autouse=True)
+def _hermetic_proxy(monkeypatch: pytest.MonkeyPatch) -> None:
+    # _proxy_config() resolves proxy secrets (env or credentials.json), so every
+    # transcript test would otherwise depend on the machine it runs on. Default
+    # the whole suite to "no proxy configured"; the proxy tests below re-stub
+    # secret themselves to exercise the resolution.
+    monkeypatch.setattr(transcript_module, "secret", lambda name: None)
+
+
 def test_transcript_text_joins_segments_with_spaces() -> None:
     transcript = Transcript(
         video             = VIDEO,
@@ -65,12 +74,15 @@ class _FakeTranscriptList:
 
 
 class _FakeTranscriptAPI:
-    last_http_client: object = None
+    last_http_client:  object = None
+    last_proxy_config: object = None
 
-    def __init__(self, *, http_client: object = None) -> None:
-        # Record the client so a test can assert fetch_transcript wires in its
-        # timeout-bearing session rather than letting the vendor default hang.
-        type(self).last_http_client = http_client
+    def __init__(self, *, http_client: object = None, proxy_config: object = None) -> None:
+        # Record both so a test can assert fetch_transcript wires in its
+        # timeout-bearing session rather than letting the vendor default hang, and
+        # passes through whatever proxy config was resolved.
+        type(self).last_http_client  = http_client
+        type(self).last_proxy_config = proxy_config
 
     def list(self, video_id: str) -> _FakeTranscriptList:
         return _FakeTranscriptList()
@@ -84,6 +96,7 @@ def test_fetch_transcript_maps_vendor_snippets_to_segments(
     fetched = fetch_transcript(VIDEO)
 
     assert isinstance(_FakeTranscriptAPI.last_http_client, transcript_module._TimeoutSession)
+    assert _FakeTranscriptAPI.last_proxy_config is None   # no proxy configured -> direct fetch
     assert fetched.video.video_id == "dQw4w9WgXcQ"
     assert fetched.language == "ko"
     assert fetched.is_auto_generated is True
@@ -319,3 +332,40 @@ def test_fetch_transcript_maps_a_transport_timeout_to_fetch_blocked(
 
     assert not isinstance(raised.value, TranscriptUnavailable)
     assert "dQw4w9WgXcQ" in str(raised.value)
+
+
+# --- proxy configuration (the IP-block escape hatch) -----------------------
+
+def test_proxy_config_is_none_when_unconfigured(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(transcript_module, "secret", lambda name: None)
+    assert transcript_module._proxy_config() is None
+
+
+def test_proxy_config_builds_webshare_from_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+    secrets = {"TUBELESS_WEBSHARE_USER": "user1", "TUBELESS_WEBSHARE_PASS": "pass1"}
+    monkeypatch.setattr(transcript_module, "secret", secrets.get)
+    config = transcript_module._proxy_config()
+    assert isinstance(config, transcript_module.WebshareProxyConfig)
+    assert config.proxy_username == "user1"
+    assert config.proxy_password == "pass1"
+
+
+def test_proxy_config_builds_generic_from_a_single_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    # One url is reused for both schemes -- the common "I have one proxy" case.
+    secrets = {"TUBELESS_PROXY_HTTP": "http://box:8080"}
+    monkeypatch.setattr(transcript_module, "secret", secrets.get)
+    config = transcript_module._proxy_config()
+    assert isinstance(config, transcript_module.GenericProxyConfig)
+    assert config.to_requests_dict() == {"http": "http://box:8080", "https": "http://box:8080"}
+
+
+def test_proxy_config_prefers_webshare_over_generic(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Both configured -> the rotating-residential Webshare path wins, since it is
+    # the one that survives a block; the generic url is the fallback.
+    secrets = {
+        "TUBELESS_WEBSHARE_USER": "user1",
+        "TUBELESS_WEBSHARE_PASS": "pass1",
+        "TUBELESS_PROXY_HTTP": "http://box:8080",
+    }
+    monkeypatch.setattr(transcript_module, "secret", secrets.get)
+    assert isinstance(transcript_module._proxy_config(), transcript_module.WebshareProxyConfig)

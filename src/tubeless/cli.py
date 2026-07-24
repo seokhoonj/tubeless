@@ -52,7 +52,7 @@ from tubeless.transcript import fetch_transcript
 __all__ = ["main"]
 
 _SUBCOMMANDS = ("summarize", "transcript", "videos", "digest", "schedule")
-_DIGEST_DIR  = Path.home() / ".tubeless" / "digests"
+_DIGEST_DIR  = config.config_dir() / "digests"
 
 # How many recent uploads to check per plain channel on a fresh digest when the
 # caller does not say. A channel with a title filter scans the full feed window
@@ -241,7 +241,7 @@ def _run_schedule_install(args: argparse.Namespace) -> int:
     status   = scheduler_for_platform().install(schedule)
     print(f"scheduled: {' '.join(schedule.command)}  daily at {args.at:%H:%M}")
     print(f"  {status.description}")
-    print("Backend and language come from ~/.tubeless/config.env.")
+    print("Backend and language come from ~/.config/tubeless/config.toml.")
     return 0
 
 
@@ -361,7 +361,7 @@ def _selected_channels(path: Path, source_match: str | None) -> tuple[Channel, .
 
 
 def _configured_choice(name: str, choices: tuple[str, ...], fallback: str) -> str:
-    """A CLI default read from the environment/config.env, constrained to a closed
+    """A CLI default read from the environment/config.toml, constrained to a closed
     set. Unset -> ``fallback``; set-but-invalid -> a clean ConfigError."""
     value = config.setting(name)
     if value is None:
@@ -372,7 +372,7 @@ def _configured_choice(name: str, choices: tuple[str, ...], fallback: str) -> st
 
 
 def _configured_positive_int(name: str, fallback: int | None) -> int | None:
-    """A CLI default read from the environment/config.env, required positive."""
+    """A CLI default read from the environment/config.toml, required positive."""
     value = config.setting(name)
     if value is None:
         return fallback

@@ -20,9 +20,9 @@ import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Protocol
 
+from tubeless.config import config_dir
 from tubeless.errors import ScheduleError
 
 __all__ = [
@@ -45,7 +45,7 @@ TASK_LABEL = "tubeless-digest"
 
 # Where a scheduled run sends its stdout/stderr. A cron job has no terminal, so
 # without this redirect its output (and any error) would be mailed away or lost.
-LOG_PATH = Path.home() / ".tubeless" / "digest.log"
+LOG_PATH = config_dir() / "digest.log"
 
 # The daily run time when --at is not given. A morning build has the prior day's
 # uploads ready to read.
@@ -133,7 +133,7 @@ def resolve_digest_command() -> tuple[str, ...]:
     """The full argv a scheduled run executes: ``<tubeless> digest``.
 
     Backend and language are deliberately not baked in -- the scheduled
-    ``tubeless digest`` reads them from ``~/.tubeless/config.env`` like any other
+    ``tubeless digest`` reads them from ``~/.config/tubeless/config.toml`` like any other
     run, so they change in one place without reinstalling the job.
     """
     return (*find_executable(), "digest")

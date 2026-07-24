@@ -1,4 +1,4 @@
-"""The set of channels the user follows, read from ``~/.tubeless/channels.toml``.
+"""The set of channels the user follows, read from ``~/.config/tubeless/channels.toml``.
 
 Each entry names where to look (a handle, URL, id, or playlist), how deeply to
 summarize, and optionally a title filter to keep only some of the source's
@@ -28,12 +28,13 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
+from tubeless.config import config_dir
 from tubeless.errors import ConfigError
 from tubeless.summary import DETAIL_LEVELS, DetailLevel
 
 __all__ = ["CHANNELS_PATH", "Channel", "load_channels"]
 
-CHANNELS_PATH = Path.home() / ".tubeless" / "channels.toml"
+CHANNELS_PATH = config_dir() / "channels.toml"
 
 
 @dataclass(frozen=True, slots=True)

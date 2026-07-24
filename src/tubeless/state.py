@@ -11,11 +11,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from tubeless.config import config_dir
 from tubeless.errors import ConfigError
 
 __all__ = ["STATE_PATH", "read_seen", "write_seen"]
 
-STATE_PATH = Path.home() / ".tubeless" / "state.json"
+STATE_PATH = config_dir() / "state.json"
 
 
 def read_seen(path: Path | None = None) -> set[str]:

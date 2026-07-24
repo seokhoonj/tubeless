@@ -57,9 +57,9 @@ def pipeline_with_fakes(monkeypatch: pytest.MonkeyPatch, _no_config_file) -> Non
 
 @pytest.fixture
 def _no_config_file(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Blind the config-file read and clear the TUBELESS_* env vars, so a real
-    ~/.tubeless/config.env or a stray export cannot set a default during tests."""
-    monkeypatch.setattr(config, "read_config", lambda *a, **k: {})
+    """Blind the settings-file read and clear the TUBELESS_* env vars, so a real
+    ~/.config/tubeless/config.toml or a stray export cannot set a default during tests."""
+    monkeypatch.setattr(config, "load_settings", lambda *a, **k: {})
     for name in ("TUBELESS_BACKEND", "TUBELESS_MODEL", "TUBELESS_DETAIL",
                  "TUBELESS_MAX_POINTS", "TUBELESS_LANG", "TUBELESS_PER_CHANNEL"):
         monkeypatch.delenv(name, raising=False)
