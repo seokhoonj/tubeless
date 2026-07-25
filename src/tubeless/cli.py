@@ -72,6 +72,12 @@ def main(argv: list[str] | None = None) -> int:
     """Run the chosen subcommand; return the process exit code."""
     argv = list(sys.argv[1:] if argv is None else argv)
     try:
+        # Surface a malformed config.toml before migration moves anything: migration
+        # resolves data_dir()/state_dir() from the config, and _dir_override reads a
+        # broken file as absent (import-safety), so without this a bad config would
+        # let files relocate to the default dirs and only then abort -- stranding the
+        # corpus away from the data_dir the fixed config names. Fail first instead.
+        config.load_settings()
         # Relocate a <=0.2.0 install's files to the 0.3.0 data/state dirs before
         # any command reads them; idempotent, so it is a no-op after the first run.
         config.migrate_legacy_layout()
@@ -148,11 +154,11 @@ def _run_digest(args: argparse.Namespace) -> int:
     summaries over a date range (no discovery, no fetching)."""
     backend = make_backend(args.backend, model=args.model)
     if args.since or args.until:
-        return _digest_stored(args, backend)
-    return _digest_fresh(args, backend)
+        return _run_stored_digest(args, backend)
+    return _run_fresh_digest(args, backend)
 
 
-def _digest_fresh(args: argparse.Namespace, backend: LLMBackend) -> int:
+def _run_fresh_digest(args: argparse.Namespace, backend: LLMBackend) -> int:
     if args.channel is not None:
         # --channel narrows a stored re-curate; on a fresh run it has no meaning
         # and (unrouted) would otherwise be silently ignored -- worse, a stored
@@ -225,7 +231,7 @@ def _digest_fresh(args: argparse.Namespace, backend: LLMBackend) -> int:
     return 0
 
 
-def _digest_stored(args: argparse.Namespace, backend: LLMBackend) -> int:
+def _run_stored_digest(args: argparse.Namespace, backend: LLMBackend) -> int:
     # Re-curate stored summaries over [since, until): no discovery or fetching,
     # read-only on the corpus. Keeps the most recent summary per video so a video
     # with several stored variants is never double-counted.
@@ -242,12 +248,12 @@ def _digest_stored(args: argparse.Namespace, backend: LLMBackend) -> int:
     # A re-curate has no channel scan (it reads the corpus by date range), so the
     # provenance records the range/channel narrowing and the model instead.
     provenance = RunProvenance(
-        backend  = args.backend,
-        model    = backend.model,
-        language = args.lang,
-        since    = args.since,
-        until    = args.until,
-        channel  = args.channel,
+        backend       = args.backend,
+        model         = backend.model,
+        language      = args.lang,
+        since         = args.since,
+        until         = args.until,
+        channel_match = args.channel,
     )
     digest    = curate_summaries(summaries, backend, created=_today(),
                                  start=args.since, end=args.until, language=args.lang,
@@ -268,7 +274,7 @@ def _run_schedule_install(args: argparse.Namespace) -> int:
     status   = scheduler_for_platform().install(schedule)
     print(f"scheduled: {' '.join(schedule.command)}  daily at {args.at:%H:%M}")
     print(f"  {status.description}")
-    print("Backend and language come from ~/.config/tubeless/config.toml.")
+    print(f"Backend and language come from {config.config_path()}.")
     return 0
 
 

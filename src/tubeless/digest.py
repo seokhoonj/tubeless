@@ -52,6 +52,10 @@ __all__ = [
 ]
 
 SkipCategory = Literal["feed-failure", "no-transcript"]
+# The runtime tuple mirror of SkipCategory (as summary.py pairs DETAIL_LEVELS with
+# DetailLevel): a validator checks membership against this instead of recomputing
+# get_args on every item.
+SKIP_CATEGORIES = get_args(SkipCategory)
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,17 +95,22 @@ class RunProvenance:
     instead of scanning feeds. ``backend``/``model`` matter because the ranking and
     synthesis pass through a non-deterministic LLM, so which model reached this
     conclusion is part of the record. A fresh run records ``source_match`` (how it
-    narrowed the channel list); a re-curate records ``since``/``until``/``channel``."""
+    narrowed the channel list); a re-curate records ``since``/``until``/``channel_match``."""
 
-    backend:      str
-    model:        str
-    language:     str
-    channels:     tuple[Channel, ...] = ()
-    per_channel:  int | None = None
-    source_match: str | None = None
-    since:        str | None = None
-    until:        str | None = None
-    channel:      str | None = None
+    # backend/language stay free ``str`` (not the DetailLevel-style Literal): this is
+    # a persisted historical record, so a digest stored under a backend later dropped
+    # from BACKENDS must still round-trip -- an open set is deliberate here.
+    backend:       str
+    model:         str
+    language:      str
+    channels:      tuple[Channel, ...] = ()
+    per_channel:   int | None = None
+    source_match:  str | None = None
+    since:         str | None = None
+    until:         str | None = None
+    # the re-curate title-filter (a substring), named to parallel ``source_match`` and
+    # to not read as one element of the ``channels`` collection above.
+    channel_match: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -384,7 +393,7 @@ def _skips_from_list(raw: object) -> list[Skip] | None:
         category = item.get("category")
         subject  = item.get("subject")
         message  = item.get("message")
-        if category not in get_args(SkipCategory):
+        if category not in SKIP_CATEGORIES:
             return None
         if not isinstance(subject, str) or not isinstance(message, str):
             return None
@@ -409,7 +418,7 @@ def _provenance_from_dict(body: object) -> RunProvenance | None:
     per_channel = body.get("per_channel")
     if per_channel is not None and (isinstance(per_channel, bool) or not isinstance(per_channel, int)):
         return None
-    narrowing = {key: body.get(key) for key in ("source_match", "since", "until", "channel")}
+    narrowing = {key: body.get(key) for key in ("source_match", "since", "until", "channel_match")}
     if not all(_is_optional_str(value) for value in narrowing.values()):
         return None
     return RunProvenance(

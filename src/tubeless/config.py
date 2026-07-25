@@ -86,7 +86,10 @@ def _dir_override(env_name: str) -> Path | None:
 
     Tolerates an unreadable config file by reading it as absent: this resolves paths
     needed at import time (``store.CORPUS_ROOT``), so it must not raise -- a malformed
-    config still surfaces cleanly when the run reads a real setting through ``setting``.
+    config still surfaces cleanly when the run reads a real setting through ``setting``
+    (the CLI also validates the config before this decides any relocation). A
+    non-string value (``data_dir = 12345``) reads as absent too, so it never becomes a
+    ``Path("12345")`` relative to the working directory.
     """
     from_env = os.environ.get(env_name)
     if from_env:
@@ -95,9 +98,9 @@ def _dir_override(env_name: str) -> Path | None:
         value = load_settings().get(env_name.removeprefix("TUBELESS_").lower())
     except ConfigError:
         return None
-    if value is None or value == "":
+    if not isinstance(value, str) or value == "":
         return None
-    return Path(str(value)).expanduser()
+    return Path(value).expanduser()
 
 
 def state_dir() -> Path:
@@ -203,20 +206,21 @@ def load_settings(path: Path | None = None) -> dict[str, object]:
         raise ConfigError(f"could not read config file {path}: {err}") from err
 
 
-def setting(name: str) -> str | None:
+def setting(env_name: str) -> str | None:
     """Return a setting from the environment (which wins) or ``config.toml``.
 
-    ``name`` is the environment-variable spelling (``TUBELESS_LANG``); in the file
-    it is the same key without the ``TUBELESS_`` prefix, lower-cased (``lang``),
-    since the file already namespaces it. An absent key or an empty string reads as
-    absent (``None``) -- the same on both sides, so an empty field falls back to
-    the default instead of overriding it. Any other TOML scalar is stringified with
-    ``str()`` (a number including ``0``, a bool as ``"True"``/``"False"``): matching
-    the environment, where a caller that needs the int (``max_points``) parses the
-    returned digits and an out-of-range ``0`` still reaches its "must be positive" error.
+    ``env_name`` is the environment-variable spelling (``TUBELESS_LANG``); in the
+    file it is the same key without the ``TUBELESS_`` prefix, lower-cased (``lang``),
+    since the file already namespaces it (same mapping ``_dir_override`` uses). An
+    absent key or an empty string reads as absent (``None``) -- the same on both
+    sides, so an empty field falls back to the default instead of overriding it. Any
+    other TOML scalar is stringified with ``str()`` (a number including ``0``, a bool
+    as ``"True"``/``"False"``): matching the environment, where a caller that needs
+    the int (``max_points``) parses the returned digits and an out-of-range ``0``
+    still reaches its "must be positive" error.
     """
-    from_env = os.environ.get(name)
+    from_env = os.environ.get(env_name)
     if from_env:
         return from_env
-    value = load_settings().get(name.removeprefix("TUBELESS_").lower())
+    value = load_settings().get(env_name.removeprefix("TUBELESS_").lower())
     return None if value is None or value == "" else str(value)
