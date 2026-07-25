@@ -192,38 +192,6 @@ def test_migrate_is_a_noop_on_a_fresh_install(tmp_path, monkeypatch):
     assert not state.exists()
 
 
-def test_migrate_relocates_config_files_when_config_dir_itself_moved(tmp_path, monkeypatch):
-    # The macOS/Windows upgrade: 0.2.0 hand-rolled the XDG path even there, so it
-    # kept everything (including the config files) in ~/.config/tubeless, but 0.3.0's
-    # config_dir() is a native location elsewhere. The legacy source must be the old
-    # ~/.config formula, and the config files must move to the new config dir -- not
-    # be orphaned. Simulated by pointing config_dir() somewhere other than XDG_CONFIG_HOME.
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "dotconfig"))   # drives the legacy root
-    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
-    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
-    native_config = tmp_path / "native" / "tubeless"
-    monkeypatch.setattr(config, "config_dir", lambda: native_config)
-    _blind_overrides(monkeypatch)   # the legacy config's own keys must not steer its migration
-
-    legacy = tmp_path / "dotconfig" / "tubeless"
-    legacy.mkdir(parents=True)
-    (legacy / "config.toml").write_text('backend = "gemini"\n', encoding="utf-8")
-    (legacy / "credentials.json").write_text("{}", encoding="utf-8")
-    (legacy / "channels.toml").write_text("", encoding="utf-8")
-    (legacy / "corpus").mkdir()
-    (legacy / "corpus" / "s.json").write_text("{}", encoding="utf-8")
-
-    config.migrate_legacy_layout()
-
-    # config files land in the native config dir, not orphaned in ~/.config
-    assert (native_config / "config.toml").read_text(encoding="utf-8") == 'backend = "gemini"\n'
-    assert (native_config / "credentials.json").exists()
-    assert (native_config / "channels.toml").exists()
-    assert not (legacy / "config.toml").exists()
-    # and data still goes to the data dir
-    assert (tmp_path / "data" / "tubeless" / "corpus" / "s.json").exists()
-
-
 def test_migrate_wraps_a_move_failure_as_config_error(tmp_path, monkeypatch):
     # A failed relocation must raise, not be swallowed: silently reading a
     # moved-but-missing state ledger as empty would re-process the whole backlog.

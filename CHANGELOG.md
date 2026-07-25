@@ -4,6 +4,22 @@ All notable changes to tubeless are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); the project is pre-1.0, so a
 minor bump (`0.x`) may change behavior.
 
+## 0.5.0
+
+### Changed
+
+- The base directories are resolved with a small built-in XDG resolver instead of
+  `platformdirs`, and the `platformdirs` dependency is dropped. The layout is now
+  the *same on every OS* -- `~/.config/tubeless`, `~/.local/share/tubeless`,
+  `~/.local/state/tubeless` (honouring `XDG_CONFIG_HOME` / `XDG_DATA_HOME` /
+  `XDG_STATE_HOME`). On Linux this is identical to 0.3.0/0.4.0. On macOS and Windows
+  the dirs move from the OS-native locations (`~/Library/Application Support`,
+  `%APPDATA%`) to the XDG paths, which are the convention git / ssh / aws already
+  use there; the `TUBELESS_DATA_DIR` / `TUBELESS_STATE_DIR` / `config.toml` overrides
+  and the `XDG_*_HOME` env vars are unchanged. (The 0.2.0->0.3.0 auto-migration is
+  simpler now that the config dir is the same across versions; a macOS/Windows user
+  who installed 0.4.0 in its brief window must move files from the native dir by hand.)
+
 ## 0.4.0
 
 ### Added

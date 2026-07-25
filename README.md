@@ -312,10 +312,11 @@ may be required.
 
 ### Where files are stored
 
-tubeless keeps its files by *kind*, each in the platform's base directory for that
-kind (the paths below are Linux; macOS and Windows get their native equivalents):
+tubeless keeps its files by *kind*, each in its XDG base directory. The layout is
+the same on every OS (macOS and Windows included -- the convention git / ssh / aws
+use there), honouring the `XDG_*_HOME` env vars:
 
-| Kind | Holds | Default (Linux) | Override with |
+| Kind | Holds | Default | Override with |
 |---|---|---|---|
 | **config** | `config.toml`, `credentials.json`, `channels.toml` | `~/.config/tubeless` | `XDG_CONFIG_HOME` |
 | **data** | `corpus/` (transcripts + summaries), `digests/` | `~/.local/share/tubeless` | `data_dir` in `config.toml`, `TUBELESS_DATA_DIR`, or `XDG_DATA_HOME` |

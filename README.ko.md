@@ -292,10 +292,11 @@ IP 차단 — 바쁜 가정용 IP나 데이터센터 IP 모두). 요청에 계�
 
 ### 파일이 저장되는 위치
 
-tubeless는 파일을 **종류별로** 나눠, 각 종류의 플랫폼 기본 디렉터리에 둡니다 (아래는
-Linux 기준; macOS·Windows는 각 OS의 네이티브 위치로 매핑됩니다):
+tubeless는 파일을 **종류별로** 나눠, 각 종류의 XDG 기본 디렉터리에 둡니다. 레이아웃은
+**모든 OS에서 동일**합니다 (macOS·Windows 포함 — git·ssh·aws가 거기서 쓰는 관례).
+`XDG_*_HOME` 환경변수를 따릅니다:
 
-| 종류 | 담는 것 | 기본값 (Linux) | 바꾸는 법 |
+| 종류 | 담는 것 | 기본값 | 바꾸는 법 |
 |---|---|---|---|
 | **config** | `config.toml`, `credentials.json`, `channels.toml` | `~/.config/tubeless` | `XDG_CONFIG_HOME` |
 | **data** | `corpus/` (자막+요약), `digests/` | `~/.local/share/tubeless` | `config.toml`의 `data_dir`, `TUBELESS_DATA_DIR`, `XDG_DATA_HOME` |

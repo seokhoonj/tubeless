@@ -8,8 +8,10 @@ so they live in a plain, hand-editable TOML file, ``config.toml`` in
 that is safe to read is never where a key can leak.
 
 Files are placed by *kind*, not all in one directory. Each kind has its own base
-directory, resolved once here via ``platformdirs`` so the paths are native on
-macOS/Windows and honour the XDG env vars on Linux:
+directory, resolved here from the XDG base-directory env vars (falling back to
+``~/.config``, ``~/.local/share``, ``~/.local/state``) -- the *same* layout on
+every OS, no platform library. macOS and Windows get the XDG locations too, which
+is the convention git / ssh / aws already use there, and keeps the package light:
 
 - ``config_dir()`` -- hand-editable settings and secrets (``config.toml``,
   ``credentials.json``, ``channels.toml``); small and safe to sync.
@@ -35,11 +37,18 @@ import shutil
 import tomllib
 from pathlib import Path
 
-import platformdirs
-
 from tubeless.errors import ConfigError
 
 _APP = "tubeless"
+
+
+def _xdg_base(env_name: str, default: str) -> Path:
+    """Resolve one XDG base dir for tubeless: ``$<env>/tubeless`` when the env var is
+    set, else ``~/<default>/tubeless`` (the XDG spec's own fallbacks -- ``.config``,
+    ``.local/share``, ``.local/state``). Applied on every OS, so the layout is uniform
+    and the package needs no platform-dirs library."""
+    base = os.environ.get(env_name)
+    return (Path(base) if base else Path.home() / default) / _APP
 
 __all__ = [
     "config_dir",
@@ -56,10 +65,11 @@ def config_dir() -> Path:
     """Hand-editable settings and secrets: ``config.toml``, ``credentials.json``,
     ``channels.toml``.
 
-    ``$XDG_CONFIG_HOME/tubeless`` when that variable is set, else the platform
-    config dir (``~/.config/tubeless`` on Linux). git never tracks it.
+    ``$XDG_CONFIG_HOME/tubeless`` when that variable is set, else
+    ``~/.config/tubeless`` -- the same on every OS (the git / ssh / aws convention),
+    not a platform-native dir. git never tracks it.
     """
-    return Path(platformdirs.user_config_dir(_APP, appauthor=False))
+    return _xdg_base("XDG_CONFIG_HOME", ".config")
 
 
 def data_dir() -> Path:
@@ -70,14 +80,14 @@ def data_dir() -> Path:
     taken as an explicit path used as-is (``~`` expanded, no app-name appended) --
     read every run, so a large corpus can live on another volume and an interactive
     run and a cron run agree without touching the environment. Otherwise
-    ``$XDG_DATA_HOME/tubeless``, else the platform data dir (``~/.local/share/tubeless``
-    on Linux). (``config_dir`` has no such key -- config cannot name its own location.)
+    ``$XDG_DATA_HOME/tubeless``, else ``~/.local/share/tubeless`` (the same on every
+    OS). (``config_dir`` has no such key -- config cannot name its own location.)
     Kept apart from ``config_dir()`` so resetting settings never destroys the corpus.
     """
     override = _dir_override("TUBELESS_DATA_DIR")
     if override is not None:
         return override
-    return Path(platformdirs.user_data_dir(_APP, appauthor=False))
+    return _xdg_base("XDG_DATA_HOME", ".local/share")
 
 
 def _dir_override(env_name: str) -> Path | None:
@@ -110,13 +120,13 @@ def state_dir() -> Path:
     A ``state_dir`` in ``config.toml`` (or ``TUBELESS_STATE_DIR``) wins, as an
     explicit path used as-is (``~`` expanded) -- symmetric with ``data_dir``, so a
     caller who wants to relocate state can, though it is small enough that most do
-    not. Otherwise ``$XDG_STATE_HOME/tubeless``, else the platform state dir
-    (``~/.local/state/tubeless`` on Linux).
+    not. Otherwise ``$XDG_STATE_HOME/tubeless``, else ``~/.local/state/tubeless``
+    (the same on every OS).
     """
     override = _dir_override("TUBELESS_STATE_DIR")
     if override is not None:
         return override
-    return Path(platformdirs.user_state_dir(_APP, appauthor=False))
+    return _xdg_base("XDG_STATE_HOME", ".local/state")
 
 
 def config_path() -> Path:
@@ -124,33 +134,13 @@ def config_path() -> Path:
     return config_dir() / "config.toml"
 
 
-def _legacy_config_root() -> Path:
-    """Where a <=0.2.0 install kept everything: its hand-rolled config dir,
-    ``$XDG_CONFIG_HOME`` (or ``~/.config``) / ``tubeless`` -- the exact formula
-    0.2.0 used, not today's ``config_dir()``.
-
-    The two differ off Linux: 0.2.0 hand-rolled the XDG path even on macOS/Windows,
-    so it wrote to ``~/.config/tubeless`` there, whereas 0.3.0's ``config_dir()``
-    resolves to the native config location. The migration source must be this old
-    formula, or an upgrade on macOS/Windows would look in the (empty) new dir and
-    move nothing while the real data sits in ``~/.config/tubeless``."""
-    base = os.environ.get("XDG_CONFIG_HOME")
-    return (Path(base) if base else Path.home() / ".config") / "tubeless"
-
-
-# The files a <=0.2.0 install wrote under its config dir, mapped to their 0.3.0
-# home. The leaf names are the legacy layout, fixed history -- the consumer
-# modules (store/cli/state/schedule) build the same leaves off the new bases.
+# The files a <=0.2.0 install wrote under config_dir() (everything lived there),
+# mapped to their new data/state home. config_dir() is the same ~/.config/tubeless
+# it resolved to in 0.2.0, so it is the legacy source directly; only durable data and
+# run state move out of it -- the config files were and stay in config_dir().
 def _legacy_moves() -> list[tuple[Path, Path]]:
-    old = _legacy_config_root()
+    old = config_dir()
     return [
-        # Config files stay put on Linux (old == config_dir(), so these are no-ops)
-        # but relocate to the native config dir on macOS/Windows, where config_dir()
-        # now differs -- otherwise the keys and settings would be orphaned there.
-        (old / "config.toml",      config_dir() / "config.toml"),
-        (old / "credentials.json", config_dir() / "credentials.json"),
-        (old / "channels.toml",    config_dir() / "channels.toml"),
-        # Durable data and run state always leave the old config dir.
         (old / "corpus",     data_dir()  / "corpus"),
         (old / "digests",    data_dir()  / "digests"),
         (old / "state.json", state_dir() / "state.json"),
@@ -159,17 +149,15 @@ def _legacy_moves() -> list[tuple[Path, Path]]:
 
 
 def migrate_legacy_layout() -> None:
-    """Relocate a <=0.2.0 install's files from its old config dir to the 0.3.0
-    layout, once.
+    """Relocate a <=0.2.0 install's files from the config dir to the split layout,
+    once.
 
     0.2.0 and earlier put the corpus, digests, state ledger, and log alongside the
-    config, all under one hand-rolled config dir (see ``_legacy_config_root``); 0.3.0
-    separates data and state from config and resolves each base natively. For each
-    file, if the new location is absent and the legacy one exists, move it. Idempotent
-    -- a second run finds the new path present and does nothing -- so it is safe to
-    call at every CLI entry. On Linux the config dir is unchanged, so the config files
-    are no-ops and only data and state move; on macOS/Windows the config dir is now a
-    native location, so the config files relocate there too.
+    config, all under ``config_dir()``; the split moves durable data to ``data_dir()``
+    and run state to ``state_dir()``. For each file, if the new location is absent and
+    the legacy one exists, move it. Idempotent -- a second run finds the new path
+    present and does nothing -- so it is safe to call at every CLI entry. The config
+    files never move: ``config_dir()`` is unchanged across versions on every OS.
 
     Raises:
         ConfigError: a file could not be relocated (I/O error) -- surfaced as a
