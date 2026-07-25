@@ -190,16 +190,16 @@ def _xdg_app_dir(env_name: str, home_subpath: str) -> Path:
     fallbacks -- ``home_subpath`` is one of ``.config`` / ``.local/share`` /
     ``.local/state``, a home-relative fragment).
 
-    A blank, whitespace-only, or *relative* env value is ignored and the home fallback
-    is used, per the XDG spec ("a relative path ... must be ignored"): a relative value
-    would otherwise put the dir under the current working directory, so a cron run (cwd
-    ``/``) and an interactive run (cwd ``~``) would resolve the same config to different
-    places and split the corpus. Applied on every OS -- no platform-dirs library."""
+    A blank, whitespace-only, *relative*, or unresolvable-``~user`` env value is ignored
+    and the home fallback is used: the XDG spec says a relative path "must be ignored"
+    (a relative value would put the dir under the current working directory, splitting a
+    cron run at cwd ``/`` from an interactive run at cwd ``~``), and a ``~user`` whose
+    home cannot be resolved must not crash a resolver an advisory env var drives.
+    Applied on every OS -- no platform-dirs library."""
     base = os.environ.get(env_name, "").strip()
-    if base:
-        root = Path(base).expanduser()
-        if root.is_absolute():
-            return root / _APP
+    root = _as_absolute(base) if base else None
+    if root is not None:
+        return root / _APP
     return Path.home() / home_subpath / _APP
 
 
@@ -226,7 +226,13 @@ def _dir_override(env_name: str) -> Path | None:
 
 
 def _as_absolute(raw: str) -> Path | None:
-    """Expand ``~`` in ``raw`` and return it only if absolute, else ``None`` -- a
-    relative override is ignored (it would depend on the working directory)."""
-    path = Path(raw).expanduser()
+    """Expand ``~`` in ``raw`` and return it only if absolute, else ``None``. Never
+    raises: a relative value is ignored (it would depend on the working directory), and
+    a ``~user`` whose home cannot be resolved (``expanduser`` raises ``RuntimeError``)
+    is treated as absent too -- callers resolve base dirs at import time and must not
+    crash on a bad env var / config value."""
+    try:
+        path = Path(raw).expanduser()
+    except RuntimeError:
+        return None
     return path if path.is_absolute() else None

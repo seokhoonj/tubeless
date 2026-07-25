@@ -76,6 +76,36 @@ def test_a_relative_dir_override_is_ignored(monkeypatch):
     assert config.data_dir() == Path.home() / ".local" / "share" / "tubeless"
 
 
+def _raise_on_nouser_tilde(monkeypatch):
+    # A ~user whose home cannot be resolved makes Path.expanduser raise RuntimeError.
+    # Reproduce that hermetically (not by assuming a missing account) for "~nouser..."
+    # while leaving real ~ / Path.home() working.
+    real = Path.expanduser
+    def guarded(self):
+        if str(self).startswith("~nouser"):
+            raise RuntimeError("Could not determine home directory.")
+        return real(self)
+    monkeypatch.setattr(Path, "expanduser", guarded)
+
+
+def test_an_unresolvable_tilde_xdg_var_falls_back_not_crashes(monkeypatch):
+    # The resolver runs at import time (store.CORPUS_ROOT), so a leaked RuntimeError
+    # from expanduser("~nouser/x") would break `import tubeless` entirely. It must fall
+    # back to the default instead.
+    _blind_overrides(monkeypatch)
+    _raise_on_nouser_tilde(monkeypatch)
+    monkeypatch.setenv("XDG_DATA_HOME", "~nouser/x")
+    assert config.data_dir() == Path.home() / ".local" / "share" / "tubeless"
+
+
+def test_an_unresolvable_tilde_override_reads_as_absent(monkeypatch):
+    # Same crash via an explicit override; _dir_override is documented "must not raise".
+    _raise_on_nouser_tilde(monkeypatch)
+    monkeypatch.setattr(config, "load_settings", dict)
+    monkeypatch.setenv("TUBELESS_DATA_DIR", "~nouser/x")
+    assert config.data_dir() == Path.home() / ".local" / "share" / "tubeless"
+
+
 def test_state_dir_defaults_to_xdg_state_home(monkeypatch):
     _blind_overrides(monkeypatch)
     monkeypatch.delenv("XDG_STATE_HOME", raising=False)

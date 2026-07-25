@@ -4,6 +4,19 @@ All notable changes to tubeless are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); the project is pre-1.0, so a
 minor bump (`0.x`) may change behavior.
 
+## 0.5.1
+
+### Fixed
+
+- A `~user` in an `XDG_*_HOME` env var or a `TUBELESS_DATA_DIR` / `TUBELESS_STATE_DIR`
+  / `config.toml` override whose home cannot be resolved (`expanduser()` raises
+  `RuntimeError`) no longer crashes. The base-dir resolvers ran that expansion
+  unguarded, so `XDG_CONFIG_HOME=~nouser/x` crashed `config_dir()` and
+  `TUBELESS_DATA_DIR=~nouser/x` crashed at `import tubeless` (via `store.CORPUS_ROOT`).
+  Such a value is now ignored and the default is used (the env var is advisory; the
+  override is documented "must not raise"), matching how a blank/relative value is
+  already handled.
+
 ## 0.5.0
 
 ### Changed
