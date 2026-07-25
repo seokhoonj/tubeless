@@ -1,8 +1,8 @@
 """Identify a video and resolve its public metadata.
 
 This module owns the boundary between "whatever the user typed" and a
-validated ``video_id`` (Ch 7.7 of the Python style constitution: validate at
-the boundary so the rest of the package can assume a well-formed id).
+validated ``video_id``: validating at the boundary lets the rest of the package
+assume a well-formed id.
 """
 
 from __future__ import annotations

@@ -97,7 +97,7 @@ class OpenAIBackend:
 
     A class rather than a function because the client and model choice are
     configured once and reused across the map-reduce calls of one summary
-    (configure-now-apply-later, constitution 5.1).
+    (configure now, apply later).
     """
 
     def __init__(self, *, model: str = "gpt-4o-mini", api_key: str | None = None) -> None:

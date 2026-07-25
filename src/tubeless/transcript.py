@@ -67,7 +67,7 @@ class TranscriptSegment:
 @dataclass(frozen=True, slots=True)
 class Transcript:
     """A whole transcript, kept segment-complete: downstream layers decide
-    what to trim or chunk, the fetch layer never does (constitution 4.10).
+    what to trim or chunk, the fetch layer never does.
 
     ``video`` is the video this transcript is of -- carried whole (not just the
     id) so the transcript is self-describing and every pipeline object (Video ->
