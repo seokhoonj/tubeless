@@ -371,7 +371,7 @@ tubeless videos @examplechannel
 그리고:
 
 ```sh
-tubeless digest              # ~/.config/tubeless/digests/YYYY-MM-DD.md 로 저장
+tubeless digest              # ~/.local/share/tubeless/digests/YYYY-MM-DD.md 로 저장
 tubeless digest --dry-run    # 저장 없이 화면에만 출력
 ```
 
@@ -400,9 +400,9 @@ tubeless digest --since 2026-07-01 --until 2026-07-08
 | `--channel NAME` | `--since`/`--until`과 함께, 그 채널의 저장 요약만 다시 큐레이트. | 전체 |
 | `--dry-run` | 저장/상태 갱신 없이 화면 출력만. | 꺼짐 |
 | `--channels PATH` | 채널 TOML 파일. | `~/.config/tubeless/channels.toml` |
-| `--state PATH` | "이미 본" 상태 파일. | `~/.config/tubeless/state.json` |
-| `--out DIR` | 날짜별 다이제스트 파일 디렉터리. | `~/.config/tubeless/digests/` |
-| `--corpus DIR` | 저장된 요약·자막 코퍼스 (`--since`/`--until`이 다시 큐레이트하는 대상). | `~/.config/tubeless/corpus/` |
+| `--state PATH` | "이미 본" 상태 파일. | `~/.local/state/tubeless/state.json` |
+| `--out DIR` | 날짜별 다이제스트 파일 디렉터리. | `~/.local/share/tubeless/digests/` |
+| `--corpus DIR` | 저장된 요약·자막 코퍼스 (`--since`/`--until`이 다시 큐레이트하는 대상). | `~/.local/share/tubeless/corpus/` |
 | `--backend` / `--model` / `--lang` | 단건 요약과 동일. | |
 
 ### cron으로 매일 자동 실행 (Linux)
@@ -416,14 +416,14 @@ cron은 명령을 정해진 시각에 실행합니다. 매일 밤 22:00에 다�
 2. 한 줄 추가합니다(시각 조정 — `0 22 * * *`은 매일 22:00). cron이 찾을 수 있게
    `tubeless`의 전체 경로를 씁니다. 경로는 `which tubeless`로 확인:
    ```cron
-   0 22 * * * /home/you/.local/bin/tubeless digest >> /home/you/.config/tubeless/digest.log 2>&1
+   0 22 * * * /home/you/.local/bin/tubeless digest >> /home/you/.local/state/tubeless/digest.log 2>&1
    ```
    `>> ...digest.log 2>&1`은 정상 출력과 에러를 모두 로그 파일에 덧붙여, 무슨 일이
    있었는지 볼 수 있게 합니다.
 3. 저장하고 나옵니다. `crontab -l`로 등록됐는지 확인.
 
 다이제스트가 "seen" 세트를 유지하므로 매일 실행해도 진짜 새 영상만 요약합니다.
-결과는 매일 아침 `~/.config/tubeless/digests/`에서 읽으면 됩니다.
+결과는 매일 아침 `~/.local/share/tubeless/digests/`에서 읽으면 됩니다.
 
 > **macOS**도 cron이 있지만 `launchd` / 캘린더로 트리거하는 Automator가 더
 > 네이티브합니다. **Windows**: 작업 스케줄러로 `tubeless digest`를 실행하세요.

@@ -390,7 +390,7 @@ tubeless videos @examplechannel
 Then run:
 
 ```sh
-tubeless digest              # write ~/.config/tubeless/digests/YYYY-MM-DD.md
+tubeless digest              # write ~/.local/share/tubeless/digests/YYYY-MM-DD.md
 tubeless digest --dry-run    # print it instead, and don't record state
 ```
 
@@ -421,9 +421,9 @@ tubeless digest --since 2026-07-01 --until 2026-07-08
 | `--channel NAME` | With `--since`/`--until`, re-curate only that channel's stored summaries. | all |
 | `--dry-run` | Print the digest instead of writing it / updating state. | off |
 | `--channels PATH` | Channels TOML file. | `~/.config/tubeless/channels.toml` |
-| `--state PATH` | The "already seen" state file. | `~/.config/tubeless/state.json` |
-| `--out DIR` | Directory for the dated digest file. | `~/.config/tubeless/digests/` |
-| `--corpus DIR` | Corpus of stored summaries/transcripts (what `--since`/`--until` re-curates). | `~/.config/tubeless/corpus/` |
+| `--state PATH` | The "already seen" state file. | `~/.local/state/tubeless/state.json` |
+| `--out DIR` | Directory for the dated digest file. | `~/.local/share/tubeless/digests/` |
+| `--corpus DIR` | Corpus of stored summaries/transcripts (what `--since`/`--until` re-curates). | `~/.local/share/tubeless/corpus/` |
 | `--backend` / `--model` / `--lang` | Same as for a single video. | |
 
 ### Run it every day with cron (Linux)
@@ -437,14 +437,14 @@ Cron runs a command on a schedule. To build the digest every night at 22:00:
 2. Add one line (adjust the time — `0 22 * * *` means 22:00 daily). Use the full
    path to `tubeless` so cron can find it; get it with `which tubeless`:
    ```cron
-   0 22 * * * /home/you/.local/bin/tubeless digest >> /home/you/.config/tubeless/digest.log 2>&1
+   0 22 * * * /home/you/.local/bin/tubeless digest >> /home/you/.local/state/tubeless/digest.log 2>&1
    ```
    `>> ...digest.log 2>&1` appends both normal output and errors to a log file so
    you can see what happened.
 3. Save and exit. Check it's registered with `crontab -l`.
 
 Because the digest keeps a "seen" set, a daily run only summarizes genuinely new
-uploads. Read the result each morning at `~/.config/tubeless/digests/`.
+uploads. Read the result each morning at `~/.local/share/tubeless/digests/`.
 
 > **macOS** has cron too, but `launchd` / a Calendar-triggered Automator action
 > is the native way. **Windows**: use Task Scheduler to run `tubeless digest`.

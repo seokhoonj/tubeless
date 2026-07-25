@@ -4,6 +4,32 @@ All notable changes to tubeless are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); the project is pre-1.0, so a
 minor bump (`0.x`) may change behavior.
 
+## 0.3.0
+
+### Changed (breaking)
+
+- Files are now placed by kind instead of all under the config directory. The
+  config dir (`~/.config/tubeless` on Linux) keeps only the hand-editable
+  `config.toml`, `credentials.json`, and `channels.toml`. Durable data -- the
+  transcript/summary corpus and the rendered digests -- moves to the data dir
+  (`~/.local/share/tubeless`), and run state -- the processed-id ledger
+  `state.json` and the scheduler's `digest.log` -- moves to the state dir
+  (`~/.local/state/tubeless`). Paths are resolved via `platformdirs`, so
+  macOS/Windows get native locations and the `XDG_*_HOME` env vars are honored
+  on Linux. The move keeps a settings reset (`rm -rf ~/.config/tubeless`) from
+  destroying the corpus.
+- On first run after upgrading, tubeless migrates an existing `<=0.2.0` layout
+  automatically: the corpus, digests, `state.json`, and `digest.log` are moved
+  from the config dir to their new homes, once and idempotently. Users who pass
+  explicit `--corpus`, `--out`, or `--state` paths (e.g. in a cron line) must
+  update those paths by hand -- the automatic migration only touches the
+  default locations.
+
+### Added
+
+- `platformdirs` dependency, and `tubeless.config.data_dir()` /
+  `state_dir()` alongside the existing `config_dir()`.
+
 ## 0.2.0
 
 ### Changed (breaking)

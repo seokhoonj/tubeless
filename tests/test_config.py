@@ -29,6 +29,98 @@ def test_config_dir_respects_xdg_config_home(tmp_path, monkeypatch):
     assert config.config_path() == tmp_path / "tubeless" / "config.toml"
 
 
+def test_data_dir_defaults_to_xdg_data_home(monkeypatch):
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+    assert config.data_dir() == Path.home() / ".local" / "share" / "tubeless"
+
+
+def test_data_dir_respects_xdg_data_home(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    assert config.data_dir() == tmp_path / "tubeless"
+
+
+def test_state_dir_defaults_to_xdg_state_home(monkeypatch):
+    monkeypatch.delenv("XDG_STATE_HOME", raising=False)
+    assert config.state_dir() == Path.home() / ".local" / "state" / "tubeless"
+
+
+def test_state_dir_respects_xdg_state_home(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
+    assert config.state_dir() == tmp_path / "tubeless"
+
+
+def test_the_three_bases_are_distinct(monkeypatch):
+    # config vs data vs state must not collapse to one directory: the whole point
+    # of 0.3.0 is that a settings reset never touches the corpus.
+    for var in ("XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME"):
+        monkeypatch.delenv(var, raising=False)
+    bases = {config.config_dir(), config.data_dir(), config.state_dir()}
+    assert len(bases) == 3
+
+
+def _xdg_layout(tmp_path, monkeypatch) -> tuple[Path, Path, Path]:
+    """Point the three bases at separate temp roots and return their tubeless dirs."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    return config.config_dir(), config.data_dir(), config.state_dir()
+
+
+def test_migrate_moves_legacy_data_and_state_out_of_config(tmp_path, monkeypatch):
+    cfg, data, state = _xdg_layout(tmp_path, monkeypatch)
+    # a <=0.2.0 install: corpus, digests, state.json, digest.log all under config.
+    (cfg / "corpus").mkdir(parents=True)
+    (cfg / "corpus" / "s.json").write_text("{}", encoding="utf-8")
+    (cfg / "digests").mkdir()
+    (cfg / "state.json").write_text('{"seen": ["a"]}', encoding="utf-8")
+    (cfg / "digest.log").write_text("run\n", encoding="utf-8")
+
+    config.migrate_legacy_layout()
+
+    assert (data / "corpus" / "s.json").read_text(encoding="utf-8") == "{}"
+    assert (data / "digests").is_dir()
+    assert (state / "state.json").read_text(encoding="utf-8") == '{"seen": ["a"]}'
+    assert (state / "digest.log").read_text(encoding="utf-8") == "run\n"
+    # the legacy copies are gone (moved, not copied)
+    assert not (cfg / "corpus").exists()
+    assert not (cfg / "state.json").exists()
+
+
+def test_migrate_leaves_config_files_in_place(tmp_path, monkeypatch):
+    cfg, data, state = _xdg_layout(tmp_path, monkeypatch)
+    (cfg).mkdir(parents=True)
+    (cfg / "config.toml").write_text('backend = "gemini"\n', encoding="utf-8")
+    (cfg / "credentials.json").write_text("{}", encoding="utf-8")
+
+    config.migrate_legacy_layout()
+
+    assert (cfg / "config.toml").exists()
+    assert (cfg / "credentials.json").exists()
+
+
+def test_migrate_is_idempotent_and_never_clobbers_new_data(tmp_path, monkeypatch):
+    cfg, data, state = _xdg_layout(tmp_path, monkeypatch)
+    # a stale legacy state file lingers, but the new location already has real state:
+    # migration must not overwrite the new one.
+    (cfg).mkdir(parents=True)
+    (cfg / "state.json").write_text('{"seen": ["old"]}', encoding="utf-8")
+    (state).mkdir(parents=True)
+    (state / "state.json").write_text('{"seen": ["new"]}', encoding="utf-8")
+
+    config.migrate_legacy_layout()
+    config.migrate_legacy_layout()   # second call: still a no-op
+
+    assert (state / "state.json").read_text(encoding="utf-8") == '{"seen": ["new"]}'
+
+
+def test_migrate_is_a_noop_on_a_fresh_install(tmp_path, monkeypatch):
+    cfg, data, state = _xdg_layout(tmp_path, monkeypatch)
+    # nothing exists yet: migration must not create empty dirs or fail.
+    config.migrate_legacy_layout()
+    assert not data.exists()
+    assert not state.exists()
+
+
 def test_load_settings_parses_toml(tmp_path):
     path = _write_toml(tmp_path, 'backend = "gemini"\nmax_points = 20\n')
     assert config.load_settings(path) == {"backend": "gemini", "max_points": 20}

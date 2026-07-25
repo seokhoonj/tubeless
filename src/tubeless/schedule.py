@@ -22,7 +22,7 @@ import sys
 from dataclasses import dataclass
 from typing import Protocol
 
-from tubeless.config import config_dir
+from tubeless.config import state_dir
 from tubeless.errors import ScheduleError
 
 __all__ = [
@@ -45,7 +45,7 @@ TASK_LABEL = "tubeless-digest"
 
 # Where a scheduled run sends its stdout/stderr. A cron job has no terminal, so
 # without this redirect its output (and any error) would be mailed away or lost.
-LOG_PATH = config_dir() / "digest.log"
+LOG_PATH = state_dir() / "digest.log"
 
 # The daily run time when --at is not given. A morning build has the prior day's
 # uploads ready to read.

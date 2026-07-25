@@ -52,7 +52,7 @@ from tubeless.transcript import fetch_transcript
 __all__ = ["main"]
 
 _SUBCOMMANDS = ("summarize", "transcript", "videos", "digest", "schedule")
-_DIGEST_DIR  = config.config_dir() / "digests"
+_DIGEST_DIR  = config.data_dir() / "digests"
 
 # How many recent uploads to check per plain channel on a fresh digest when the
 # caller does not say. A channel with a title filter scans the full feed window
@@ -72,6 +72,9 @@ def main(argv: list[str] | None = None) -> int:
     """Run the chosen subcommand; return the process exit code."""
     argv = list(sys.argv[1:] if argv is None else argv)
     try:
+        # Relocate a <=0.2.0 install's files to the 0.3.0 data/state dirs before
+        # any command reads them; idempotent, so it is a no-op after the first run.
+        config.migrate_legacy_layout()
         args = _build_parser().parse_args(_with_default_subcommand(argv))
         return args.run(args)
     except KeyboardInterrupt:
