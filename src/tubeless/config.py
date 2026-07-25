@@ -41,15 +41,6 @@ from tubeless.errors import ConfigError
 
 _APP = "tubeless"
 
-
-def _xdg_base(env_name: str, default: str) -> Path:
-    """Resolve one XDG base dir for tubeless: ``$<env>/tubeless`` when the env var is
-    set, else ``~/<default>/tubeless`` (the XDG spec's own fallbacks -- ``.config``,
-    ``.local/share``, ``.local/state``). Applied on every OS, so the layout is uniform
-    and the package needs no platform-dirs library."""
-    base = os.environ.get(env_name)
-    return (Path(base) if base else Path.home() / default) / _APP
-
 __all__ = [
     "config_dir",
     "config_path",
@@ -69,7 +60,7 @@ def config_dir() -> Path:
     ``~/.config/tubeless`` -- the same on every OS (the git / ssh / aws convention),
     not a platform-native dir. git never tracks it.
     """
-    return _xdg_base("XDG_CONFIG_HOME", ".config")
+    return _xdg_app_dir("XDG_CONFIG_HOME", ".config")
 
 
 def data_dir() -> Path:
@@ -87,30 +78,7 @@ def data_dir() -> Path:
     override = _dir_override("TUBELESS_DATA_DIR")
     if override is not None:
         return override
-    return _xdg_base("XDG_DATA_HOME", ".local/share")
-
-
-def _dir_override(env_name: str) -> Path | None:
-    """A base-dir override from the environment (which wins) or ``config.toml``, as
-    an explicit path with ``~`` expanded, or ``None`` when unset.
-
-    Tolerates an unreadable config file by reading it as absent: this resolves paths
-    needed at import time (``store.CORPUS_ROOT``), so it must not raise -- a malformed
-    config still surfaces cleanly when the run reads a real setting through ``setting``
-    (the CLI also validates the config before this decides any relocation). A
-    non-string value (``data_dir = 12345``) reads as absent too, so it never becomes a
-    ``Path("12345")`` relative to the working directory.
-    """
-    from_env = os.environ.get(env_name)
-    if from_env:
-        return Path(from_env).expanduser()
-    try:
-        value = load_settings().get(env_name.removeprefix("TUBELESS_").lower())
-    except ConfigError:
-        return None
-    if not isinstance(value, str) or value == "":
-        return None
-    return Path(value).expanduser()
+    return _xdg_app_dir("XDG_DATA_HOME", ".local/share")
 
 
 def state_dir() -> Path:
@@ -126,7 +94,7 @@ def state_dir() -> Path:
     override = _dir_override("TUBELESS_STATE_DIR")
     if override is not None:
         return override
-    return _xdg_base("XDG_STATE_HOME", ".local/state")
+    return _xdg_app_dir("XDG_STATE_HOME", ".local/state")
 
 
 def config_path() -> Path:
@@ -212,3 +180,53 @@ def setting(env_name: str) -> str | None:
         return from_env
     value = load_settings().get(env_name.removeprefix("TUBELESS_").lower())
     return None if value is None or value == "" else str(value)
+
+
+# --- private resolvers (used by the base-dir functions above) ------------------
+
+def _xdg_app_dir(env_name: str, home_subpath: str) -> Path:
+    """tubeless's directory under one XDG base: ``$<env>/tubeless`` when the env var
+    holds an absolute path, else ``~/<home_subpath>/tubeless`` (the XDG spec's own
+    fallbacks -- ``home_subpath`` is one of ``.config`` / ``.local/share`` /
+    ``.local/state``, a home-relative fragment).
+
+    A blank, whitespace-only, or *relative* env value is ignored and the home fallback
+    is used, per the XDG spec ("a relative path ... must be ignored"): a relative value
+    would otherwise put the dir under the current working directory, so a cron run (cwd
+    ``/``) and an interactive run (cwd ``~``) would resolve the same config to different
+    places and split the corpus. Applied on every OS -- no platform-dirs library."""
+    base = os.environ.get(env_name, "").strip()
+    if base:
+        root = Path(base).expanduser()
+        if root.is_absolute():
+            return root / _APP
+    return Path.home() / home_subpath / _APP
+
+
+def _dir_override(env_name: str) -> Path | None:
+    """A base-dir override from the environment (which wins) or ``config.toml``, as an
+    explicit absolute path with ``~`` expanded, or ``None`` when unset (or not absolute).
+
+    Tolerates an unreadable config file by reading it as absent: this resolves paths
+    needed at import time (``store.CORPUS_ROOT``), so it must not raise -- a malformed
+    config still surfaces cleanly when the run reads a real setting through ``setting``
+    (the CLI also validates the config before this decides any relocation). A non-string
+    (``data_dir = 12345``), blank, or non-absolute value reads as absent, so it never
+    becomes a path resolved against the working directory."""
+    from_env = os.environ.get(env_name, "").strip()
+    if from_env:
+        return _as_absolute(from_env)
+    try:
+        value = load_settings().get(env_name.removeprefix("TUBELESS_").lower())
+    except ConfigError:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        return None
+    return _as_absolute(value)
+
+
+def _as_absolute(raw: str) -> Path | None:
+    """Expand ``~`` in ``raw`` and return it only if absolute, else ``None`` -- a
+    relative override is ignored (it would depend on the working directory)."""
+    path = Path(raw).expanduser()
+    return path if path.is_absolute() else None

@@ -50,6 +50,32 @@ def test_data_dir_respects_xdg_data_home(tmp_path, monkeypatch):
     assert config.data_dir() == tmp_path / "tubeless"
 
 
+@pytest.mark.parametrize("bad_value", ["", "   ", "relative/dir"])
+def test_a_blank_or_relative_xdg_var_falls_back_to_the_home_default(bad_value, monkeypatch):
+    # The XDG spec says a relative (or empty) XDG_*_HOME must be ignored. Without the
+    # is_absolute guard, XDG_DATA_HOME="relative/dir" would put the corpus under the
+    # working directory, splitting a cron run from an interactive one.
+    _blind_overrides(monkeypatch)
+    monkeypatch.setenv("XDG_DATA_HOME", bad_value)
+    result = config.data_dir()
+    assert result == Path.home() / ".local" / "share" / "tubeless"
+    assert result.is_absolute()   # never a CWD-relative Path("tubeless")
+
+
+def test_an_absolute_xdg_var_with_a_tilde_is_expanded(monkeypatch):
+    _blind_overrides(monkeypatch)
+    monkeypatch.setenv("XDG_STATE_HOME", "~/mystate")
+    assert config.state_dir() == Path.home() / "mystate" / "tubeless"
+
+
+def test_a_relative_dir_override_is_ignored(monkeypatch):
+    # A relative override value is a working-directory trap too, so it reads as absent
+    # and the platform default stands.
+    monkeypatch.setenv("TUBELESS_DATA_DIR", "relative/corpus")
+    monkeypatch.setattr(config, "load_settings", dict)
+    assert config.data_dir() == Path.home() / ".local" / "share" / "tubeless"
+
+
 def test_state_dir_defaults_to_xdg_state_home(monkeypatch):
     _blind_overrides(monkeypatch)
     monkeypatch.delenv("XDG_STATE_HOME", raising=False)
