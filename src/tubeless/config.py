@@ -88,29 +88,52 @@ def config_path() -> Path:
     return config_dir() / "config.toml"
 
 
-# The files a <=0.2.0 install wrote under config_dir(), mapped to their 0.3.0
+def _legacy_config_root() -> Path:
+    """Where a <=0.2.0 install kept everything: its hand-rolled config dir,
+    ``$XDG_CONFIG_HOME`` (or ``~/.config``) / ``tubeless`` -- the exact formula
+    0.2.0 used, not today's ``config_dir()``.
+
+    The two differ off Linux: 0.2.0 hand-rolled the XDG path even on macOS/Windows,
+    so it wrote to ``~/.config/tubeless`` there, whereas 0.3.0's ``config_dir()``
+    resolves to the native config location. The migration source must be this old
+    formula, or an upgrade on macOS/Windows would look in the (empty) new dir and
+    move nothing while the real data sits in ``~/.config/tubeless``."""
+    base = os.environ.get("XDG_CONFIG_HOME")
+    return (Path(base) if base else Path.home() / ".config") / "tubeless"
+
+
+# The files a <=0.2.0 install wrote under its config dir, mapped to their 0.3.0
 # home. The leaf names are the legacy layout, fixed history -- the consumer
 # modules (store/cli/state/schedule) build the same leaves off the new bases.
 def _legacy_moves() -> list[tuple[Path, Path]]:
-    legacy = config_dir()
+    old = _legacy_config_root()
     return [
-        (legacy / "corpus",     data_dir()  / "corpus"),
-        (legacy / "digests",    data_dir()  / "digests"),
-        (legacy / "state.json", state_dir() / "state.json"),
-        (legacy / "digest.log", state_dir() / "digest.log"),
+        # Config files stay put on Linux (old == config_dir(), so these are no-ops)
+        # but relocate to the native config dir on macOS/Windows, where config_dir()
+        # now differs -- otherwise the keys and settings would be orphaned there.
+        (old / "config.toml",      config_dir() / "config.toml"),
+        (old / "credentials.json", config_dir() / "credentials.json"),
+        (old / "channels.toml",    config_dir() / "channels.toml"),
+        # Durable data and run state always leave the old config dir.
+        (old / "corpus",     data_dir()  / "corpus"),
+        (old / "digests",    data_dir()  / "digests"),
+        (old / "state.json", state_dir() / "state.json"),
+        (old / "digest.log", state_dir() / "digest.log"),
     ]
 
 
 def migrate_legacy_layout() -> None:
-    """Move files a <=0.2.0 install left under ``config_dir()`` to ``data_dir()``
-    / ``state_dir()``, once.
+    """Relocate a <=0.2.0 install's files from its old config dir to the 0.3.0
+    layout, once.
 
-    0.2.0 and earlier put the corpus, digests, state ledger, and log alongside
-    the config; 0.3.0 separates data and state from config. For each
-    file, if the new location is absent and the legacy one exists, move it.
-    Idempotent -- a second run finds the new path present and does nothing -- so
-    it is safe to call at every CLI entry. On Linux with the default layout the
-    config dir is unchanged, so config files never move; only data and state do.
+    0.2.0 and earlier put the corpus, digests, state ledger, and log alongside the
+    config, all under one hand-rolled config dir (see ``_legacy_config_root``); 0.3.0
+    separates data and state from config and resolves each base natively. For each
+    file, if the new location is absent and the legacy one exists, move it. Idempotent
+    -- a second run finds the new path present and does nothing -- so it is safe to
+    call at every CLI entry. On Linux the config dir is unchanged, so the config files
+    are no-ops and only data and state move; on macOS/Windows the config dir is now a
+    native location, so the config files relocate there too.
 
     Raises:
         ConfigError: a file could not be relocated (I/O error) -- surfaced as a

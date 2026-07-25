@@ -34,11 +34,14 @@ minor bump (`0.x`) may change behavior.
   on Linux. The move keeps a settings reset (`rm -rf ~/.config/tubeless`) from
   destroying the corpus.
 - On first run after upgrading, tubeless migrates an existing `<=0.2.0` layout
-  automatically: the corpus, digests, `state.json`, and `digest.log` are moved
-  from the config dir to their new homes, once and idempotently. Users who pass
-  explicit `--corpus`, `--out`, or `--state` paths (e.g. in a cron line) must
-  update those paths by hand -- the automatic migration only touches the
-  default locations.
+  automatically: the corpus, digests, `state.json`, and `digest.log` move from the
+  old config dir to their new data/state homes, once and idempotently. On
+  macOS/Windows, where the config dir itself moves to a native location, the config
+  files (`config.toml`, `credentials.json`, `channels.toml`) relocate there too, so
+  keys and settings are never orphaned; on Linux the config dir is unchanged and
+  those files stay put. Users who pass explicit `--corpus`, `--out`, or `--state`
+  paths (e.g. in a cron line) must update those paths by hand -- the automatic
+  migration only touches the default locations.
 
 ### Added
 
