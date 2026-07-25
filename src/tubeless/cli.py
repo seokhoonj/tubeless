@@ -26,7 +26,7 @@ from pathlib import Path
 from tubeless import config
 from tubeless.channels import CHANNELS_PATH, Channel, load_channels
 from tubeless.digest import RunProvenance, Skip, curate_summaries, summarize_videos
-from tubeless.discover import DEFAULT_SCAN, fetch_recent_videos
+from tubeless.discover import DEFAULT_PER_CHANNEL_LIMIT, DEFAULT_SCAN, fetch_recent_videos
 from tubeless.errors import ConfigError, FeedError, ScheduleError, TubelessError
 from tubeless.llm import BACKENDS, LLMBackend, make_backend
 from tubeless.render import render_markdown
@@ -37,7 +37,7 @@ from tubeless.schedule import (
     resolve_digest_command,
     scheduler_for_platform,
 )
-from tubeless.source import fetch_video
+from tubeless.source import fetch_video, watch_url
 from tubeless.state import STATE_PATH, read_seen, write_seen
 from tubeless.store import CORPUS_ROOT, FileStore, latest_per_video, save_digest
 from tubeless.summary import (
@@ -53,12 +53,6 @@ __all__ = ["main"]
 
 _SUBCOMMANDS = ("summarize", "transcript", "videos", "digest", "schedule")
 _DIGEST_DIR  = config.data_dir() / "digests"
-
-# How many recent uploads to check per plain channel on a fresh digest when the
-# caller does not say. A channel with a title filter scans the full feed window
-# instead (matches are sparse among the rest), so this cap applies only to
-# unfiltered channels.
-DEFAULT_PER_CHANNEL_LIMIT = 5
 
 # A YouTube id is 11 base64url characters, so ~1 in 64 starts with '-'. argparse
 # would read such a bare id as an option flag, so a leading-dash id is rewritten
@@ -102,15 +96,11 @@ def _with_default_subcommand(argv: list[str]) -> list[str]:
     ``summarize``/``transcript`` (both take a URL or id)."""
     argv = list(argv)
     if argv and argv[0] in ("summarize", "transcript") and len(argv) > 1 and _LEADING_DASH_ID.match(argv[1]):
-        argv[1] = _watch_url(argv[1])
+        argv[1] = watch_url(argv[1])
     if argv and argv[0] not in _SUBCOMMANDS and argv[0] not in ("-h", "--help"):
-        head = _watch_url(argv[0]) if _LEADING_DASH_ID.match(argv[0]) else argv[0]
+        head = watch_url(argv[0]) if _LEADING_DASH_ID.match(argv[0]) else argv[0]
         return ["summarize", head, *argv[1:]]
     return argv
-
-
-def _watch_url(video_id: str) -> str:
-    return f"https://www.youtube.com/watch?v={video_id}"
 
 
 def _run_summarize(args: argparse.Namespace) -> int:

@@ -15,7 +15,7 @@ import requests
 
 from tubeless.errors import InvalidVideoURL
 
-__all__ = ["Video", "extract_video_id", "fetch_video"]
+__all__ = ["Video", "extract_video_id", "fetch_video", "watch_url"]
 
 # A YouTube video id is exactly 11 characters of this alphabet. The length and
 # alphabet are stable observed facts of every public YouTube URL form, not a
@@ -90,6 +90,13 @@ def extract_video_id(url_or_id: str) -> str:
     )
 
 
+def watch_url(video_id: str) -> str:
+    """The canonical watch URL for a video id -- the inverse of ``extract_video_id``.
+    The one home for the id->URL scheme, so ``discover`` and the CLI build a video's
+    link the same way ``fetch_video`` does."""
+    return f"https://www.youtube.com/watch?v={video_id}"
+
+
 def fetch_video(url_or_id: str) -> Video:
     """Resolve title and channel via YouTube's oembed endpoint (no API key).
 
@@ -100,12 +107,12 @@ def fetch_video(url_or_id: str) -> Video:
     Raises:
         InvalidVideoURL: the input does not identify a video at all.
     """
-    video_id  = extract_video_id(url_or_id)
-    watch_url = f"https://www.youtube.com/watch?v={video_id}"
+    video_id = extract_video_id(url_or_id)
+    url      = watch_url(video_id)
     try:
         response = requests.get(
             _OEMBED_ENDPOINT,
-            params  = {"url": watch_url, "format": "json"},
+            params  = {"url": url, "format": "json"},
             timeout = _OEMBED_TIMEOUT_SECONDS,
         )
         response.raise_for_status()
@@ -113,11 +120,11 @@ def fetch_video(url_or_id: str) -> Video:
         if not isinstance(payload, dict):   # valid JSON but not an object (null, list)
             raise ValueError("oembed payload was not a JSON object")
     except (requests.RequestException, ValueError):
-        return Video(video_id=video_id, title=video_id, url=watch_url, channel=None)
+        return Video(video_id=video_id, title=video_id, url=url, channel=None)
 
     return Video(
         video_id = video_id,
         title    = payload.get("title") or video_id,
-        url      = watch_url,
+        url      = url,
         channel  = payload.get("author_name"),
     )

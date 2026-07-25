@@ -20,9 +20,9 @@ from xml.etree import ElementTree
 import requests
 
 from tubeless.errors import FeedError
-from tubeless.source import Video
+from tubeless.source import Video, watch_url
 
-__all__ = ["DEFAULT_SCAN", "fetch_recent_videos"]
+__all__ = ["DEFAULT_PER_CHANNEL_LIMIT", "DEFAULT_SCAN", "fetch_recent_videos"]
 
 _FEED_URL        = "https://www.youtube.com/feeds/videos.xml"
 _TIMEOUT_SECONDS = 15.0
@@ -32,6 +32,13 @@ _TIMEOUT_SECONDS = 15.0
 # not miss matches further down. This is the former hidden fetch cap, now an
 # explicit argument the caller can narrow.
 DEFAULT_SCAN = 15
+
+# How many recent uploads to check per plain channel on a fresh digest when the
+# caller does not say. A channel with a title filter scans the full feed window
+# (DEFAULT_SCAN) instead, since matches are sparse among the rest, so this smaller
+# cap applies only to unfiltered channels. Kept beside DEFAULT_SCAN -- the scan
+# defaults are one family, and this one is recorded into a digest's RunProvenance.
+DEFAULT_PER_CHANNEL_LIMIT = 5
 
 # A channel id is 'UC' + 22 chars of the base64url alphabet; a user playlist id
 # is 'PL' + a longer run of the same alphabet. Both are stable observed forms of
@@ -118,7 +125,7 @@ def _parse_feed(xml_text: str, *, limit: int) -> tuple[Video, ...]:
         videos.append(Video(
             video_id  = video_id,
             title     = _text(entry.find("atom:title", _NS)) or video_id,
-            url       = f"https://www.youtube.com/watch?v={video_id}",
+            url       = watch_url(video_id),
             channel   = channel,
             published = _normalise_published(_text(entry.find("atom:published", _NS))),
         ))
