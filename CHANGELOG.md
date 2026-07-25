@@ -8,6 +8,12 @@ minor bump (`0.x`) may change behavior.
 
 ### Added
 
+- `data_dir` / `state_dir` can be set in `config.toml` (or via `TUBELESS_DATA_DIR`
+  / `TUBELESS_STATE_DIR`) to relocate the data and state directories to an explicit
+  path -- read every run, so a large corpus can live on another volume and both an
+  interactive run and the cron digest agree without setting an environment variable.
+  Unlike `XDG_*_HOME` (which moves every XDG app's dir), the key moves only tubeless.
+  `config_dir` has no such key -- it is where `config.toml` lives.
 - Each digest run is now persisted as a canonical JSON record beside the rendered
   Markdown: `<data>/digests/.../<label>.json`. It is a faithful point-in-time
   snapshot -- the ranked entries (with a value copy of each summary), what was

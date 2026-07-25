@@ -49,6 +49,62 @@ def test_state_dir_respects_xdg_state_home(tmp_path, monkeypatch):
     assert config.state_dir() == tmp_path / "tubeless"
 
 
+_DIR_OVERRIDES = [
+    ("data_dir",  "TUBELESS_DATA_DIR",  "data_dir"),
+    ("state_dir", "TUBELESS_STATE_DIR", "state_dir"),
+]
+
+
+@pytest.mark.parametrize("dir_fn, env_name, key", _DIR_OVERRIDES)
+def test_dir_config_key_overrides_the_platform_default(dir_fn, env_name, key, monkeypatch):
+    # a data_dir/state_dir in config.toml relocates the dir, read every run (so cron
+    # sees it too) -- used as an explicit path, no app-name appended.
+    monkeypatch.delenv(env_name, raising=False)
+    monkeypatch.setattr(config, "load_settings", lambda: {key: "/mnt/big/tube"})
+    assert getattr(config, dir_fn)() == Path("/mnt/big/tube")
+
+
+@pytest.mark.parametrize("dir_fn, env_name, key", _DIR_OVERRIDES)
+def test_dir_env_var_wins_over_config_and_default(dir_fn, env_name, key, monkeypatch):
+    monkeypatch.setenv(env_name, "/env/wins")
+    monkeypatch.setattr(config, "load_settings", lambda: {key: "/from/config"})
+    assert getattr(config, dir_fn)() == Path("/env/wins")
+
+
+@pytest.mark.parametrize("dir_fn, env_name, key", _DIR_OVERRIDES)
+def test_dir_override_expands_a_leading_tilde(dir_fn, env_name, key, monkeypatch):
+    monkeypatch.setenv(env_name, "~/mydata")
+    assert getattr(config, dir_fn)() == Path.home() / "mydata"
+
+
+@pytest.mark.parametrize("dir_fn, env_name, key", _DIR_OVERRIDES)
+def test_dir_empty_override_falls_back_to_the_default(dir_fn, env_name, key, monkeypatch):
+    # an exported-but-empty var and an empty config value both read as unset.
+    monkeypatch.setenv(env_name, "")
+    monkeypatch.setattr(config, "load_settings", lambda: {key: ""})
+    assert getattr(config, dir_fn)().name == "tubeless"   # the platform default, not ""
+
+
+@pytest.mark.parametrize("dir_fn, env_name, key", _DIR_OVERRIDES)
+def test_dir_tolerates_a_malformed_config_without_raising(dir_fn, env_name, key, monkeypatch):
+    # data_dir()/state_dir() resolve paths at import time, so a broken config must
+    # not raise here -- it surfaces later through setting(). Falls back to the default.
+    monkeypatch.delenv(env_name, raising=False)
+    def boom():
+        raise ConfigError("bad toml")
+    monkeypatch.setattr(config, "load_settings", boom)
+    assert getattr(config, dir_fn)().name == "tubeless"
+
+
+def test_config_dir_has_no_config_key_override(monkeypatch):
+    # config_dir cannot be named in config.toml (it is where config.toml lives): a
+    # data_dir/state_dir key must not accidentally move it.
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    monkeypatch.setattr(config, "load_settings",
+                        lambda: {"data_dir": "/x", "state_dir": "/y", "config_dir": "/z"})
+    assert config.config_dir() == Path.home() / ".config" / "tubeless"
+
+
 def test_the_three_bases_are_distinct(monkeypatch):
     # config vs data vs state must not collapse to one directory: the whole point
     # of 0.3.0 is that a settings reset never touches the corpus.

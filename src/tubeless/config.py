@@ -66,20 +66,53 @@ def data_dir() -> Path:
     """Durable, hard-to-regenerate user data: the summary/transcript corpus and
     the rendered digests.
 
-    ``$XDG_DATA_HOME/tubeless`` when set, else the platform data dir
-    (``~/.local/share/tubeless`` on Linux). Kept apart from ``config_dir()`` so
-    resetting settings never destroys the corpus.
+    A ``data_dir`` in ``config.toml`` (or the ``TUBELESS_DATA_DIR`` env var) wins,
+    taken as an explicit path used as-is (``~`` expanded, no app-name appended) --
+    read every run, so a large corpus can live on another volume and an interactive
+    run and a cron run agree without touching the environment. Otherwise
+    ``$XDG_DATA_HOME/tubeless``, else the platform data dir (``~/.local/share/tubeless``
+    on Linux). (``config_dir`` has no such key -- config cannot name its own location.)
+    Kept apart from ``config_dir()`` so resetting settings never destroys the corpus.
     """
+    override = _dir_override("TUBELESS_DATA_DIR")
+    if override is not None:
+        return override
     return Path(platformdirs.user_data_dir(_APP, appauthor=False))
+
+
+def _dir_override(env_name: str) -> Path | None:
+    """A base-dir override from the environment (which wins) or ``config.toml``, as
+    an explicit path with ``~`` expanded, or ``None`` when unset.
+
+    Tolerates an unreadable config file by reading it as absent: this resolves paths
+    needed at import time (``store.CORPUS_ROOT``), so it must not raise -- a malformed
+    config still surfaces cleanly when the run reads a real setting through ``setting``.
+    """
+    from_env = os.environ.get(env_name)
+    if from_env:
+        return Path(from_env).expanduser()
+    try:
+        value = load_settings().get(env_name.removeprefix("TUBELESS_").lower())
+    except ConfigError:
+        return None
+    if value is None or value == "":
+        return None
+    return Path(str(value)).expanduser()
 
 
 def state_dir() -> Path:
     """Run state that persists but is neither hand-edited nor precious: the
     processed-id ledger and the scheduler's log.
 
-    ``$XDG_STATE_HOME/tubeless`` when set, else the platform state dir
+    A ``state_dir`` in ``config.toml`` (or ``TUBELESS_STATE_DIR``) wins, as an
+    explicit path used as-is (``~`` expanded) -- symmetric with ``data_dir``, so a
+    caller who wants to relocate state can, though it is small enough that most do
+    not. Otherwise ``$XDG_STATE_HOME/tubeless``, else the platform state dir
     (``~/.local/state/tubeless`` on Linux).
     """
+    override = _dir_override("TUBELESS_STATE_DIR")
+    if override is not None:
+        return override
     return Path(platformdirs.user_state_dir(_APP, appauthor=False))
 
 

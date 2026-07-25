@@ -261,8 +261,13 @@ cat > ~/.config/tubeless/config.toml <<'EOF'
 # max_points = 20         # default --max-points
 # lang       = "ko"       # summary language (default: en; set ko for Korean)
 # per_channel = 5         # default --per-channel (digest)
+# data_dir   = "..."      # move the corpus + digests off the default (see "Where files are stored")
+# state_dir  = "..."      # move the state ledger + log off the default (rarely needed)
 EOF
 ```
+
+(All lines are commented; uncomment only what you want to change. tubeless ignores
+`#` lines, so they double as in-file notes on what is available.)
 
 `credentials.json` is a `name: value` JSON map — put the
 `OPENAI_API_KEY` / `CLAUDE_API_KEY` / `GEMINI_API_KEY` for the backend you use (plus
@@ -304,6 +309,39 @@ on a block — the most reliable for this); otherwise the generic `TUBELESS_PROX
 (plus optional `TUBELESS_PROXY_HTTPS`, which reuses the HTTP value if unset) is used.
 Datacenter and free proxies are often blocked by YouTube too, so a residential proxy
 may be required.
+
+### Where files are stored
+
+tubeless keeps its files by *kind*, each in the platform's base directory for that
+kind (the paths below are Linux; macOS and Windows get their native equivalents):
+
+| Kind | Holds | Default (Linux) | Override with |
+|---|---|---|---|
+| **config** | `config.toml`, `credentials.json`, `channels.toml` | `~/.config/tubeless` | `XDG_CONFIG_HOME` |
+| **data** | `corpus/` (transcripts + summaries), `digests/` | `~/.local/share/tubeless` | `data_dir` in `config.toml`, `TUBELESS_DATA_DIR`, or `XDG_DATA_HOME` |
+| **state** | `state.json` (processed ids), `digest.log` | `~/.local/state/tubeless` | `state_dir` in `config.toml`, `TUBELESS_STATE_DIR`, or `XDG_STATE_HOME` |
+
+Config, data, and state are separate so resetting your settings (`rm -rf
+~/.config/tubeless`) never touches the corpus, and a config backup stays small.
+
+**To keep a large corpus on another volume**, set `data_dir` in `config.toml` — it is
+read every run, so an interactive run and the cron digest agree without setting any
+environment variable:
+
+```toml
+# ~/.config/tubeless/config.toml
+# data_dir  = "/path/to/bigdisk/tubeless"   # move corpus + digests here (default: ~/.local/share/tubeless)
+# state_dir = "/path/to/bigdisk/state"      # move state here            (default: ~/.local/state/tubeless)
+```
+
+`/path/to/bigdisk` is a placeholder — replace it with any absolute path (an external
+drive, another partition, a network share). Given as an explicit path (used as-is,
+`~` expanded — no app name appended). An
+`XDG_*_HOME` environment variable moves *every* XDG app's dir; the `config.toml` key
+and the `--corpus`/`--out`/`--state` flags move only tubeless. `config_dir` itself
+cannot be set in `config.toml` (that is where `config.toml` lives) — move it with
+`XDG_CONFIG_HOME` if ever needed. After relocating, move the existing files once (e.g.
+`mv ~/.local/share/tubeless/* /path/to/bigdisk/tubeless/`).
 
 ### Summarize one video
 

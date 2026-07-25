@@ -246,8 +246,13 @@ cat > ~/.config/tubeless/config.toml <<'EOF'
 # max_points = 20         # 기본 --max-points
 # lang       = "ko"       # 요약 언어 (기본 en; 한국어 요약은 이 줄의 주석을 푸세요)
 # per_channel = 5         # 기본 --per-channel (다이제스트)
+# data_dir   = "..."      # corpus + digests를 기본 위치에서 옮김 ("파일이 저장되는 위치" 참고)
+# state_dir  = "..."      # state 대장 + 로그를 기본 위치에서 옮김 (거의 불필요)
 EOF
 ```
+
+(모든 줄은 주석 처리돼 있습니다 — 바꿀 것만 주석을 푸세요. tubeless는 `#` 줄을 무시하므로,
+주석은 "무엇을 켤 수 있는지" 적어둔 파일 내 메모 역할도 합니다.)
 
 `credentials.json`은 `이름: 값` JSON입니다 — 쓰는 백엔드의
 `OPENAI_API_KEY`/`CLAUDE_API_KEY`/`GEMINI_API_KEY`(+ 아래 프록시 키)를 넣으세요.
@@ -284,6 +289,37 @@ IP 차단 — 바쁜 가정용 IP나 데이터센터 IP 모두). 요청에 계�
 — 이 용도에 가장 안정적), 없으면 `TUBELESS_PROXY_HTTP`(+ 선택 `TUBELESS_PROXY_HTTPS`,
 미지정 시 HTTP 값 재사용)의 일반 프록시를 씁니다. 데이터센터/무료 프록시는 YouTube가
 함께 막는 경우가 많아 레지덴셜 프록시가 필요할 수 있습니다.
+
+### 파일이 저장되는 위치
+
+tubeless는 파일을 **종류별로** 나눠, 각 종류의 플랫폼 기본 디렉터리에 둡니다 (아래는
+Linux 기준; macOS·Windows는 각 OS의 네이티브 위치로 매핑됩니다):
+
+| 종류 | 담는 것 | 기본값 (Linux) | 바꾸는 법 |
+|---|---|---|---|
+| **config** | `config.toml`, `credentials.json`, `channels.toml` | `~/.config/tubeless` | `XDG_CONFIG_HOME` |
+| **data** | `corpus/` (자막+요약), `digests/` | `~/.local/share/tubeless` | `config.toml`의 `data_dir`, `TUBELESS_DATA_DIR`, `XDG_DATA_HOME` |
+| **state** | `state.json` (처리한 id), `digest.log` | `~/.local/state/tubeless` | `config.toml`의 `state_dir`, `TUBELESS_STATE_DIR`, `XDG_STATE_HOME` |
+
+config·data·state를 나눈 덕에, 설정을 초기화해도(`rm -rf ~/.config/tubeless`) 코퍼스는
+안 건드려지고, 설정 백업도 작게 유지됩니다.
+
+**큰 코퍼스를 다른 볼륨에 두려면** `config.toml`에 `data_dir`을 적으세요 — 매 실행마다
+읽으므로, 환경변수를 건드리지 않아도 대화형 실행과 크론 다이제스트가 같은 위치를 봅니다:
+
+```toml
+# ~/.config/tubeless/config.toml
+# data_dir  = "/path/to/bigdisk/tubeless"   # corpus + digests를 여기로 (기본: ~/.local/share/tubeless)
+# state_dir = "/path/to/bigdisk/state"      # state를 여기로            (기본: ~/.local/state/tubeless)
+```
+
+`/path/to/bigdisk`는 자리표시자(placeholder)입니다 — 외장 드라이브·다른 파티션·네트워크
+공유 등 원하는 절대경로로 바꿔 쓰면 됩니다. 명시적 경로로 주며(그대로 사용, `~` 확장 —
+앱 이름은 안 붙임). `XDG_*_HOME` 환경변수는
+**모든 XDG 앱**의 디렉터리를 옮기지만, `config.toml` 키와 `--corpus`/`--out`/`--state`
+플래그는 tubeless만 옮깁니다. `config_dir` 자체는 `config.toml`로 못 정합니다(그 파일이
+사는 곳이므로) — 정 필요하면 `XDG_CONFIG_HOME`으로 옮기세요. 위치를 바꾼 뒤엔 기존 파일을
+한 번 옮겨주세요 (예: `mv ~/.local/share/tubeless/* /path/to/bigdisk/tubeless/`).
 
 ### 영상 한 개 요약
 
