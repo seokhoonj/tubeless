@@ -28,6 +28,7 @@ from tubeless.summary import (
     DetailLevel,
     Summary,
     summarize_transcript,
+    summary_from_dict,
 )
 from tubeless.synthesis import Synthesis, synthesize_summaries
 from tubeless.transcript import fetch_transcript
@@ -281,7 +282,7 @@ def digest_from_dict(record: object) -> Digest | None:
     for item in entries_raw:
         if not isinstance(item, dict):
             return None
-        summary    = _summary_from_dict(item.get("summary"))
+        summary    = summary_from_dict(item.get("summary"))
         importance = _importance_from_dict(item.get("importance"))
         if summary is None or importance is None:
             return None
@@ -330,25 +331,6 @@ def _is_seq(value: object) -> bool:
 
 def _all_str(value: object) -> bool:
     return _is_seq(value) and all(isinstance(item, str) for item in value)
-
-
-def _summary_from_dict(body: object) -> Summary | None:
-    if not isinstance(body, dict):
-        return None
-    video    = body.get("video")
-    tldr     = body.get("tldr")
-    points   = body.get("points")
-    language = body.get("language")
-    detail   = body.get("detail")
-    if not isinstance(video, dict) or not _all_str(points):
-        return None
-    if not isinstance(tldr, str) or not isinstance(language, str) or detail not in DETAIL_LEVELS:
-        return None
-    try:
-        return Summary(video=Video(**video), tldr=tldr, points=tuple(points),
-                       language=language, detail=detail)
-    except (KeyError, TypeError):
-        return None
 
 
 def _importance_from_dict(body: object) -> Importance | None:

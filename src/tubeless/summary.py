@@ -8,7 +8,7 @@ touches the network itself.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Literal, get_args
 
 from tubeless.llm import LLMBackend
@@ -23,6 +23,8 @@ __all__ = [
     "Summary",
     "language_name",
     "summarize_transcript",
+    "summary_from_dict",
+    "summary_to_dict",
 ]
 
 # YouTube's ISO codes are what --lang carries; a model follows a full language
@@ -182,6 +184,48 @@ class Summary:
     points:   tuple[str, ...]
     language: str
     detail:   DetailLevel
+
+
+def summary_to_dict(summary: Summary) -> dict[str, object]:
+    """Serialise a ``Summary`` to a JSON-ready dict -- its stored form. The one home
+    for the Summary<->dict projection, so the store envelope and a digest's embedded
+    copy never drift (a field added here reaches both writers)."""
+    return {
+        "video":    asdict(summary.video),
+        "tldr":     summary.tldr,
+        "points":   list(summary.points),
+        "language": summary.language,
+        "detail":   summary.detail,
+    }
+
+
+def summary_from_dict(body: object) -> Summary | None:
+    """Rebuild a ``Summary`` from a stored dict, or ``None`` if it is not a
+    well-formed summary (a corrupt or schema-drifted record reads as absent, never
+    minting a Summary whose ``detail``/``points`` violate their own types).
+
+    ``points`` is accepted as a list or a tuple: JSON stores a list, but an
+    in-memory ``dataclasses.asdict`` (a digest embeds summaries this way) keeps it a
+    tuple. Both readers -- the store envelope and ``digest.digest_from_dict`` -- go
+    through here, so the accepted shape is defined once."""
+    if not isinstance(body, dict):
+        return None
+    video    = body.get("video")
+    tldr     = body.get("tldr")
+    points   = body.get("points")
+    language = body.get("language")
+    detail   = body.get("detail")
+    if not isinstance(video, dict) or not isinstance(points, (list, tuple)):
+        return None
+    if not all(isinstance(point, str) for point in points):
+        return None
+    if not isinstance(tldr, str) or not isinstance(language, str) or detail not in DETAIL_LEVELS:
+        return None
+    try:
+        return Summary(video=Video(**video), tldr=tldr, points=tuple(points),
+                       language=language, detail=detail)
+    except (KeyError, TypeError):
+        return None
 
 
 def summarize_transcript(

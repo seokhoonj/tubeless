@@ -30,13 +30,15 @@ from typing import TYPE_CHECKING, Protocol
 from tubeless.config import data_dir
 from tubeless.errors import CorpusError
 from tubeless.source import Video
-from tubeless.summary import DETAIL_LEVELS, Summary
+from tubeless.summary import Summary, summary_from_dict, summary_to_dict
 from tubeless.transcript import Transcript, TranscriptSegment
 
 if TYPE_CHECKING:
-    # Only a type hint on the digest functions; digest.py is imported lazily inside
-    # them (it imports this module for a hint of its own, so a top-level import
-    # would loop). The ``from __future__`` annotations make the hint a string.
+    # Only a type hint on the digest functions, which import digest.py lazily (inside
+    # the functions) to keep this persistence module's top level free of the compute
+    # layer digest.py pulls in (llm/importance/synthesis). digest.py imports this
+    # module only under TYPE_CHECKING, so there is no runtime cycle either way; the
+    # ``from __future__`` annotations make this hint a string.
     from tubeless.digest import Digest
 
 __all__ = [
@@ -111,7 +113,7 @@ class FileStore:
         envelope = {
             "schema_version": _SCHEMA_VERSION,
             "saved_at":       _now(),
-            "summary":        _summary_to_dict(summary),
+            "summary":        summary_to_dict(summary),
         }
         _write_json(self._summaries_dir / key, envelope)
 
@@ -237,51 +239,18 @@ def _now() -> str:
     return datetime.now(UTC).strftime(_TIMESTAMP_FORMAT)
 
 
-def _summary_to_dict(summary: Summary) -> dict[str, object]:
-    return {
-        "video":    asdict(summary.video),
-        "tldr":     summary.tldr,
-        "points":   list(summary.points),
-        "language": summary.language,
-        "detail":   summary.detail,
-    }
-
-
 def _summary_from_envelope(record: object) -> tuple[Summary, str] | None:
-    """Rebuild ``(summary, saved_at)`` from a stored envelope, or ``None`` if it
-    is not a well-formed summary envelope (a corrupt file reads as absent)."""
+    """Rebuild ``(summary, saved_at)`` from a stored envelope, or ``None`` if it is
+    not a well-formed summary envelope (a corrupt file reads as absent). The summary
+    body is rebuilt by ``summary.summary_from_dict`` -- the one home for that
+    projection -- so this only owns the envelope's ``saved_at``."""
     if not isinstance(record, dict):
         return None
-    body     = record.get("summary")
     saved_at = record.get("saved_at")
-    if not isinstance(body, dict) or not isinstance(saved_at, str):
+    if not isinstance(saved_at, str):
         return None
-    video    = body.get("video")
-    points   = body.get("points")
-    tldr     = body.get("tldr")
-    language = body.get("language")
-    detail   = body.get("detail")
-    # Validate the leaf values, not just the containers: a hand-edited or
-    # schema-drifted file must read as absent, never mint a Summary whose
-    # ``detail``/``points`` violate their own types (which would then flow into
-    # the re-save key and the renderer).
-    if not isinstance(video, dict) or not isinstance(points, list):
-        return None
-    if not isinstance(tldr, str) or not isinstance(language, str):
-        return None
-    if detail not in DETAIL_LEVELS:
-        return None
-    if not all(isinstance(point, str) for point in points):
-        return None
-    try:
-        summary = Summary(
-            video    = Video(**video),
-            tldr     = tldr,
-            points   = tuple(points),
-            language = language,
-            detail   = detail,
-        )
-    except (KeyError, TypeError):
+    summary = summary_from_dict(record.get("summary"))
+    if summary is None:
         return None
     return summary, saved_at
 
