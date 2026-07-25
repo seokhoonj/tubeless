@@ -372,6 +372,7 @@ tubeless videos @examplechannel
 
 ```sh
 tubeless digest              # ~/.local/share/tubeless/digests/YYYY-MM-DD.md 로 저장
+                             # (같은 자리에 YYYY-MM-DD.json 도 함께 — 그날의 판단 기록)
 tubeless digest --dry-run    # 저장 없이 화면에만 출력
 ```
 

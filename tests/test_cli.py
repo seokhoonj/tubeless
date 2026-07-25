@@ -687,4 +687,6 @@ def test_digest_since_until_dedups_stored_variants_before_curating(
 
     captured = capsys.readouterr()
     assert exit_code == 0
-    assert "(1 videos)" in captured.out   # two stored variants deduped to one
+    assert "1 videos)" in captured.out   # two stored variants deduped to one
+    # the digest is persisted as canonical JSON beside the rendered .md
+    assert (tmp_path / "d" / "2026-07-01..2026-07-08.json").exists()

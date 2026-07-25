@@ -394,6 +394,12 @@ tubeless digest              # write ~/.local/share/tubeless/digests/YYYY-MM-DD.
 tubeless digest --dry-run    # print it instead, and don't record state
 ```
 
+Each run also writes a `YYYY-MM-DD.json` beside the Markdown: a point-in-time
+record of the digest — the ranked entries, what was skipped, and the run
+provenance (which channels and which model produced it). The Markdown is a view;
+the JSON is the record, so a later analysis can see exactly what was concluded on a
+given day even after the channels or the model change.
+
 Each run finds every channel's new uploads via YouTube's public RSS feed (no API
 key), summarizes and importance-scores them, and writes one Markdown file per day
 ranked most-important first. A JSON "seen" set remembers what it already handled,

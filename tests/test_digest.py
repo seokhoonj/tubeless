@@ -195,3 +195,71 @@ def test_curate_of_no_summaries_is_an_empty_digest():
 
     assert digest.entries == ()
     assert digest.synthesis is None
+
+
+# --- serialization: a stored digest is a faithful point-in-time record ----------
+
+def _full_digest() -> Digest:
+    from tubeless.channels import Channel
+    from tubeless.digest import Entry, RunProvenance
+    from tubeless.importance import Importance
+    from tubeless.synthesis import Synthesis
+    return Digest(
+        created="2026-07-25",
+        entries=(Entry(summary=_summary("dQw4w9WgXcQ", published="2026-07-25T00:00:00Z"),
+                       importance=Importance(score=0.9, reason="big")),),
+        skipped=(Skip("no-transcript", "vid00000000", "no caption"),),
+        synthesis=Synthesis(tone="calm", overview="the day",
+                            agreements=("a",), disagreements=("d",)),
+        provenance=RunProvenance(
+            backend="gemini", model="gemini-2.5-flash", language="en",
+            channels=(Channel(source="PL1", detail="deep",
+                              includes=("Host",), excludes=("LIVE",)),),
+            per_channel=5, source_match="PL1",
+        ),
+    )
+
+
+def test_digest_dict_round_trip_preserves_everything():
+    from tubeless.digest import digest_from_dict, digest_to_dict
+    digest = _full_digest()
+    assert digest_from_dict(digest_to_dict(digest)) == digest
+
+
+def test_digest_dict_round_trip_survives_json():
+    # json turns the dataclass tuples into lists; from_dict must accept either, so
+    # a digest read back off disk equals the one written.
+    import json
+
+    from tubeless.digest import digest_from_dict, digest_to_dict
+    digest = _full_digest()
+    assert digest_from_dict(json.loads(json.dumps(digest_to_dict(digest)))) == digest
+
+
+def test_provenance_records_the_channel_snapshot_by_value():
+    from tubeless.digest import digest_from_dict, digest_to_dict
+    back = digest_from_dict(digest_to_dict(_full_digest()))
+    channel = back.provenance.channels[0]
+    assert channel.source == "PL1"
+    assert channel.excludes == ("LIVE",)   # the filter in effect that day is preserved
+
+
+def test_digest_from_dict_allows_absent_optional_blocks():
+    from tubeless.digest import digest_from_dict
+    digest = digest_from_dict({"created": "2026-07-25", "entries": []})
+    assert digest is not None
+    assert digest.provenance is None and digest.synthesis is None
+
+
+@pytest.mark.parametrize("record", [
+    "not a dict",
+    {"created": 123, "entries": []},                       # created not a string
+    {"created": "2026-07-25"},                             # entries missing
+    {"created": "x", "entries": [{"summary": {}, "importance": {}}]},   # bad entry
+    {"created": "x", "entries": [],                        # a bad channel voids the record
+     "provenance": {"backend": "b", "model": "m", "language": "en",
+                    "channels": [{"source": 123}]}},
+])
+def test_digest_from_dict_rejects_a_malformed_record(record):
+    from tubeless.digest import digest_from_dict
+    assert digest_from_dict(record) is None

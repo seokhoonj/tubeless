@@ -25,7 +25,7 @@ from pathlib import Path
 
 from tubeless import config
 from tubeless.channels import CHANNELS_PATH, Channel, load_channels
-from tubeless.digest import Skip, curate_summaries, summarize_videos
+from tubeless.digest import RunProvenance, Skip, curate_summaries, summarize_videos
 from tubeless.discover import DEFAULT_SCAN, fetch_recent_videos
 from tubeless.errors import ConfigError, FeedError, ScheduleError, TubelessError
 from tubeless.llm import BACKENDS, LLMBackend, make_backend
@@ -39,7 +39,7 @@ from tubeless.schedule import (
 )
 from tubeless.source import fetch_video
 from tubeless.state import STATE_PATH, read_seen, write_seen
-from tubeless.store import CORPUS_ROOT, FileStore, latest_per_video
+from tubeless.store import CORPUS_ROOT, FileStore, latest_per_video, save_digest
 from tubeless.summary import (
     DEFAULT_DETAIL,
     DEFAULT_LANGUAGE,
@@ -199,17 +199,29 @@ def _digest_fresh(args: argparse.Namespace, backend: LLMBackend) -> int:
         skipped.extend(result.skipped)
         processed |= result.processed
 
+    # Record what produced this digest (the scanned channel set and the model), so
+    # the stored run is a faithful snapshot even after channels.toml or the model
+    # changes -- the ranking/synthesis are not deterministically reproducible.
+    provenance = RunProvenance(
+        backend      = args.backend,
+        model        = backend.model,
+        language     = args.lang,
+        channels     = channels,
+        per_channel  = args.per_channel,
+        source_match = args.source_match,
+    )
     digest   = curate_summaries(summaries, backend, created=_today(),
-                                language=args.lang, skipped=skipped)
+                                language=args.lang, skipped=skipped, provenance=provenance)
     markdown = render_markdown(digest)
     if args.dry_run:
         print(markdown)
         return 0
 
-    out_path = _write_digest(args.out, digest.label, markdown)
+    md_path   = _write_digest(args.out, digest.label, markdown)
+    json_path = save_digest(digest, args.out)
     write_seen(set(seen | processed), args.state)
     skipped_note = f", {len(digest.skipped)} skipped" if digest.skipped else ""
-    print(f"digest written: {out_path} ({len(digest.entries)} videos{skipped_note})")
+    print(f"digest written: {md_path} (+ {json_path.name}, {len(digest.entries)} videos{skipped_note})")
     return 0
 
 
@@ -227,15 +239,27 @@ def _digest_stored(args: argparse.Namespace, backend: LLMBackend) -> int:
     stored    = FileStore(args.corpus).load_summaries(
         since=args.since, until=args.until, channel=args.channel)
     summaries = latest_per_video(stored)
+    # A re-curate has no channel scan (it reads the corpus by date range), so the
+    # provenance records the range/channel narrowing and the model instead.
+    provenance = RunProvenance(
+        backend  = args.backend,
+        model    = backend.model,
+        language = args.lang,
+        since    = args.since,
+        until    = args.until,
+        channel  = args.channel,
+    )
     digest    = curate_summaries(summaries, backend, created=_today(),
-                                 start=args.since, end=args.until, language=args.lang)
+                                 start=args.since, end=args.until, language=args.lang,
+                                 provenance=provenance)
     markdown  = render_markdown(digest)
     if args.dry_run:
         print(markdown)
         return 0
 
-    out_path = _write_digest(args.out, digest.label, markdown)
-    print(f"digest written: {out_path} ({len(digest.entries)} videos)")
+    md_path   = _write_digest(args.out, digest.label, markdown)
+    json_path = save_digest(digest, args.out)
+    print(f"digest written: {md_path} (+ {json_path.name}, {len(digest.entries)} videos)")
     return 0
 
 

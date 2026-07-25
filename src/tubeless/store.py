@@ -10,6 +10,11 @@ directory tree under ``CORPUS_ROOT``. A database-backed store can slot in later
 behind the same four operations. Every operation is bound to a concrete store,
 so there is no "no store" call -- an orchestrator that wants to skip persistence
 passes ``None`` in place of a ``Store`` and never reaches these methods.
+
+``save_digest`` / ``load_digests`` persist assembled digests as a point-in-time
+record (entries plus the run provenance), addressed by the run's output directory
+rather than the content-addressed corpus -- so they are functions over a directory,
+not ``Store`` methods (a database backend will grow its own digest table).
 """
 
 from __future__ import annotations
@@ -20,7 +25,7 @@ from collections.abc import Sequence
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from tubeless.config import data_dir
 from tubeless.errors import CorpusError
@@ -28,7 +33,20 @@ from tubeless.source import Video
 from tubeless.summary import DETAIL_LEVELS, Summary
 from tubeless.transcript import Transcript, TranscriptSegment
 
-__all__ = ["CORPUS_ROOT", "FileStore", "Store", "latest_per_video"]
+if TYPE_CHECKING:
+    # Only a type hint on the digest functions; digest.py is imported lazily inside
+    # them (it imports this module for a hint of its own, so a top-level import
+    # would loop). The ``from __future__`` annotations make the hint a string.
+    from tubeless.digest import Digest
+
+__all__ = [
+    "CORPUS_ROOT",
+    "FileStore",
+    "Store",
+    "latest_per_video",
+    "load_digests",
+    "save_digest",
+]
 
 CORPUS_ROOT = data_dir() / "corpus"
 
@@ -158,6 +176,61 @@ def latest_per_video(summaries: Sequence[Summary]) -> list[Summary]:
     for summary in summaries:
         latest[summary.video.video_id] = summary
     return list(latest.values())
+
+
+_DIGEST_ENVELOPE_KEY = "digest"
+
+
+def save_digest(digest: Digest, out_dir: Path) -> Path:
+    """Persist one digest as canonical JSON at ``out_dir/<label>.json`` and return
+    the path.
+
+    A digest is a point-in-time record -- its entries, what was skipped, and the
+    run provenance (which channels and model produced it) -- kept because the LLM
+    ranking and synthesis are not deterministically reproducible from the corpus.
+    It is addressed by the run's output directory (alongside the rendered ``.md``),
+    not by the content-addressed corpus, so this is a function over ``out_dir``
+    rather than a ``Store`` method. Re-running the same span overwrites in place
+    (the filename is the digest's ``label``), atomically. Raises ``CorpusError`` on
+    an I/O failure.
+    """
+    from tubeless.digest import (
+        digest_to_dict,  # lazy: keep this module's top level free of the compute layer
+    )
+    envelope = {
+        "schema_version":     _SCHEMA_VERSION,
+        "saved_at":           _now(),
+        _DIGEST_ENVELOPE_KEY: digest_to_dict(digest),
+    }
+    path = out_dir / f"{digest.label}.json"
+    _write_json(path, envelope)
+    return path
+
+
+def load_digests(
+    out_dir: Path, *, since: str | None = None, until: str | None = None
+) -> tuple[Digest, ...]:
+    """Return the digests stored in ``out_dir``, oldest first, optionally narrowed
+    to a half-open range ``[since, until)`` compared against each digest's
+    ``created`` date as an ISO string (so a bare ``YYYY-MM-DD`` bound works by
+    prefix). A corrupt or non-digest ``.json`` file is skipped (read as absent), as
+    the corpus loaders do -- so an unrelated JSON in the directory is ignored."""
+    from tubeless.digest import digest_from_dict  # lazy, as in save_digest
+    digests: list[Digest] = []
+    for path in sorted(out_dir.glob("*.json")):
+        record = _read_json(path)
+        if not isinstance(record, dict):
+            continue
+        digest = digest_from_dict(record.get(_DIGEST_ENVELOPE_KEY))
+        if digest is None:
+            continue
+        if since is not None and digest.created < since:
+            continue
+        if until is not None and digest.created >= until:
+            continue
+        digests.append(digest)
+    digests.sort(key=lambda digest: digest.created)
+    return tuple(digests)
 
 
 def _now() -> str:

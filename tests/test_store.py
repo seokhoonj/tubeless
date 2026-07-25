@@ -239,3 +239,61 @@ def test_latest_per_video_keeps_the_last_summary_per_video():
 
 def test_latest_per_video_of_nothing_is_empty():
     assert latest_per_video([]) == []
+
+
+# --- digest persistence: point-in-time records addressed by the output dir -------
+
+def _digest(created: str, *, entries=()):
+    from tubeless.digest import Digest, RunProvenance
+    return Digest(created=created, entries=entries,
+                  provenance=RunProvenance(backend="gemini", model="m", language="en"))
+
+
+def test_save_digest_writes_json_named_by_label(tmp_path):
+    from tubeless.store import save_digest
+    path = save_digest(_digest("2026-07-25"), tmp_path)
+    assert path == tmp_path / "2026-07-25.json"
+    assert path.exists()
+
+
+def test_load_digests_returns_saved_oldest_first(tmp_path):
+    from tubeless.store import load_digests, save_digest
+    save_digest(_digest("2026-07-25"), tmp_path)
+    save_digest(_digest("2026-07-24"), tmp_path)
+    assert [d.created for d in load_digests(tmp_path)] == ["2026-07-24", "2026-07-25"]
+
+
+def test_load_digests_range_is_half_open(tmp_path):
+    from tubeless.store import load_digests, save_digest
+    for created in ("2026-07-24", "2026-07-25", "2026-07-26"):
+        save_digest(_digest(created), tmp_path)
+    got = [d.created for d in load_digests(tmp_path, since="2026-07-25", until="2026-07-26")]
+    assert got == ["2026-07-25"]   # since inclusive, until exclusive
+
+
+def test_save_digest_overwrites_the_same_label_in_place(tmp_path):
+    from tubeless.store import load_digests, save_digest
+    save_digest(_digest("2026-07-25"), tmp_path)
+    save_digest(_digest("2026-07-25"), tmp_path)   # same created -> same filename
+    assert len(load_digests(tmp_path)) == 1
+
+
+def test_load_digests_skips_corrupt_or_foreign_json(tmp_path):
+    from tubeless.store import load_digests, save_digest
+    save_digest(_digest("2026-07-25"), tmp_path)
+    (tmp_path / "broken.json").write_text("{not json", encoding="utf-8")
+    (tmp_path / "foreign.json").write_text('{"hello": 1}', encoding="utf-8")
+    assert [d.created for d in load_digests(tmp_path)] == ["2026-07-25"]
+
+
+def test_save_digest_round_trips_the_provenance(tmp_path):
+    from tubeless.channels import Channel
+    from tubeless.digest import Digest, RunProvenance
+    from tubeless.store import load_digests, save_digest
+    prov = RunProvenance(
+        backend="gemini", model="gemini-2.5-flash", language="en",
+        channels=(Channel(source="PL1", detail="deep", includes=(), excludes=("LIVE",)),),
+        per_channel=5, source_match="PL1",
+    )
+    save_digest(Digest(created="2026-07-25", entries=(), provenance=prov), tmp_path)
+    assert load_digests(tmp_path)[0].provenance == prov

@@ -4,6 +4,21 @@ All notable changes to tubeless are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); the project is pre-1.0, so a
 minor bump (`0.x`) may change behavior.
 
+## 0.4.0
+
+### Added
+
+- Each digest run is now persisted as a canonical JSON record beside the rendered
+  Markdown: `<data>/digests/.../<label>.json`. It is a faithful point-in-time
+  snapshot -- the ranked entries (with a value copy of each summary), what was
+  skipped, and the run **provenance**: the channel set that was scanned (source,
+  detail, and title filters, copied by value), the backend and model that produced
+  the ranking and synthesis, and how the run was narrowed (`--source-match`, or the
+  `--since`/`--until`/`--channel` of a re-curate). Because the LLM ranking and
+  synthesis are not deterministically reproducible from the corpus, this records
+  which configuration reached which conclusion on a given day. `store.save_digest`
+  / `load_digests` read and write these; the Markdown remains a derived view.
+
 ## 0.3.0
 
 ### Changed (breaking)
