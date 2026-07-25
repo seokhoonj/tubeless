@@ -251,11 +251,28 @@ def test_digest_from_dict_allows_absent_optional_blocks():
     assert digest.provenance is None and digest.synthesis is None
 
 
+def _summary_dict() -> dict:
+    # a well-formed embedded summary, so a bad-importance case isolates the ONE bad field.
+    from tubeless.digest import digest_to_dict
+    return digest_to_dict(_full_digest())["entries"][0]["summary"]
+
+
 @pytest.mark.parametrize("record", [
     "not a dict",
     {"created": 123, "entries": []},                       # created not a string
     {"created": "2026-07-25"},                             # entries missing
     {"created": "x", "entries": [{"summary": {}, "importance": {}}]},   # bad entry
+    # one bad nested field per case, everything else valid, must still -> None:
+    {"created": "x",                                        # bool score rejected (not a number)
+     "entries": [{"summary": _summary_dict(), "importance": {"score": True, "reason": "r"}}]},
+    {"created": "x", "entries": [],                         # partial synthesis (overview missing)
+     "synthesis": {"tone": "t", "agreements": [], "disagreements": []}},
+    {"created": "x", "entries": [],                         # unknown skip category
+     "skipped": [{"category": "nope", "subject": "v", "message": "m"}]},
+    {"created": "x", "entries": [],                         # per_channel as a bool
+     "provenance": {"backend": "b", "model": "m", "language": "en", "per_channel": True}},
+    {"created": "x", "entries": [],                         # non-string narrowing field
+     "provenance": {"backend": "b", "model": "m", "language": "en", "since": 123}},
     {"created": "x", "entries": [],                        # a bad channel voids the record
      "provenance": {"backend": "b", "model": "m", "language": "en",
                     "channels": [{"source": 123}]}},

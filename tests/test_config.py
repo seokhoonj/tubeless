@@ -29,22 +29,35 @@ def test_config_dir_respects_xdg_config_home(tmp_path, monkeypatch):
     assert config.config_path() == tmp_path / "tubeless" / "config.toml"
 
 
+def _blind_overrides(monkeypatch):
+    # data_dir()/state_dir() consult _dir_override -> the TUBELESS_*_DIR env vars and
+    # config.toml; blind both so the dev machine's real config/env (which supports a
+    # data_dir/state_dir key) can never flip a default-path assertion below.
+    monkeypatch.setattr(config, "load_settings", dict)
+    for var in ("TUBELESS_DATA_DIR", "TUBELESS_STATE_DIR"):
+        monkeypatch.delenv(var, raising=False)
+
+
 def test_data_dir_defaults_to_xdg_data_home(monkeypatch):
+    _blind_overrides(monkeypatch)
     monkeypatch.delenv("XDG_DATA_HOME", raising=False)
     assert config.data_dir() == Path.home() / ".local" / "share" / "tubeless"
 
 
 def test_data_dir_respects_xdg_data_home(tmp_path, monkeypatch):
+    _blind_overrides(monkeypatch)
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
     assert config.data_dir() == tmp_path / "tubeless"
 
 
 def test_state_dir_defaults_to_xdg_state_home(monkeypatch):
+    _blind_overrides(monkeypatch)
     monkeypatch.delenv("XDG_STATE_HOME", raising=False)
     assert config.state_dir() == Path.home() / ".local" / "state" / "tubeless"
 
 
 def test_state_dir_respects_xdg_state_home(tmp_path, monkeypatch):
+    _blind_overrides(monkeypatch)
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
     assert config.state_dir() == tmp_path / "tubeless"
 
@@ -108,6 +121,7 @@ def test_config_dir_has_no_config_key_override(monkeypatch):
 def test_the_three_bases_are_distinct(monkeypatch):
     # config vs data vs state must not collapse to one directory: the whole point
     # of 0.3.0 is that a settings reset never touches the corpus.
+    _blind_overrides(monkeypatch)
     for var in ("XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME"):
         monkeypatch.delenv(var, raising=False)
     bases = {config.config_dir(), config.data_dir(), config.state_dir()}
@@ -116,6 +130,7 @@ def test_the_three_bases_are_distinct(monkeypatch):
 
 def _xdg_layout(tmp_path, monkeypatch) -> tuple[Path, Path, Path]:
     """Point the three bases at separate temp roots and return their tubeless dirs."""
+    _blind_overrides(monkeypatch)   # a data_dir/state_dir key in the real config must not shift the targets
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
@@ -188,6 +203,7 @@ def test_migrate_relocates_config_files_when_config_dir_itself_moved(tmp_path, m
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     native_config = tmp_path / "native" / "tubeless"
     monkeypatch.setattr(config, "config_dir", lambda: native_config)
+    _blind_overrides(monkeypatch)   # the legacy config's own keys must not steer its migration
 
     legacy = tmp_path / "dotconfig" / "tubeless"
     legacy.mkdir(parents=True)
@@ -206,6 +222,30 @@ def test_migrate_relocates_config_files_when_config_dir_itself_moved(tmp_path, m
     assert not (legacy / "config.toml").exists()
     # and data still goes to the data dir
     assert (tmp_path / "data" / "tubeless" / "corpus" / "s.json").exists()
+
+
+def test_migrate_wraps_a_move_failure_as_config_error(tmp_path, monkeypatch):
+    # A failed relocation must raise, not be swallowed: silently reading a
+    # moved-but-missing state ledger as empty would re-process the whole backlog.
+    import shutil
+    cfg, _data, _state = _xdg_layout(tmp_path, monkeypatch)
+    cfg.mkdir(parents=True)
+    (cfg / "state.json").write_text('{"seen": ["a"]}', encoding="utf-8")
+
+    def boom(*_a, **_k):
+        raise OSError("cross-device move failed")
+    monkeypatch.setattr(shutil, "move", boom)
+
+    with pytest.raises(ConfigError):
+        config.migrate_legacy_layout()
+
+
+def test_dir_override_non_string_value_reads_as_absent(monkeypatch):
+    # data_dir = 12345 must not become Path("12345") (a working-directory-relative
+    # dir); a non-string value reads as unset and the platform default stands.
+    monkeypatch.delenv("TUBELESS_DATA_DIR", raising=False)
+    monkeypatch.setattr(config, "load_settings", lambda: {"data_dir": 12345})
+    assert config.data_dir().name == "tubeless"   # the platform default, not "12345"
 
 
 def test_load_settings_parses_toml(tmp_path):

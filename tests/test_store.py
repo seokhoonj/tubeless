@@ -297,3 +297,30 @@ def test_save_digest_round_trips_the_provenance(tmp_path):
     )
     save_digest(Digest(created="2026-07-25", entries=(), provenance=prov), tmp_path)
     assert load_digests(tmp_path)[0].provenance == prov
+
+
+def test_load_digests_filters_on_created_not_the_covered_span(tmp_path):
+    # A re-curate is filed under its label (start..end) but its `created` is the run
+    # date; load_digests filters on `created` (when it was produced), not the span it
+    # covers. Pin that contract so a regression that filtered on the filename is caught.
+    from tubeless.digest import Digest, RunProvenance
+    from tubeless.store import load_digests, save_digest
+    recurate = Digest(
+        created="2026-07-25", entries=(), start="2026-07-01", end="2026-07-08",
+        provenance=RunProvenance(backend="gemini", model="m", language="en",
+                                 since="2026-07-01", until="2026-07-08"),
+    )
+    path = save_digest(recurate, tmp_path)
+    assert path.name == "2026-07-01..2026-07-08.json"          # addressed by the covered span
+    # found by a window over the RUN date...
+    assert [d.created for d in load_digests(tmp_path, since="2026-07-25", until="2026-07-26")] == ["2026-07-25"]
+    # ...not by a window over the span it covers
+    assert load_digests(tmp_path, since="2026-07-01", until="2026-07-02") == ()
+
+
+def test_load_digests_since_equal_until_is_empty(tmp_path):
+    # The degenerate boundary of the half-open [since, until): a record exactly on the
+    # shared bound is excluded (moment < until is false, moment >= until is true).
+    from tubeless.store import load_digests, save_digest
+    save_digest(_digest("2026-07-25"), tmp_path)
+    assert load_digests(tmp_path, since="2026-07-25", until="2026-07-25") == ()
