@@ -12,14 +12,16 @@ Example ``channels.toml``::
     detail = "deep"
 
     [[channel]]
-    # a playlist narrows a channel to one series; includes narrows it further to
-    # uploads whose title contains every listed word (e.g. one host). excludes
-    # drops uploads carrying any listed word -- e.g. a channel that posts a "LIVE"
-    # broadcast and an edited replay of the same episode.
-    source   = "PLxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-    detail   = "deep"
-    includes = ["Some Host"]
-    excludes = ["LIVE"]
+    # a playlist narrows a channel to one series; title_includes narrows it
+    # further to uploads whose title contains every listed word (e.g. one host).
+    # title_excludes drops uploads carrying any listed word -- e.g. a channel that
+    # posts a "LIVE" broadcast and an edited replay of the same episode.
+    source         = "PLxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    detail         = "deep"
+    title_includes = ["Some Host"]
+    title_excludes = ["LIVE"]
+
+The legacy keys ``includes`` / ``excludes`` are still accepted as aliases.
 """
 
 from __future__ import annotations
@@ -48,12 +50,15 @@ def channels_path() -> Path:
 
 @dataclass(frozen=True, slots=True)
 class Channel:
-    """One followed channel and how to summarize it. ``source`` is whatever the
-    user wrote (handle / URL / id / playlist); ``discover`` resolves it at digest
-    time. ``includes`` keeps only uploads whose title contains every listed word
-    (case-insensitive) -- empty means keep all. ``excludes`` then drops any upload
-    whose title contains any listed word (e.g. ``"LIVE"`` to skip a live broadcast
-    kept alongside its edited replay) -- empty means drop none."""
+    """One followed channel and how to summarize it. ``source`` (config key
+    ``source``, or legacy ``handle`` / ``channel_id``) is whatever the user wrote
+    (handle / URL / id / playlist); ``discover`` resolves it at digest time.
+    ``includes`` (config key ``title_includes``, or legacy ``includes``) keeps
+    only uploads whose title contains every listed word (case-insensitive) -- empty
+    means keep all. ``excludes`` (config key ``title_excludes``, or legacy
+    ``excludes``) then drops any upload whose title contains any listed word (e.g.
+    ``"LIVE"`` to skip a live broadcast kept alongside its edited replay) -- empty
+    means drop none."""
 
     source:   str
     detail:   DetailLevel = "deep"
@@ -93,17 +98,22 @@ def _channel_from(entry: dict[str, object], path: Path) -> Channel:
         raise ConfigError(
             f"channel {source!r}: detail must be one of {DETAIL_LEVELS}, got {detail!r}"
         )
+    # Read the canonical title_* keys, falling back to the legacy names. The key
+    # that actually supplied the value is passed to _keywords, so a malformed value
+    # is reported against the key the user really wrote, not the canonical spelling.
+    includes_key = "title_includes" if "title_includes" in entry else "includes"
+    excludes_key = "title_excludes" if "title_excludes" in entry else "excludes"
     return Channel(
         source   = source,
         detail   = detail,
-        includes = _keywords(entry.get("includes", ()), "includes", source),
-        excludes = _keywords(entry.get("excludes", ()), "excludes", source),
+        includes = _keywords(entry.get(includes_key, ()), includes_key, source),
+        excludes = _keywords(entry.get(excludes_key, ()), excludes_key, source),
     )
 
 
 def _keywords(raw: object, field: str, source: object) -> tuple[str, ...]:
-    """Normalise a title-filter field to a tuple: a bare string is a one-word
-    filter, a list/tuple is taken as-is; anything else is a config error."""
+    """Normalise a title-filter field to a tuple: a bare string is a single
+    filter phrase, a list/tuple is taken as-is; anything else is a config error."""
     if isinstance(raw, str):
         raw = [raw]
     elif not isinstance(raw, (list, tuple)):
