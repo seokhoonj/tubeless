@@ -60,7 +60,10 @@ def legacy_config_note() -> str:
     the missing-key error appends this to point them at the move rather than leave
     them to guess why the upgrade dropped their config.
     """
-    legacy = Path.home() / ".tubeless" / "config.env"
+    try:
+        legacy = Path.home() / ".tubeless" / "config.env"
+    except RuntimeError:
+        return ""   # no home directory -> can't check the legacy path; a hint builder must not raise
     if not legacy.exists():
         return ""
     return (

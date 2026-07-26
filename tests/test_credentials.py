@@ -134,3 +134,13 @@ def test_legacy_config_note_points_at_the_move_when_the_old_file_exists(tmp_path
     (legacy_dir / "config.env").write_text("OPENAI_API_KEY=x\n", encoding="utf-8")
     note = credentials.legacy_config_note()
     assert ".tubeless" in note and "credentials.json" in note
+
+
+def test_legacy_config_note_survives_no_home_directory(monkeypatch):
+    # The note builds an error hint; if the home directory can't be resolved it must
+    # return no hint, not raise (a RuntimeError here would replace the real "no key"
+    # error the note is being appended to).
+    def no_home():
+        raise RuntimeError("Could not determine home directory.")
+    monkeypatch.setattr(Path, "home", staticmethod(no_home))
+    assert credentials.legacy_config_note() == ""

@@ -106,6 +106,19 @@ def test_an_unresolvable_tilde_override_reads_as_absent(monkeypatch):
     assert config.data_dir() == Path.home() / ".local" / "share" / "tubeless"
 
 
+def test_no_home_directory_raises_a_clear_config_error(monkeypatch):
+    # No absolute XDG base and no determinable home (HOME unset, uid has no passwd
+    # entry -- an arbitrary-uid container): Path.home() raises RuntimeError, which the
+    # resolver must convert to a ConfigError naming the fix, not leak as a traceback
+    # at import time.
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    def no_home():
+        raise RuntimeError("Could not determine home directory.")
+    monkeypatch.setattr(Path, "home", staticmethod(no_home))
+    with pytest.raises(ConfigError, match="no home directory"):
+        config.config_dir()
+
+
 def test_state_dir_defaults_to_xdg_state_home(monkeypatch):
     _blind_overrides(monkeypatch)
     monkeypatch.delenv("XDG_STATE_HOME", raising=False)

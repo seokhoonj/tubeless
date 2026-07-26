@@ -195,12 +195,25 @@ def _xdg_app_dir(env_name: str, home_subpath: str) -> Path:
     (a relative value would put the dir under the current working directory, splitting a
     cron run at cwd ``/`` from an interactive run at cwd ``~``), and a ``~user`` whose
     home cannot be resolved must not crash a resolver an advisory env var drives.
-    Applied on every OS -- no platform-dirs library."""
+    Applied on every OS -- no platform-dirs library.
+
+    Raises:
+        ConfigError: no absolute env value was given and no home directory can be
+            determined for the ``~/<home_subpath>`` fallback (HOME unset and the uid
+            has no passwd entry) -- converted from the bare ``RuntimeError``
+            ``Path.home`` throws, so it stays inside the CLI's error surface."""
     base = os.environ.get(env_name, "").strip()
     root = _as_absolute(base) if base else None
     if root is not None:
         return root / _APP
-    return Path.home() / home_subpath / _APP
+    try:
+        home = Path.home()
+    except RuntimeError as err:
+        raise ConfigError(
+            f"cannot locate ~/{home_subpath}/{_APP}: no home directory "
+            f"(set HOME or an absolute {env_name})"
+        ) from err
+    return home / home_subpath / _APP
 
 
 def _dir_override(env_name: str) -> Path | None:

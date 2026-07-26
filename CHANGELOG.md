@@ -4,6 +4,18 @@ All notable changes to tubeless are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); the project is pre-1.0, so a
 minor bump (`0.x`) may change behavior.
 
+## 0.5.2
+
+### Fixed
+
+- When no home directory can be determined at all (HOME unset and the process's uid
+  has no passwd entry -- an arbitrary-uid container), the base-dir resolver now raises
+  a clear `ConfigError` naming the fix ("set HOME or an absolute `XDG_*_HOME`") instead
+  of leaking the bare `RuntimeError` that `Path.home()` throws. The legacy-config
+  migration hint likewise returns no hint rather than crashing in that environment.
+  (0.5.1 handled an unresolvable `~user` in a supplied value; this covers the remaining
+  no-home-at-all path, completing the resolver's hardening.)
+
 ## 0.5.1
 
 ### Fixed
