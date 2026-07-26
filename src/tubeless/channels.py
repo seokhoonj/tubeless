@@ -32,9 +32,18 @@ from tubeless.config import config_dir
 from tubeless.errors import ConfigError
 from tubeless.summary import DETAIL_LEVELS, DetailLevel
 
-__all__ = ["CHANNELS_PATH", "Channel", "load_channels"]
+__all__ = ["Channel", "channels_path", "load_channels"]
 
-CHANNELS_PATH = config_dir() / "channels.toml"
+
+def channels_path() -> Path:
+    """The followed-channels file, ``channels.toml`` in ``config_dir()``. A function,
+    not an import-time constant, so the base dir resolves when a command needs it (under
+    the CLI's error surface), not as a side effect of import.
+
+    Raises:
+        ConfigError: no config directory can be resolved (propagated from ``config_dir``).
+    """
+    return config_dir() / "channels.toml"
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,12 +62,12 @@ class Channel:
 
 
 def load_channels(path: Path | None = None) -> tuple[Channel, ...]:
-    """Read the followed-channels list from ``path`` (default CHANNELS_PATH).
+    """Read the followed-channels list from ``path`` (default ``channels_path()``).
 
     Raises:
         ConfigError: the file is missing, unreadable, or has no valid entries.
     """
-    path = path or CHANNELS_PATH
+    path = path or channels_path()
     if not path.exists():
         raise ConfigError(
             f"no channels file at {path}; create it with [[channel]] entries "

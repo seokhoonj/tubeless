@@ -14,9 +14,18 @@ from pathlib import Path
 from tubeless.config import state_dir
 from tubeless.errors import ConfigError
 
-__all__ = ["STATE_PATH", "read_seen", "write_seen"]
+__all__ = ["read_seen", "state_path", "write_seen"]
 
-STATE_PATH = state_dir() / "state.json"
+
+def state_path() -> Path:
+    """The processed-id ledger, ``state.json`` in ``state_dir()``. A function, not an
+    import-time constant, so the base dir resolves when a command needs it (under the
+    CLI's error surface), not as a side effect of import.
+
+    Raises:
+        ConfigError: no state directory can be resolved (propagated from ``state_dir``).
+    """
+    return state_dir() / "state.json"
 
 
 def read_seen(path: Path | None = None) -> set[str]:
@@ -31,7 +40,7 @@ def read_seen(path: Path | None = None) -> set[str]:
     Raises:
         ConfigError: the state file exists but could not be read (I/O error).
     """
-    path = path or STATE_PATH
+    path = path or state_path()
     if not path.exists():
         return set()
     try:
@@ -58,7 +67,7 @@ def write_seen(video_ids: set[str], path: Path | None = None) -> None:
         ConfigError: the state file could not be written (I/O error) -- surfaced
             as a one-line CLI error, not a traceback.
     """
-    path = path or STATE_PATH
+    path = path or state_path()
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(

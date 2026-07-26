@@ -6,7 +6,7 @@ summaries over a date range and re-synthesize, or re-read a transcript, without
 refetching anything.
 
 ``Store`` is the pluggable backend interface; ``FileStore`` is the default, a
-directory tree under ``CORPUS_ROOT``. A database-backed store can slot in later
+directory tree under the corpus root (``corpus_root()``). A database-backed store can slot in later
 behind the same four operations. Every operation is bound to a concrete store,
 so there is no "no store" call -- an orchestrator that wants to skip persistence
 passes ``None`` in place of a ``Store`` and never reaches these methods.
@@ -42,15 +42,24 @@ if TYPE_CHECKING:
     from tubeless.digest import Digest
 
 __all__ = [
-    "CORPUS_ROOT",
     "FileStore",
     "Store",
+    "corpus_root",
     "latest_per_video",
     "load_digests",
     "save_digest",
 ]
 
-CORPUS_ROOT = data_dir() / "corpus"
+
+def corpus_root() -> Path:
+    """The corpus directory, ``corpus`` under ``data_dir()``. A function, not an
+    import-time constant, so the base dir resolves when a command needs it (under
+    the CLI's error surface) rather than as a side effect of ``import``.
+
+    Raises:
+        ConfigError: no data directory can be resolved (propagated from ``data_dir``).
+    """
+    return data_dir() / "corpus"
 
 _SCHEMA_VERSION      = 1
 _SUMMARIES_DIRNAME   = "summaries"
@@ -100,7 +109,8 @@ class FileStore:
     half-written file, and re-saving the same key overwrites in place (idempotent).
     """
 
-    def __init__(self, root: Path = CORPUS_ROOT) -> None:
+    def __init__(self, root: Path | None = None) -> None:
+        root                  = root if root is not None else corpus_root()
         self._root            = root
         self._summaries_dir   = root / _SUMMARIES_DIRNAME
         self._transcripts_dir = root / _TRANSCRIPTS_DIRNAME

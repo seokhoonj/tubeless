@@ -102,3 +102,20 @@ def test_load_channels_missing_source_raises(tmp_path):
 def test_load_channels_bad_detail_raises(tmp_path):
     with pytest.raises(ConfigError):
         load_channels(_write(tmp_path, '[[channel]]\nsource = "@x"\ndetail = "huge"\n'))
+
+
+def test_load_channels_default_path_is_channels_path(monkeypatch, tmp_path):
+    # The no-path default replaced the old CHANNELS_PATH constant; verify it routes
+    # through channels_path() (a lazy resolve).
+    import tubeless.channels as channels_module
+    target = tmp_path / "channels.toml"
+    target.write_text('[[channel]]\nsource = "@x"\n', encoding="utf-8")
+    monkeypatch.setattr(channels_module, "channels_path", lambda: target)
+    assert load_channels()[0].source == "@x"   # no path -> default channels_path()
+
+
+def test_channels_path_hangs_off_the_config_dir(monkeypatch, tmp_path):
+    import tubeless.channels as channels_module
+    from tubeless.channels import channels_path
+    monkeypatch.setattr(channels_module, "config_dir", lambda: tmp_path)
+    assert channels_path() == tmp_path / "channels.toml"

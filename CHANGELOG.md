@@ -4,6 +4,28 @@ All notable changes to tubeless are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); the project is pre-1.0, so a
 minor bump (`0.x`) may change behavior.
 
+## 0.6.0
+
+### Changed (breaking)
+
+- The base directories are resolved *lazily*, when a command needs them, instead of
+  at import. The module-level path constants are replaced by functions:
+  `store.CORPUS_ROOT` -> `store.corpus_root()`, `state.STATE_PATH` ->
+  `state.state_path()`, `channels.CHANNELS_PATH` -> `channels.channels_path()`,
+  `schedule.LOG_PATH` -> `schedule.log_path()` (and the CLI-private `_DIGEST_DIR` is
+  gone). Only affects code importing these names directly; the CLI and its flags are
+  unchanged. This is the ecosystem norm (pip, jupyter_core, platformdirs all resolve
+  their user dirs in functions, not import-time constants).
+
+### Fixed
+
+- A no-home-directory environment now fails as a clean one-line CLI error instead of
+  an import-time traceback. Because the base dirs were resolved as import-time
+  constants, a `ConfigError` (e.g. no home directory) raised during `import tubeless`,
+  before `main()`'s handler existed. Resolving them lazily moves the failure inside the
+  handler, so `config_dir()`/`data_dir()`/`state_dir()` now document and deliver their
+  `ConfigError` where the CLI can turn it into a message and a non-zero exit.
+
 ## 0.5.2
 
 ### Fixed

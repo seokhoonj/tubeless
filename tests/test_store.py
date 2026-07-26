@@ -324,3 +324,20 @@ def test_load_digests_since_equal_until_is_empty(tmp_path):
     from tubeless.store import load_digests, save_digest
     save_digest(_digest("2026-07-25"), tmp_path)
     assert load_digests(tmp_path, since="2026-07-25", until="2026-07-25") == ()
+
+
+def test_filestore_default_root_is_corpus_root(monkeypatch, tmp_path):
+    # The no-arg FileStore() default replaced the old CORPUS_ROOT constant; verify it
+    # routes through corpus_root() (a lazy resolve), not a stale value.
+    import tubeless.store as store_module
+    monkeypatch.setattr(store_module, "corpus_root", lambda: tmp_path)
+    assert FileStore()._root == tmp_path
+
+
+def test_corpus_root_hangs_off_the_data_dir(monkeypatch, tmp_path):
+    # corpus lives under data_dir(), not config_dir() -- pin the mapping so a regression
+    # undoing the 0.3.0 config/data split is caught.
+    import tubeless.store as store_module
+    from tubeless.store import corpus_root
+    monkeypatch.setattr(store_module, "data_dir", lambda: tmp_path)
+    assert corpus_root() == tmp_path / "corpus"

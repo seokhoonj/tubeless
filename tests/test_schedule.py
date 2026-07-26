@@ -7,11 +7,11 @@ from tubeless import schedule as schedule_module
 from tubeless.cli import main
 from tubeless.errors import ScheduleError
 from tubeless.schedule import (
-    LOG_PATH,
     TASK_LABEL,
     CronScheduler,
     DigestSchedule,
     find_executable,
+    log_path,
     parse_daily_time,
     resolve_digest_command,
     scheduler_for_platform,
@@ -59,7 +59,7 @@ def test_resolve_digest_command_appends_digest(monkeypatch):
 def test_crontab_line_carries_time_command_and_marker():
     line = schedule_module._crontab_line(SAMPLE)
     assert line.startswith("0 7 * * * /opt/bin/tubeless digest")
-    assert str(LOG_PATH) in line
+    assert str(log_path()) in line
     assert line.rstrip().endswith(f"# {TASK_LABEL}")
 
 

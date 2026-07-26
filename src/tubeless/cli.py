@@ -24,7 +24,7 @@ import sys
 from pathlib import Path
 
 from tubeless import config
-from tubeless.channels import CHANNELS_PATH, Channel, load_channels
+from tubeless.channels import Channel, channels_path, load_channels
 from tubeless.digest import RunProvenance, Skip, curate_summaries, summarize_videos
 from tubeless.discover import DEFAULT_PER_CHANNEL_LIMIT, DEFAULT_SCAN, fetch_recent_videos
 from tubeless.errors import ConfigError, FeedError, ScheduleError, TubelessError
@@ -38,8 +38,8 @@ from tubeless.schedule import (
     scheduler_for_platform,
 )
 from tubeless.source import fetch_video, watch_url
-from tubeless.state import STATE_PATH, read_seen, write_seen
-from tubeless.store import CORPUS_ROOT, FileStore, latest_per_video, save_digest
+from tubeless.state import read_seen, state_path, write_seen
+from tubeless.store import FileStore, corpus_root, latest_per_video, save_digest
 from tubeless.summary import (
     DEFAULT_DETAIL,
     DEFAULT_LANGUAGE,
@@ -52,7 +52,6 @@ from tubeless.transcript import fetch_transcript
 __all__ = ["main"]
 
 _SUBCOMMANDS = ("summarize", "transcript", "videos", "digest", "schedule")
-_DIGEST_DIR  = config.data_dir() / "digests"
 
 # A YouTube id is 11 base64url characters, so ~1 in 64 starts with '-'. argparse
 # would read such a bare id as an option flag, so a leading-dash id is rewritten
@@ -320,15 +319,23 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_backend_args(digest_parser)
     digest_parser.add_argument("--lang", default=config.setting("TUBELESS_LANG") or DEFAULT_LANGUAGE,
                                help=f"language of the summaries (default: {DEFAULT_LANGUAGE}, or $TUBELESS_LANG)")
-    digest_parser.add_argument("--channels", type=Path, default=CHANNELS_PATH,
-                               help=f"channels TOML file for a fresh run (default: {CHANNELS_PATH})")
-    digest_parser.add_argument("--state", type=Path, default=STATE_PATH,
-                               help=f"processed-id state file for a fresh run (default: {STATE_PATH})")
-    digest_parser.add_argument("--out", type=Path, default=_DIGEST_DIR,
-                               help=f"directory for the digest file (default: {_DIGEST_DIR})")
-    digest_parser.add_argument("--corpus", type=Path, default=CORPUS_ROOT,
+    # Resolve the default paths here (inside the parser build, which runs under
+    # main()'s error surface) rather than as import-time module constants, so a
+    # base-dir failure (e.g. no home directory) surfaces as a one-line CLI error
+    # instead of an import-time traceback.
+    channels_default = channels_path()
+    state_default    = state_path()
+    digest_default   = config.data_dir() / "digests"
+    corpus_default   = corpus_root()
+    digest_parser.add_argument("--channels", type=Path, default=channels_default,
+                               help=f"channels TOML file for a fresh run (default: {channels_default})")
+    digest_parser.add_argument("--state", type=Path, default=state_default,
+                               help=f"processed-id state file for a fresh run (default: {state_default})")
+    digest_parser.add_argument("--out", type=Path, default=digest_default,
+                               help=f"directory for the digest file (default: {digest_default})")
+    digest_parser.add_argument("--corpus", type=Path, default=corpus_default,
                                help=f"directory for the analysis corpus of summaries and "
-                                    f"transcripts (default: {CORPUS_ROOT})")
+                                    f"transcripts (default: {corpus_default})")
     digest_parser.add_argument("--source-match", default=None,
                                help="fresh run: only channels whose source contains this text")
     digest_parser.add_argument("--per-channel", type=_positive_int,

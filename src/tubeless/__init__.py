@@ -37,7 +37,7 @@ from tubeless.llm import (
 )
 from tubeless.render import render_markdown
 from tubeless.source import Video, extract_video_id, fetch_video
-from tubeless.store import CORPUS_ROOT, FileStore, Store, latest_per_video
+from tubeless.store import FileStore, Store, corpus_root, latest_per_video
 from tubeless.summary import (
     DETAIL_LEVELS,
     DetailLevel,
@@ -49,7 +49,6 @@ from tubeless.transcript import Transcript, TranscriptSegment, fetch_transcript
 
 __all__ = [
     "BACKENDS",
-    "CORPUS_ROOT",
     "Channel",
     "ClaudeBackend",
     "ConfigError",
@@ -81,6 +80,7 @@ __all__ = [
     "TranscriptUnavailable",
     "TubelessError",
     "Video",
+    "corpus_root",
     "curate_summaries",
     "extract_video_id",
     "fetch_recent_videos",

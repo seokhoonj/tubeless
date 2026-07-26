@@ -20,6 +20,7 @@ import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Protocol
 
 from tubeless.config import state_dir
@@ -27,7 +28,7 @@ from tubeless.errors import ScheduleError
 
 __all__ = [
     "TASK_LABEL",
-    "LOG_PATH",
+    "log_path",
     "DEFAULT_DAILY_TIME",
     "DigestSchedule",
     "ScheduleStatus",
@@ -45,7 +46,14 @@ TASK_LABEL = "tubeless-digest"
 
 # Where a scheduled run sends its stdout/stderr. A cron job has no terminal, so
 # without this redirect its output (and any error) would be mailed away or lost.
-LOG_PATH = state_dir() / "digest.log"
+def log_path() -> Path:
+    """The scheduler's log file, ``digest.log`` in ``state_dir()``. A function, not an
+    import-time constant, so the base dir resolves when a command needs it (under the
+    CLI's error surface), not as a side effect of import.
+
+    Raises:
+        ConfigError: no state directory can be resolved (propagated from ``state_dir``)."""
+    return state_dir() / "digest.log"
 
 # The daily run time when --at is not given. A morning build has the prior day's
 # uploads ready to read.
@@ -200,7 +208,7 @@ class CronScheduler:
 def _crontab_line(schedule: DigestSchedule) -> str:
     command = " ".join(schedule.command)
     return (f"{schedule.daily_time.minute} {schedule.daily_time.hour} * * * "
-            f"{command} >> {LOG_PATH} 2>&1  {_CRON_MARKER}")
+            f"{command} >> {log_path()} 2>&1  {_CRON_MARKER}")
 
 
 def _render_crontab(existing: str, schedule: DigestSchedule) -> str:

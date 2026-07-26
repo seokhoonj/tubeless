@@ -4,12 +4,36 @@ No real ~/.config/tubeless/config.toml -- every lookup is pointed at a temp file
 or an injected dict so the tests are hermetic.
 """
 
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
 from tubeless import config
 from tubeless.errors import ConfigError
+
+
+def test_importing_the_package_resolves_no_base_dir():
+    # The core invariant of the lazy base-dir design: importing must not resolve (and so
+    # cannot fail on) a base dir. A regression that puts a base-dir constant back at a
+    # module top would crash `import tubeless` in a no-home environment. Prove it in a
+    # subprocess with Path.home patched to raise and every XDG/override var cleared --
+    # import must still succeed; the failure only appears when a command later calls a
+    # resolver.
+    code = (
+        "import pathlib\n"
+        "pathlib.Path.home = staticmethod(lambda: (_ for _ in ()).throw(RuntimeError('no home')))\n"
+        "import tubeless, tubeless.cli, tubeless.store, tubeless.state, tubeless.channels, tubeless.schedule\n"
+        "print('ok')\n"
+    )
+    env = {k: v for k, v in os.environ.items()
+           if k not in ("XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME",
+                        "TUBELESS_DATA_DIR", "TUBELESS_STATE_DIR")}
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env)
+    assert result.returncode == 0, f"import resolved a base dir at import time:\n{result.stderr}"
+    assert result.stdout.strip() == "ok"
 
 
 def _write_toml(tmp_path: Path, text: str) -> Path:
@@ -89,9 +113,8 @@ def _raise_on_nouser_tilde(monkeypatch):
 
 
 def test_an_unresolvable_tilde_xdg_var_falls_back_not_crashes(monkeypatch):
-    # The resolver runs at import time (store.CORPUS_ROOT), so a leaked RuntimeError
-    # from expanduser("~nouser/x") would break `import tubeless` entirely. It must fall
-    # back to the default instead.
+    # An advisory XDG var with an unresolvable ~user must fall back to the default,
+    # not leak expanduser("~nouser/x")'s RuntimeError out of data_dir().
     _blind_overrides(monkeypatch)
     _raise_on_nouser_tilde(monkeypatch)
     monkeypatch.setenv("XDG_DATA_HOME", "~nouser/x")
@@ -106,17 +129,42 @@ def test_an_unresolvable_tilde_override_reads_as_absent(monkeypatch):
     assert config.data_dir() == Path.home() / ".local" / "share" / "tubeless"
 
 
-def test_no_home_directory_raises_a_clear_config_error(monkeypatch):
-    # No absolute XDG base and no determinable home (HOME unset, uid has no passwd
-    # entry -- an arbitrary-uid container): Path.home() raises RuntimeError, which the
-    # resolver must convert to a ConfigError naming the fix, not leak as a traceback
-    # at import time.
-    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+def _patch_no_home(monkeypatch):
+    # No determinable home (HOME unset, uid has no passwd entry -- an arbitrary-uid
+    # container): Path.home() raises RuntimeError.
     def no_home():
         raise RuntimeError("Could not determine home directory.")
     monkeypatch.setattr(Path, "home", staticmethod(no_home))
+
+
+@pytest.mark.parametrize("dir_fn, env_name", [
+    ("config_dir", "XDG_CONFIG_HOME"),
+    ("data_dir",   "XDG_DATA_HOME"),
+    ("state_dir",  "XDG_STATE_HOME"),
+])
+def test_no_home_directory_raises_a_clear_config_error(dir_fn, env_name, monkeypatch):
+    # The resolver must convert Path.home()'s bare RuntimeError to a ConfigError that
+    # names the fix -- for all three bases, not just config. data_dir/state_dir reach
+    # the fallback through _dir_override -> _as_absolute; config_dir directly.
+    _blind_overrides(monkeypatch)
+    monkeypatch.delenv(env_name, raising=False)
+    _patch_no_home(monkeypatch)
     with pytest.raises(ConfigError, match="no home directory"):
-        config.config_dir()
+        getattr(config, dir_fn)()
+
+
+def test_no_home_with_an_unresolvable_override_still_raises_config_error(monkeypatch):
+    # The compound path: a ``data_dir = "~nouser/foo"`` override makes _as_absolute
+    # catch expanduser's RuntimeError -> None, then (no home) _xdg_app_dir raises
+    # ConfigError from the home fallback. End state must be ConfigError, not a leaked
+    # RuntimeError -- exercising the swallow-then-re-raise chain across both helpers.
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+    monkeypatch.delenv("TUBELESS_DATA_DIR", raising=False)   # env wins over config; blind it so the config override is what's tested
+    monkeypatch.setattr(config, "load_settings", lambda: {"data_dir": "~nouser/foo"})
+    _raise_on_nouser_tilde(monkeypatch)   # expanduser("~nouser..") -> RuntimeError -> _as_absolute None
+    _patch_no_home(monkeypatch)           # then _xdg_app_dir's Path.home() -> ConfigError
+    with pytest.raises(ConfigError, match="no home directory"):
+        config.data_dir()
 
 
 def test_state_dir_defaults_to_xdg_state_home(monkeypatch):

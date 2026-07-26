@@ -86,3 +86,21 @@ def test_write_seen_raises_on_an_unwritable_path(tmp_path):
 
     with pytest.raises(ConfigError):
         write_seen({"a"}, blocker / "sub" / "state.json")
+
+
+def test_read_and_write_seen_default_path_is_state_path(monkeypatch, tmp_path):
+    # The no-path default replaced the old STATE_PATH constant; verify it routes
+    # through state_path() (a lazy resolve).
+    import tubeless.state as state_module
+    target = tmp_path / "state.json"
+    monkeypatch.setattr(state_module, "state_path", lambda: target)
+    write_seen({"a"})            # no path -> default state_path()
+    assert read_seen() == {"a"}  # no path -> same default
+    assert target.exists()
+
+
+def test_state_path_hangs_off_the_state_dir(monkeypatch, tmp_path):
+    import tubeless.state as state_module
+    from tubeless.state import state_path
+    monkeypatch.setattr(state_module, "state_dir", lambda: tmp_path)
+    assert state_path() == tmp_path / "state.json"

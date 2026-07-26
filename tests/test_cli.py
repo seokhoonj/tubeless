@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pytest
 
@@ -690,3 +691,22 @@ def test_digest_since_until_dedups_stored_variants_before_curating(
     assert "1 videos)" in captured.out   # two stored variants deduped to one
     # the digest is persisted as canonical JSON beside the rendered .md
     assert (tmp_path / "d" / "2026-07-01..2026-07-08.json").exists()
+
+
+def test_no_home_digest_exits_one_cleanly(monkeypatch, capsys):
+    # The user-facing deliverable of the lazy refactor: with no determinable home dir
+    # (and no XDG override), a base-dir ConfigError is raised inside main()'s handler --
+    # so `tubeless digest` exits 1 with a one-line message, not an import-time traceback.
+    for var in ("XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME",
+                "TUBELESS_DATA_DIR", "TUBELESS_STATE_DIR"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setattr(Path, "home",
+                        staticmethod(lambda: (_ for _ in ()).throw(RuntimeError("no home"))))
+
+    exit_code = main(["digest"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert captured.err.startswith("tubeless:")
+    assert "no home directory" in captured.err
+    assert "Traceback" not in captured.err

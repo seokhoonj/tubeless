@@ -59,6 +59,10 @@ def config_dir() -> Path:
     ``$XDG_CONFIG_HOME/tubeless`` when that variable is set, else
     ``~/.config/tubeless`` -- the same on every OS (the git / ssh / aws convention),
     not a platform-native dir. git never tracks it.
+
+    Raises:
+        ConfigError: no home directory can be determined and no absolute
+            ``XDG_CONFIG_HOME`` is set (propagated from ``_xdg_app_dir``).
     """
     return _xdg_app_dir("XDG_CONFIG_HOME", ".config")
 
@@ -74,6 +78,10 @@ def data_dir() -> Path:
     ``$XDG_DATA_HOME/tubeless``, else ``~/.local/share/tubeless`` (the same on every
     OS). (``config_dir`` has no such key -- config cannot name its own location.)
     Kept apart from ``config_dir()`` so resetting settings never destroys the corpus.
+
+    Raises:
+        ConfigError: no home directory can be determined and no absolute
+            ``XDG_DATA_HOME`` / override is set (propagated from ``_xdg_app_dir``).
     """
     override = _dir_override("TUBELESS_DATA_DIR")
     if override is not None:
@@ -90,6 +98,10 @@ def state_dir() -> Path:
     caller who wants to relocate state can, though it is small enough that most do
     not. Otherwise ``$XDG_STATE_HOME/tubeless``, else ``~/.local/state/tubeless``
     (the same on every OS).
+
+    Raises:
+        ConfigError: no home directory can be determined and no absolute
+            ``XDG_STATE_HOME`` / override is set (propagated from ``_xdg_app_dir``).
     """
     override = _dir_override("TUBELESS_STATE_DIR")
     if override is not None:
@@ -98,7 +110,10 @@ def state_dir() -> Path:
 
 
 def config_path() -> Path:
-    """Where the non-secret settings live: ``config.toml`` in ``config_dir()``."""
+    """Where the non-secret settings live: ``config.toml`` in ``config_dir()``.
+
+    Raises:
+        ConfigError: propagated from ``config_dir()`` when no config dir can be resolved."""
     return config_dir() / "config.toml"
 
 
@@ -174,6 +189,10 @@ def setting(env_name: str) -> str | None:
     as ``"True"``/``"False"``): matching the environment, where a caller that needs
     the int (``max_points``) parses the returned digits and an out-of-range ``0``
     still reaches its "must be positive" error.
+
+    Raises:
+        ConfigError: ``config.toml`` exists but is not readable TOML, or no config dir
+            can be resolved (propagated from ``load_settings`` / ``config_dir``).
     """
     from_env = os.environ.get(env_name)
     if from_env:
@@ -211,7 +230,7 @@ def _xdg_app_dir(env_name: str, home_subpath: str) -> Path:
     except RuntimeError as err:
         raise ConfigError(
             f"cannot locate ~/{home_subpath}/{_APP}: no home directory "
-            f"(set HOME or an absolute {env_name})"
+            f"(set HOME, or set {env_name} to an absolute path)"
         ) from err
     return home / home_subpath / _APP
 
@@ -220,12 +239,12 @@ def _dir_override(env_name: str) -> Path | None:
     """A base-dir override from the environment (which wins) or ``config.toml``, as an
     explicit absolute path with ``~`` expanded, or ``None`` when unset (or not absolute).
 
-    Tolerates an unreadable config file by reading it as absent: this resolves paths
-    needed at import time (``store.CORPUS_ROOT``), so it must not raise -- a malformed
-    config still surfaces cleanly when the run reads a real setting through ``setting``
-    (the CLI also validates the config before this decides any relocation). A non-string
-    (``data_dir = 12345``), blank, or non-absolute value reads as absent, so it never
-    becomes a path resolved against the working directory."""
+    Tolerates an unreadable config file by reading it as absent, rather than raising a
+    second time: the CLI validates the config once at entry, and a malformed file
+    surfaces there and through ``setting``; having the dir override re-raise it would
+    just duplicate that error. A non-string (``data_dir = 12345``), blank, or
+    non-absolute value reads as absent too, so it never becomes a path resolved against
+    the working directory."""
     from_env = os.environ.get(env_name, "").strip()
     if from_env:
         return _as_absolute(from_env)
@@ -242,8 +261,8 @@ def _as_absolute(raw: str) -> Path | None:
     """Expand ``~`` in ``raw`` and return it only if absolute, else ``None``. Never
     raises: a relative value is ignored (it would depend on the working directory), and
     a ``~user`` whose home cannot be resolved (``expanduser`` raises ``RuntimeError``)
-    is treated as absent too -- callers resolve base dirs at import time and must not
-    crash on a bad env var / config value."""
+    is treated as absent too -- an advisory env var / config value must not crash the
+    resolver."""
     try:
         path = Path(raw).expanduser()
     except RuntimeError:
