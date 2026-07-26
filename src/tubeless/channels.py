@@ -18,10 +18,13 @@ Example ``channels.toml``::
     # posts a "LIVE" broadcast and an edited replay of the same episode.
     source         = "PLxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
     detail         = "deep"
+    label          = "Some Show"   # optional name for the channel in this file
     title_includes = ["Some Host"]
     title_excludes = ["LIVE"]
 
-The legacy keys ``includes`` / ``excludes`` are still accepted as aliases.
+The legacy keys ``includes`` / ``excludes`` are still accepted as aliases. Any key
+not listed above is rejected, so a mistyped key (``title_exclude``) fails loudly
+instead of silently disabling the filter it was meant to set.
 """
 
 from __future__ import annotations
@@ -89,7 +92,25 @@ def load_channels(path: Path | None = None) -> tuple[Channel, ...]:
     return tuple(_channel_from(entry, path) for entry in entries)
 
 
+# Every key a [[channel]] entry may carry. A key outside this set is a config
+# error, not a silent no-op -- a dropped key (a typo, or a spelling the loader was
+# never taught) is exactly how a title filter once became dead weight.
+_KNOWN_CHANNEL_KEYS = frozenset({
+    "source", "handle", "channel_id",     # source and its legacy aliases
+    "detail",
+    "label",                              # an optional name for the channel
+    "title_includes", "title_excludes",   # title filters
+    "includes", "excludes",               # their legacy aliases
+})
+
+
 def _channel_from(entry: dict[str, object], path: Path) -> Channel:
+    unknown = entry.keys() - _KNOWN_CHANNEL_KEYS
+    if unknown:
+        raise ConfigError(
+            f"a [[channel]] in {path} has unknown key(s) {', '.join(sorted(unknown))}; "
+            f"valid keys are {', '.join(sorted(_KNOWN_CHANNEL_KEYS))}"
+        )
     source = entry.get("source") or entry.get("handle") or entry.get("channel_id")
     if not source:
         raise ConfigError(f"a [[channel]] in {path} is missing 'source' (a handle, URL, or id)")

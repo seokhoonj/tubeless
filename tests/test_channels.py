@@ -132,6 +132,22 @@ def test_load_channels_accepts_a_legacy_handle_key(tmp_path):
     assert load_channels(path)[0].source == "@x"
 
 
+def test_load_channels_rejects_an_unknown_key(tmp_path):
+    # A mistyped key (here `title_exclude`, missing the plural s) must fail loudly,
+    # not silently disable the filter it was meant to set -- the bug this guards.
+    path = _write(tmp_path, '[[channel]]\nsource = "@x"\ntitle_exclude = ["LIVE"]\n')
+    with pytest.raises(ConfigError, match="unknown key"):
+        load_channels(path)
+
+
+def test_load_channels_accepts_a_label_key(tmp_path):
+    # `label` is an accepted channel key, so a config that names its channels does
+    # not trip the unknown-key check.
+    path = _write(tmp_path, '[[channel]]\nsource = "@x"\nlabel = "My Show"\n')
+
+    assert load_channels(path)[0].source == "@x"
+
+
 def test_load_channels_missing_file_raises(tmp_path):
     with pytest.raises(ConfigError):
         load_channels(tmp_path / "nope.toml")
