@@ -47,13 +47,19 @@ class CannedBackend:
         return "TLDR: Ducks are great.\n- They float.\n"
 
 
+def _canned_make_backend(name: str = "openai", *, model: str | None = None) -> CannedBackend:
+    """Stand in for llm.make_backend: skip thinchat and the network, handing the CLI
+    a canned backend whatever vendor it asks for."""
+    return CannedBackend(model=model or "unused")
+
+
 @pytest.fixture
 def pipeline_with_fakes(monkeypatch: pytest.MonkeyPatch, _no_config_file) -> None:
     # The single-video path (summarize / transcript) composes these atoms in the
     # CLI module, so the fakes are patched there, not in summary.py.
     monkeypatch.setattr(cli_module, "fetch_video", lambda url: SAMPLE_VIDEO)
     monkeypatch.setattr(cli_module, "fetch_transcript", lambda video: SAMPLE_TRANSCRIPT)
-    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(cli_module, "make_backend", _canned_make_backend)
 
 
 @pytest.fixture
@@ -89,20 +95,20 @@ def test_tubeless_backend_env_routes_a_bare_run_to_that_vendor(
     monkeypatch.setattr(cli_module, "fetch_transcript", lambda video: SAMPLE_TRANSCRIPT)
     built = {}
 
-    # The fake mirrors GeminiBackend's real default model, so a bare run (model
-    # unset -> make_backend calls the class with no model) proves both that
-    # TUBELESS_BACKEND routed to gemini and that the class default applies.
-    class _RecordingGemini(CannedBackend):
-        def __init__(self, *, model: str = "gemini-flash-lite-latest") -> None:
-            built["model"] = model
-            super().__init__(model=model)
+    # A bare run (no --backend, no --model) must route to the configured vendor and
+    # pass no model override, so make_backend leaves that vendor's default in place.
+    def _recording_make_backend(name: str, *, model: str | None = None) -> CannedBackend:
+        built["name"]  = name
+        built["model"] = model
+        return CannedBackend()
 
-    monkeypatch.setattr(llm_module, "GeminiBackend", _RecordingGemini)
+    monkeypatch.setattr(cli_module, "make_backend", _recording_make_backend)
 
     exit_code = main([SAMPLE_VIDEO.url])   # no --backend flag
 
     assert exit_code == 0
-    assert built["model"] == "gemini-flash-lite-latest"  # routed to gemini, default applied
+    assert built["name"]  == "gemini"   # TUBELESS_BACKEND routed here
+    assert built["model"] is None       # bare run -> the vendor default applies
 
 
 def test_configured_choice_falls_back_and_validates(_no_config_file, monkeypatch) -> None:
@@ -132,7 +138,7 @@ def test_tubeless_detail_env_sets_the_default_detail(
     monkeypatch.setenv("TUBELESS_DETAIL", "deep")
     monkeypatch.setattr(cli_module, "fetch_video", lambda url: SAMPLE_VIDEO)
     monkeypatch.setattr(cli_module, "fetch_transcript", lambda video: SAMPLE_TRANSCRIPT)
-    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(cli_module, "make_backend", _canned_make_backend)
     seen: dict[str, object] = {}
     real_summarize = cli_module.summarize_transcript
 
@@ -152,7 +158,7 @@ def test_tubeless_max_points_env_caps_points(
     monkeypatch.setenv("TUBELESS_MAX_POINTS", "3")
     monkeypatch.setattr(cli_module, "fetch_video", lambda url: SAMPLE_VIDEO)
     monkeypatch.setattr(cli_module, "fetch_transcript", lambda video: SAMPLE_TRANSCRIPT)
-    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(cli_module, "make_backend", _canned_make_backend)
     seen: dict[str, object] = {}
     real_summarize = cli_module.summarize_transcript
 
@@ -170,7 +176,7 @@ def test_main_handles_keyboard_interrupt_cleanly(
     _no_config_file, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     # Ctrl-C mid-run must exit 130 with a one-line message, not a traceback.
-    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(cli_module, "make_backend", _canned_make_backend)
     monkeypatch.setattr(cli_module, "fetch_video", lambda url: SAMPLE_VIDEO)
 
     def interrupted(video):
@@ -182,6 +188,35 @@ def test_main_handles_keyboard_interrupt_cleanly(
 
     assert exit_code == 130
     assert "cancelled" in capsys.readouterr().err
+
+
+def test_main_reports_a_backend_completion_failure_cleanly(
+    _no_config_file, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # A vendor error at completion time (429, dropped connection) must exit 1 with a
+    # one-line `tubeless:` message, not a raw traceback. Patch thinchat's make_client so
+    # the REAL make_backend wraps the failing client in its _Backend adapter -- the
+    # completion-time thinchat error must become a tubeless LLMError that cli.main catches.
+    from thinchat import LLMError as ThinchatLLMError
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr(cli_module, "fetch_video", lambda url: SAMPLE_VIDEO)
+    monkeypatch.setattr(cli_module, "fetch_transcript", lambda video: SAMPLE_TRANSCRIPT)
+
+    class _FailingClient:
+        model = "gpt-4o-mini"
+
+        def complete(self, prompt, *, system=None):
+            raise ThinchatLLMError("429 rate limited")
+
+    monkeypatch.setattr(llm_module, "make_client", lambda *a, **k: _FailingClient())
+
+    exit_code = main([SAMPLE_VIDEO.url])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert captured.err.startswith("tubeless:")
+    assert "Traceback" not in captured.err
 
 
 def test_main_prints_the_summary_and_returns_zero(
@@ -229,7 +264,7 @@ def test_main_reports_an_invalid_url_cleanly_without_a_traceback(
 def test_main_reports_a_missing_transcript_cleanly(
     _no_config_file, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(cli_module, "make_backend", _canned_make_backend)
     monkeypatch.setattr(cli_module, "fetch_video", lambda url: SAMPLE_VIDEO)
 
     def raise_unavailable(video):
@@ -323,7 +358,7 @@ def test_digest_dry_run_prints_markdown_without_writing(
         importance = Importance(score=0.9, reason="big news"),
     )
     monkeypatch.setattr(cli_module, "load_channels", lambda path: ())
-    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(cli_module, "make_backend", _canned_make_backend)
     monkeypatch.setattr(
         cli_module, "curate_summaries",
         lambda summaries, backend, **kw: Digest(created="2026-07-21", entries=(entry,)),
@@ -346,7 +381,7 @@ def test_digest_writes_summaries_and_transcripts_to_the_store(
 
     monkeypatch.setattr(cli_module, "load_channels",
                         lambda path: (Channel(source="@x"),))
-    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(cli_module, "make_backend", _canned_make_backend)
     monkeypatch.setattr(cli_module, "fetch_recent_videos",
                         lambda source, *, limit, includes=(), excludes=(): (SAMPLE_VIDEO,))
     monkeypatch.setattr(digest_module, "fetch_transcript", lambda video: SAMPLE_TRANSCRIPT)
@@ -372,7 +407,7 @@ def test_digest_writes_summaries_and_transcripts_to_the_store(
 def test_digest_source_match_filters_channels(_no_config_file, monkeypatch: pytest.MonkeyPatch) -> None:
     from tubeless.channels import Channel
 
-    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(cli_module, "make_backend", _canned_make_backend)
     monkeypatch.setattr(cli_module, "load_channels", lambda path: (
         Channel(source="@market-inside"),
         Channel(source="@closing-bell"),
@@ -414,7 +449,7 @@ def test_digest_since_until_recurates_stored_summaries_and_prints(
             return ()
 
     seen_kwargs: dict[str, object] = {}
-    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(cli_module, "make_backend", _canned_make_backend)
     monkeypatch.setattr(cli_module, "FileStore", _EmptyStore)
 
     def capture(summaries, backend, **kwargs):
@@ -461,7 +496,7 @@ def _transcript_for(video: Video) -> Transcript:
 
 def _wire_fresh_digest(monkeypatch, *, channels, by_source) -> None:
     """Wire the fresh-digest path: channels, per-source discovery, transcript, backend."""
-    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(cli_module, "make_backend", _canned_make_backend)
     monkeypatch.setattr(cli_module, "load_channels", lambda path: channels)
     monkeypatch.setattr(cli_module, "fetch_recent_videos",
                         lambda source, *, limit, includes=(), excludes=(): by_source.get(source, ()))
@@ -479,7 +514,7 @@ def test_digest_fresh_scans_filtered_channel_full_window_and_plain_with_limit(
         seen_limits[source] = limit
         return ()
 
-    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(cli_module, "make_backend", _canned_make_backend)
     monkeypatch.setattr(cli_module, "load_channels", lambda path: (
         Channel(source="@filtered", includes=("live",)),
         Channel(source="@plain"),
@@ -503,7 +538,7 @@ def test_digest_fresh_skips_a_failed_feed_and_still_digests_the_rest(
             raise FeedError("feed down")
         return (SAMPLE_VIDEO,)
 
-    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(cli_module, "make_backend", _canned_make_backend)
     monkeypatch.setattr(cli_module, "load_channels",
                         lambda path: (Channel(source="@dead"), Channel(source="@live")))
     monkeypatch.setattr(cli_module, "fetch_recent_videos", discover)
@@ -578,7 +613,7 @@ def test_digest_fresh_aborts_without_writing_state_when_a_fetch_is_blocked(
 ) -> None:
     from tubeless.channels import Channel
     state = tmp_path / "s.json"
-    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(cli_module, "make_backend", _canned_make_backend)
     monkeypatch.setattr(cli_module, "load_channels", lambda path: (Channel(source="@a"),))
     monkeypatch.setattr(cli_module, "fetch_recent_videos",
                         lambda source, *, limit, includes=(), excludes=(): (SAMPLE_VIDEO,))
@@ -604,7 +639,7 @@ def test_digest_channel_without_a_date_range_is_rejected(
     # --channel narrows a --since/--until re-curate; without a date range it must
     # error, not run a fresh discovery (which would ignore it) nor a stored
     # re-curate labelled as today (which would overwrite the fresh daily digest).
-    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(cli_module, "make_backend", _canned_make_backend)
 
     exit_code = main(["digest", "--channel", "Some Channel", "--dry-run"])
 
@@ -628,7 +663,7 @@ def test_digest_since_with_channel_narrows_the_stored_recurate(
             seen["channel"] = channel
             return ()
 
-    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(cli_module, "make_backend", _canned_make_backend)
     monkeypatch.setattr(cli_module, "FileStore", _RecordingStore)
     monkeypatch.setattr(cli_module, "curate_summaries",
                         lambda summaries, backend, **kw: Digest(
@@ -651,7 +686,7 @@ def test_digest_source_match_combined_with_a_stored_recurate_is_rejected(
         def load_summaries(self, *, since=None, until=None, channel=None):
             return ()
 
-    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(cli_module, "make_backend", _canned_make_backend)
     monkeypatch.setattr(cli_module, "FileStore", _EmptyStore)
 
     exit_code = main(["digest", "--since", "2026-07-01", "--source-match", "foo", "--dry-run"])
@@ -681,7 +716,7 @@ def test_digest_since_until_dedups_stored_variants_before_curating(
                    published="2026-07-05T09:00:00Z")
     store.save_summary(Summary(video=video, tldr="old", points=("a",), language="en", detail="brief"))
     store.save_summary(Summary(video=video, tldr="new", points=("a",), language="en", detail="deep"))
-    monkeypatch.setattr(llm_module, "OpenAIBackend", CannedBackend)
+    monkeypatch.setattr(cli_module, "make_backend", _canned_make_backend)
 
     exit_code = main(["digest", "--since", "2026-07-01", "--until", "2026-07-08",
                       "--corpus", str(corpus), "--out", str(tmp_path / "d")])

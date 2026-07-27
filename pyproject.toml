@@ -25,7 +25,7 @@ classifiers     = [
 requires-python = ">=3.11"
 dependencies    = [
     "youtube-transcript-api>=1.0",
-    "openai>=1.0",
+    "thinchat>=0.1,<0.2",
     "requests>=2.31",
 ]
 
@@ -35,14 +35,9 @@ Repository = "https://github.com/seokhoonj/tubeless"
 Issues     = "https://github.com/seokhoonj/tubeless/issues"
 
 [project.optional-dependencies]
-# The Claude backend's SDK (the `anthropic` package) is imported lazily, so it is
-# optional -- an OpenAI/Gemini/Ollama user need not install it. The extra is named
-# for the backend (`tubeless[claude]`), the package it pulls in is `anthropic`.
-claude = ["anthropic>=0.40"]
 dev = [
     "pytest>=8.0",
     "ruff>=0.6",
-    "anthropic>=0.40",
 ]
 
 [project.scripts]

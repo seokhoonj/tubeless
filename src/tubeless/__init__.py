@@ -28,11 +28,7 @@ from tubeless.errors import (
 from tubeless.importance import Importance, ImportanceTier
 from tubeless.llm import (
     BACKENDS,
-    ClaudeBackend,
-    GeminiBackend,
     LLMBackend,
-    OllamaBackend,
-    OpenAIBackend,
     make_backend,
 )
 from tubeless.render import render_markdown
@@ -50,7 +46,6 @@ from tubeless.transcript import Transcript, TranscriptSegment, fetch_transcript
 __all__ = [
     "BACKENDS",
     "Channel",
-    "ClaudeBackend",
     "ConfigError",
     "CorpusError",
     "DEFAULT_SCAN",
@@ -60,14 +55,11 @@ __all__ = [
     "Entry",
     "FeedError",
     "FileStore",
-    "GeminiBackend",
     "Importance",
     "ImportanceTier",
     "InvalidVideoURL",
     "LLMBackend",
     "LLMError",
-    "OllamaBackend",
-    "OpenAIBackend",
     "ScheduleError",
     "Skip",
     "Store",
