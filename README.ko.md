@@ -55,7 +55,7 @@ tubeless "https://www.youtube.com/watch?v=iG9CE55wbtY" --backend gemini --lang k
 export OPENAI_API_KEY=...
 tubeless "https://www.youtube.com/watch?v=iG9CE55wbtY" --backend openai --lang ko
 
-# Claude — 먼저: pip install "tubeless[claude]"  (키: https://platform.claude.com)
+# Claude (키: https://platform.claude.com)
 export CLAUDE_API_KEY=...
 tubeless "https://www.youtube.com/watch?v=iG9CE55wbtY" --backend claude --lang ko
 
@@ -107,10 +107,8 @@ py -m pipx ensurepath               # 끝나면 PowerShell 닫았다 다시 열�
 py -m pipx install tubeless
 ```
 
-Claude 백엔드까지 함께 설치하려면 `claude` 추가옵션(`anthropic` SDK를 끌어옵니다):
-```sh
-pipx install "tubeless[claude]"
-```
+두 프로바이더 SDK가 tubeless와 함께 설치되므로 모든 백엔드가 기본으로 동작합니다
+-- Claude에도 별도 추가옵션이 필요 없습니다.
 
 동작 확인:
 ```sh
@@ -529,11 +527,11 @@ TL;DR과 핵심 포인트를 사용자에게 돌려준다.
 ### 파이썬 라이브러리로 쓰기
 
 ```python
-from tubeless import OpenAIBackend, fetch_transcript, fetch_video, summarize_transcript
+from tubeless import fetch_transcript, fetch_video, make_backend, summarize_transcript
 
 # 원자를 조합합니다: 영상 메타데이터와 자막을 받아 요약합니다.
 transcript = fetch_transcript(fetch_video("https://youtu.be/VIDEO_ID_XX"))
-summary    = summarize_transcript(transcript, OpenAIBackend(), detail="deep")
+summary    = summarize_transcript(transcript, make_backend("openai"), detail="deep")
 print(summary.tldr)
 for point in summary.points:
     print("-", point)
@@ -542,8 +540,8 @@ for point in summary.points:
 자막은 자기 영상을 품고 있으므로, 이미 자막을 갖고 있으면
 `summarize_transcript(transcript, backend, detail=...)` 하나가 코어 전부입니다.
 
-`ClaudeBackend`·`OllamaBackend`는 `OpenAIBackend`와 그대로 바꿔 끼울 수
-있습니다. 다이제스트 조각(`fetch_recent_videos`, `summarize_videos`,
+다른 벤더로 바꾸려면 `make_backend`에 이름을 넘기면 됩니다(`"claude"`,
+`"gemini"`, `"ollama"`). 다이제스트 조각(`fetch_recent_videos`, `summarize_videos`,
 `curate_summaries`, `render_markdown`, `FileStore`, `latest_per_video`)도
 export되어 있습니다.
 

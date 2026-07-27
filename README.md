@@ -61,7 +61,7 @@ tubeless "https://www.youtube.com/watch?v=iG9CE55wbtY" --backend gemini
 export OPENAI_API_KEY=...
 tubeless "https://www.youtube.com/watch?v=iG9CE55wbtY" --backend openai
 
-# Claude — first: pip install "tubeless[claude]"  (key: https://platform.claude.com)
+# Claude (key: https://platform.claude.com)
 export CLAUDE_API_KEY=...
 tubeless "https://www.youtube.com/watch?v=iG9CE55wbtY" --backend claude
 
@@ -115,10 +115,8 @@ py -m pipx ensurepath               # close and reopen PowerShell afterwards
 py -m pipx install tubeless
 ```
 
-Add the Claude backend at install time with the `claude` extra (it pulls in the `anthropic` SDK):
-```sh
-pipx install "tubeless[claude]"
-```
+Every backend works out of the box -- both provider SDKs ship with tubeless, so
+no extra is needed for Claude.
 
 Confirm it works:
 ```sh
@@ -559,11 +557,11 @@ Show the TL;DR and key points back to the user.
 ### Use it as a Python library
 
 ```python
-from tubeless import OpenAIBackend, fetch_transcript, fetch_video, summarize_transcript
+from tubeless import fetch_transcript, fetch_video, make_backend, summarize_transcript
 
 # Compose the atoms: fetch the video's metadata and transcript, then summarize.
 transcript = fetch_transcript(fetch_video("https://youtu.be/VIDEO_ID_XX"))
-summary    = summarize_transcript(transcript, OpenAIBackend(), detail="deep")
+summary    = summarize_transcript(transcript, make_backend("openai"), detail="deep")
 print(summary.tldr)
 for point in summary.points:
     print("-", point)
@@ -572,8 +570,8 @@ for point in summary.points:
 The transcript carries its own video, so `summarize_transcript(transcript,
 backend, detail=...)` is the whole core once you already hold one.
 
-`ClaudeBackend` and `OllamaBackend` are drop-in replacements for
-`OpenAIBackend`. The digest pieces (`fetch_recent_videos`, `summarize_videos`,
+Pass another vendor to `make_backend` (`"claude"`, `"gemini"`, `"ollama"`) to
+switch. The digest pieces (`fetch_recent_videos`, `summarize_videos`,
 `curate_summaries`, `render_markdown`, `FileStore`, `latest_per_video`) are
 exported too.
 
