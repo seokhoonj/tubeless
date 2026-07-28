@@ -21,12 +21,14 @@ VIDEO = Video(
 
 
 @pytest.fixture(autouse=True)
-def _hermetic_proxy(monkeypatch: pytest.MonkeyPatch) -> None:
-    # _proxy_config() resolves proxy secrets (env or credentials.json), so every
-    # transcript test would otherwise depend on the machine it runs on. Default
-    # the whole suite to "no proxy configured"; the proxy tests below re-stub
-    # secret themselves to exercise the resolution.
+def _hermetic_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    # fetch_transcript reads two machine-dependent settings: proxy secrets (env or
+    # credentials.json) and the whisper model (env or config.toml). Default the
+    # whole suite to "no proxy, whisper off" so no test depends on the box it runs
+    # on; the proxy tests below re-stub secret and the whisper tests re-stub
+    # _whisper_model_name to exercise those paths.
     monkeypatch.setattr(transcript_module, "secret", lambda name: None)
+    monkeypatch.setattr(transcript_module, "_whisper_model_name", lambda: None)
 
 
 def test_transcript_text_joins_segments_with_spaces() -> None:
@@ -332,6 +334,91 @@ def test_fetch_transcript_maps_a_transport_timeout_to_fetch_blocked(
 
     assert not isinstance(raised.value, TranscriptUnavailable)
     assert "dQw4w9WgXcQ" in str(raised.value)
+
+
+# --- whisper fallback (videos with no captions) ----------------------------
+
+def test_fetch_transcript_falls_back_to_whisper_when_captions_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Captions permanently absent + the operator opted in -> transcribe the audio
+    # locally and return that transcript, rather than fail the video.
+    import tubeless.transcribe as transcribe_module
+    monkeypatch.setattr(transcript_module, "CouldNotRetrieveTranscript", _VendorFetchFailure)
+    monkeypatch.setattr(transcript_module, "YouTubeTranscriptApi", _FailingTranscriptAPI)
+    monkeypatch.setattr(transcript_module, "_whisper_model_name", lambda: "small")
+
+    from_audio = Transcript(
+        video=VIDEO, language="en", is_auto_generated=True,
+        segments=(TranscriptSegment("spoken words", 0.0, 1.0),),
+    )
+    calls: dict[str, object] = {}
+
+    def fake_transcribe(video: Video, *, model_name: str) -> Transcript:
+        calls["video"], calls["model_name"] = video, model_name
+        return from_audio
+
+    monkeypatch.setattr(transcribe_module, "transcribe_audio", fake_transcribe)
+
+    assert fetch_transcript(VIDEO) is from_audio
+    assert calls == {"video": VIDEO, "model_name": "small"}
+
+
+def test_fetch_transcript_does_not_transcribe_when_fallback_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # With the fallback off (the default, from the autouse fixture), a caption-less
+    # video stays a permanent miss -- the audio is never downloaded.
+    import tubeless.transcribe as transcribe_module
+    monkeypatch.setattr(transcript_module, "CouldNotRetrieveTranscript", _VendorFetchFailure)
+    monkeypatch.setattr(transcript_module, "YouTubeTranscriptApi", _FailingTranscriptAPI)
+
+    def must_not_run(*_args: object, **_kwargs: object) -> Transcript:
+        raise AssertionError("transcribe_audio must not run when the fallback is off")
+
+    monkeypatch.setattr(transcribe_module, "transcribe_audio", must_not_run)
+
+    with pytest.raises(TranscriptUnavailable):
+        fetch_transcript(VIDEO)
+
+
+def test_fetch_transcript_does_not_fall_back_to_whisper_on_a_transient_block(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A block is transient: the same IP would fail the audio download too, and the
+    # video should be retried later, not turned into a whisper attempt now.
+    import tubeless.transcribe as transcribe_module
+    monkeypatch.setattr(transcript_module, "RequestBlocked", _VendorBlocked)
+    monkeypatch.setattr(transcript_module, "YouTubeTranscriptApi", _BlockedTranscriptAPI)
+    monkeypatch.setattr(transcript_module, "_whisper_model_name", lambda: "small")
+
+    def must_not_run(*_args: object, **_kwargs: object) -> Transcript:
+        raise AssertionError("a transient block must not trigger the whisper fallback")
+
+    monkeypatch.setattr(transcribe_module, "transcribe_audio", must_not_run)
+
+    with pytest.raises(TranscriptFetchBlocked):
+        fetch_transcript(VIDEO)
+
+
+def test_fetch_transcript_does_not_use_whisper_when_captions_are_present(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The fallback is for ABSENT captions only: a video with captions must be
+    # served from them even with the fallback enabled -- the audio is never fetched.
+    import tubeless.transcribe as transcribe_module
+    monkeypatch.setattr(transcript_module, "YouTubeTranscriptApi", _FakeTranscriptAPI)
+    monkeypatch.setattr(transcript_module, "_whisper_model_name", lambda: "small")
+
+    def must_not_run(*_args: object, **_kwargs: object) -> Transcript:
+        raise AssertionError("transcribe_audio must not run when captions are present")
+
+    monkeypatch.setattr(transcribe_module, "transcribe_audio", must_not_run)
+
+    fetched = fetch_transcript(VIDEO)
+
+    assert fetched.language == "ko"
+    assert fetched.segments[0].text == "first sentence"
 
 
 # --- proxy configuration (the IP-block escape hatch) -----------------------

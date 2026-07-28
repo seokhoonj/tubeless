@@ -37,6 +37,11 @@ Repository = "https://github.com/seokhoonj/tubeless"
 Issues     = "https://github.com/seokhoonj/tubeless/issues"
 
 [project.optional-dependencies]
+# yt-dlp (audio download) and faster-whisper (local speech-to-text) power the
+# transcript fallback for videos with no captions. Both are imported lazily in
+# transcribe.py, so only a user who enables the fallback (TUBELESS_WHISPER_MODEL)
+# needs them; the base install carries neither.
+whisper = ["yt-dlp>=2025.1", "faster-whisper>=1.0"]
 dev = [
     "pytest>=8.0",
     "ruff>=0.6",

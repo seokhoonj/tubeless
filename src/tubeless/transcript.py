@@ -13,8 +13,6 @@ with ``.text`` / ``.start`` / ``.duration``. The pre-1.0 module-level
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import requests
 from youtube_transcript_api import (
     CouldNotRetrieveTranscript,
@@ -30,9 +28,12 @@ from youtube_transcript_api.proxies import (
     WebshareProxyConfig,
 )
 
+from tubeless import transcribe
+from tubeless.config import setting
 from tubeless.credentials import secret
 from tubeless.errors import TranscriptFetchBlocked, TranscriptUnavailable
 from tubeless.source import Video
+from tubeless.transcript_types import Transcript, TranscriptSegment
 
 __all__ = ["TranscriptSegment", "Transcript", "fetch_transcript"]
 
@@ -53,35 +54,6 @@ class _TimeoutSession(requests.Session):
     def request(self, *args: object, **kwargs: object) -> requests.Response:
         kwargs.setdefault("timeout", _FETCH_TIMEOUT_SECONDS)
         return super().request(*args, **kwargs)
-
-
-@dataclass(frozen=True, slots=True)
-class TranscriptSegment:
-    """One caption cue: its text, onset in seconds, and duration in seconds."""
-
-    text:     str
-    start:    float
-    duration: float
-
-
-@dataclass(frozen=True, slots=True)
-class Transcript:
-    """A whole transcript, kept segment-complete: downstream layers decide
-    what to trim or chunk, the fetch layer never does.
-
-    ``video`` is the video this transcript is of -- carried whole (not just the
-    id) so the transcript is self-describing and every pipeline object (Video ->
-    Transcript -> Summary) threads the same identity without re-fetching it."""
-
-    video:             Video
-    language:          str
-    is_auto_generated: bool
-    segments:          tuple[TranscriptSegment, ...]
-
-    @property
-    def text(self) -> str:
-        """The full transcript as one space-joined string."""
-        return " ".join(segment.text for segment in self.segments)
 
 
 def _proxy_config() -> ProxyConfig | None:
@@ -114,6 +86,19 @@ def _proxy_config() -> ProxyConfig | None:
     return None
 
 
+def _whisper_model_name() -> str | None:
+    """The faster-whisper model size to fall back to when a video has no captions,
+    or ``None`` (the default) when the whisper fallback is off.
+
+    Read from ``TUBELESS_WHISPER_MODEL`` (the environment, or ``whisper_model`` in
+    ``config.toml``); its value both enables the fallback and names the model size
+    (e.g. ``"small"``). Off by default because the fallback downloads the audio and
+    runs a local model -- heavy work the caption path avoids -- so it is opted into
+    only when the operator names a model. Not a secret, so it comes from ``setting``
+    rather than ``credentials``."""
+    return setting("TUBELESS_WHISPER_MODEL")
+
+
 def fetch_transcript(
     video:      Video,
     *,
@@ -135,11 +120,20 @@ def fetch_transcript(
                    validated 11-character id; see ``source.extract_video_id``).
         languages: language codes in preference order.
 
+    When ``TUBELESS_WHISPER_MODEL`` is set, a video with no captions is not an
+    immediate miss: its audio is downloaded and transcribed locally (the whisper
+    fallback), and that ``Transcript`` is returned (with ``is_auto_generated=True``,
+    since whisper output is machine-transcribed). A fallback failure still raises
+    ``TranscriptUnavailable``, so a caller skips the video exactly as with the
+    fallback off.
+
     Raises:
         TranscriptFetchBlocked: YouTube transiently rate-limited or IP-blocked
             this request (not a property of the video).
-        TranscriptUnavailable: captions are permanently absent -- disabled, none
-            of the requested languages exist, or the video does not exist.
+        TranscriptUnavailable: captions are permanently absent (disabled, no
+            caption tracks exist, or the video does not exist) and the whisper
+            fallback is off; or the fallback ran but could not download or
+            transcribe the audio.
     """
     video_id = video.video_id
     try:
@@ -157,6 +151,15 @@ def fetch_transcript(
             f"transcript fetch blocked for video {video_id!r}: {err}"
         ) from err
     except CouldNotRetrieveTranscript as err:
+        model_name = _whisper_model_name()
+        if model_name is not None:
+            # Captions are permanently absent, but the operator opted into the
+            # whisper fallback: transcribe the audio locally rather than skip the
+            # video. The transcribe module imports its vendors (yt-dlp,
+            # faster-whisper) lazily, so this path stays free for the base install.
+            # A whisper miss raises TranscriptUnavailable in turn, so the caller
+            # still skips the video -- never aborts on it.
+            return transcribe.transcribe_audio(video, model_name=model_name)
         raise TranscriptUnavailable(
             f"no transcript for video {video_id!r} in languages {languages!r}: {err}"
         ) from err

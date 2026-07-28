@@ -587,10 +587,14 @@ same tool works for a market recap, a lecture, or a match report.
 
 ### Limits
 
-- **A video with no transcript can't be summarized.** tubeless reads captions; it
-  does **not** transcribe audio itself (no speech-to-text fallback). Videos with
-  captions disabled, or none in the requested languages, are skipped (in a digest
-  they're listed under "Videos without a transcript").
+- **A video with no captions needs the optional whisper fallback.** By default
+  tubeless reads captions only, so a video with no captions at all is skipped (in a
+  digest, listed under "Videos without a transcript") — a video captioned only in
+  another language is still summarized, since the caption language need not match the
+  summary. To transcribe the caption-less videos too, install `tubeless[whisper]` and
+  set `TUBELESS_WHISPER_MODEL` (e.g. `small`): tubeless then downloads the audio and
+  runs faster-whisper locally, off by default because that step is heavy work the
+  caption path avoids.
 - **Auto-generated captions are noisy.** When the caption track is auto-generated,
   tubeless warns the model to hedge uncertain names and numbers rather than state
   them as fact — but a garbled caption can still produce a garbled point.
