@@ -1,0 +1,61 @@
+name: reusable check
+
+# The full check -- lint, tests, the console-script assertion, and a
+# build-and-metadata check -- as one reusable job so both `check.yml` (on push /
+# PR) and the release gate in `publish.yml` run the *identical* thing. One
+# definition is what makes "publish gates on the full check" true; a second
+# hand-maintained copy would drift, and a check added here silently would not gate
+# releases.
+
+on:
+  workflow_call:
+
+# The floor lives on the shared body, not only on `check.yml`: `publish.yml`'s gate
+# calls this same workflow, and if the floor were only on `check.yml` the gate would
+# run this check with the repo-default (possibly write) token. Declared here, the
+# check is read-only from every caller. A reusable workflow can only downscope from
+# the caller, so this never widens anyone's token.
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+
+      - name: Install
+        # A venv per matrix version, not `uv pip --system`: the runner's system Python is
+        # externally managed and is one fixed version whatever the matrix says.
+        run: |
+          uv venv --python ${{ matrix.python-version }}
+          uv pip install -e ".[dev]"
+          .venv/bin/python -c "import sys; print('testing on', sys.version)"
+
+      - name: Test
+        run: .venv/bin/pytest -q
+
+      - name: Lint
+        run: .venv/bin/ruff check src tests
+
+      - name: Confirm the console script installed
+        # pyproject declares a `tubeless` entry point; a wheel that dropped it would
+        # leave the CLI and the docs pointing at a command that is not there. `--help`
+        # is the cheapest call that proves the entry point installed and runs.
+        run: |
+          uv venv /tmp/cli --python ${{ matrix.python-version }}
+          uv pip install --python /tmp/cli/bin/python .
+          /tmp/cli/bin/tubeless --help
+
+      - name: Build sdist and wheel, then check the metadata
+        run: |
+          uv build
+          uvx twine check dist/*

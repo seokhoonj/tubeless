@@ -1,5 +1,10 @@
 # tubeless
 
+[![check](https://github.com/seokhoonj/tubeless/actions/workflows/check.yml/badge.svg)](https://github.com/seokhoonj/tubeless/actions/workflows/check.yml)
+[![PyPI](https://img.shields.io/pypi/v/tubeless)](https://pypi.org/project/tubeless/)
+[![Python](https://img.shields.io/pypi/pyversions/tubeless)](https://pypi.org/project/tubeless/)
+[![License](https://img.shields.io/pypi/l/tubeless)](https://github.com/seokhoonj/tubeless/blob/main/LICENSE)
+
 [English](README.md) | **한국어**
 
 유튜브 영상의 자막을 받아 LLM으로 요약합니다 — 명령줄에서 영상 한 개를, 또는

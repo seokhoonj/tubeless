@@ -1,43 +1,24 @@
 name: check
 
-# Lint, test, and build on every push to main and every pull request, so a
-# release is only ever cut from a revision that has already gone green here.
-# This never publishes -- publish.yml does that, and only on a release.
-
 on:
   workflow_dispatch:
   push:
     branches: [main]
   pull_request:
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.11", "3.12", "3.13", "3.14"]
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Install (with dev extras)
-        run: python -m pip install -e ".[dev]"
-      - name: Ruff
-        run: ruff check src/ tests/
-      - name: Tests
-        run: python -m pytest -q
+# A newer push to the same branch or PR makes the older run's result obsolete,
+# so cancel it rather than let both run to completion.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.12"
-      - name: Build sdist and wheel, then check the metadata
-        run: |
-          python -m pip install --upgrade build twine
-          python -m build
-          twine check dist/*
+# The check only reads the code to lint, test, and build it -- it never writes to
+# the repo -- so it runs with the least privilege that still allows a checkout.
+permissions:
+  contents: read
+
+jobs:
+  check:
+    # The full check lives in reusable-check.yml so the release gate in
+    # publish.yml runs the identical jobs on the release commit.
+    uses: ./.github/workflows/reusable-check.yml
