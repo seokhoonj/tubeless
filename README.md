@@ -1,5 +1,6 @@
 # tubeless
 
+[![check](https://github.com/seokhoonj/tubeless/actions/workflows/check.yml/badge.svg)](https://github.com/seokhoonj/tubeless/actions/workflows/check.yml)
 [![PyPI](https://img.shields.io/pypi/v/tubeless)](https://pypi.org/project/tubeless/)
 [![Python](https://img.shields.io/pypi/pyversions/tubeless)](https://pypi.org/project/tubeless/)
 [![License](https://img.shields.io/pypi/l/tubeless)](https://github.com/seokhoonj/tubeless/blob/main/LICENSE)

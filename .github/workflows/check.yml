@@ -1,10 +1,11 @@
-name: ci
+name: check
 
 # Lint, test, and build on every push to main and every pull request, so a
 # release is only ever cut from a revision that has already gone green here.
 # This never publishes -- publish.yml does that, and only on a release.
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
   pull_request:
@@ -15,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.11", "3.12", "3.14"]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
