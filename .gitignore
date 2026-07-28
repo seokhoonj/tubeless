@@ -9,7 +9,10 @@ dist/
 venv/
 .env
 
-# Test / lint / type caches
+# uv
+uv.lock
+
+# Tooling caches
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
