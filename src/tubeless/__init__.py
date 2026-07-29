@@ -4,6 +4,8 @@ The package only defines names at import time; all network and LLM work
 happens inside the functions the caller invokes.
 """
 
+from importlib.metadata import PackageNotFoundError, version
+
 from tubeless.channels import Channel, load_channels
 from tubeless.digest import (
     Digest,
@@ -85,3 +87,8 @@ __all__ = [
     "summarize_transcript",
     "summarize_videos",
 ]
+
+try:
+    __version__ = version("tubeless")
+except PackageNotFoundError:   # running from a source tree with no install
+    __version__ = "0.0.0+unknown"

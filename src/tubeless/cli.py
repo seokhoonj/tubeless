@@ -23,7 +23,7 @@ import re
 import sys
 from pathlib import Path
 
-from tubeless import config
+from tubeless import __version__, config
 from tubeless.channels import Channel, channels_path, load_channels
 from tubeless.digest import RunProvenance, Skip, curate_summaries, summarize_videos
 from tubeless.discover import DEFAULT_PER_CHANNEL_LIMIT, DEFAULT_SCAN, fetch_recent_videos
@@ -96,7 +96,7 @@ def _with_default_subcommand(argv: list[str]) -> list[str]:
     argv = list(argv)
     if argv and argv[0] in ("summarize", "transcript") and len(argv) > 1 and _LEADING_DASH_ID.match(argv[1]):
         argv[1] = watch_url(argv[1])
-    if argv and argv[0] not in _SUBCOMMANDS and argv[0] not in ("-h", "--help"):
+    if argv and argv[0] not in _SUBCOMMANDS and argv[0] not in ("-h", "--help", "--version"):
         head = watch_url(argv[0]) if _LEADING_DASH_ID.match(argv[0]) else argv[0]
         return ["summarize", head, *argv[1:]]
     return argv
@@ -282,6 +282,7 @@ def _run_schedule_status(args: argparse.Namespace) -> int:
 
 def _build_parser() -> argparse.ArgumentParser:
     parser     = argparse.ArgumentParser(prog="tubeless", description="Summarize YouTube videos.")
+    parser.add_argument("--version", action="version", version=f"tubeless {__version__}")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     summarize_parser = subparsers.add_parser("summarize", help="summarize one video")

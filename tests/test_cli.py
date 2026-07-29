@@ -745,3 +745,24 @@ def test_no_home_digest_exits_one_cleanly(monkeypatch, capsys):
     assert captured.err.startswith("tubeless:")
     assert "no home directory" in captured.err
     assert "Traceback" not in captured.err
+
+
+def test_version_flag_prints_the_version(capsys):
+    # `tubeless --version` is a standard CLI expectation: argparse prints to stdout and
+    # exits 0. Regression -- the default-subcommand shim used to shove it into `summarize`.
+    import tubeless
+
+    with pytest.raises(SystemExit) as exc:
+        cli_module.main(["--version"])
+    assert exc.value.code == 0
+    assert tubeless.__version__ in capsys.readouterr().out
+
+
+def test_version_and_help_flags_are_left_for_the_top_level_parser():
+    # The shim routes a bare url/id to `summarize`, but must leave the top-level options
+    # (-h/--help/--version) alone rather than turning them into `summarize --version`.
+    from tubeless.cli import _with_default_subcommand
+
+    assert _with_default_subcommand(["--version"]) == ["--version"]
+    assert _with_default_subcommand(["--help"]) == ["--help"]
+    assert _with_default_subcommand(["-h"]) == ["-h"]

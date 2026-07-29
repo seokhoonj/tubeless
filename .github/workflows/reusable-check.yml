@@ -49,11 +49,14 @@ jobs:
       - name: Confirm the console script installed
         # pyproject declares a `tubeless` entry point; a wheel that dropped it would
         # leave the CLI and the docs pointing at a command that is not there. `--help`
-        # is the cheapest call that proves the entry point installed and runs.
+        # and `--version` are the cheapest calls that prove the entry point runs -- and
+        # that `--version` reaches the top-level parser (it used to be shoved into a
+        # subcommand and error).
         run: |
           uv venv /tmp/cli --python ${{ matrix.python-version }}
           uv pip install --python /tmp/cli/bin/python .
           /tmp/cli/bin/tubeless --help
+          /tmp/cli/bin/tubeless --version
 
       - name: Build sdist and wheel, then check the metadata
         run: |
