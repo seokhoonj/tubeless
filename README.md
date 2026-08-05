@@ -539,8 +539,9 @@ directly.
 
 #### By hand (any agent)
 
-Or wire it up yourself — drop a `SKILL.md` in `~/.claude/skills/tubeless/` (local
-to your machine, not tracked) that shells out to the CLI:
+Or wire it up yourself — drop a `SKILL.md` in `~/.claude/skills/tubeless/` (Claude Code) or
+`~/.codex/skills/tubeless/` (Codex) — local to your machine, not tracked — that shells out to
+the CLI:
 
 ```markdown
 ---

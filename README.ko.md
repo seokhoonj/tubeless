@@ -513,8 +513,8 @@ codex plugin add tubeless@tubeless
 
 #### 직접 엮기 (아무 에이전트나)
 
-`~/.claude/skills/tubeless/SKILL.md`를 만들어(내 머신에만 남는 로컬 파일, 추적 안 됨)
-CLI를 호출하게 합니다:
+`~/.claude/skills/tubeless/SKILL.md`(Claude Code) 또는 `~/.codex/skills/tubeless/SKILL.md`(Codex)를
+만들어(내 머신에만 남는 로컬 파일, 추적 안 됨) CLI를 호출하게 합니다:
 
 ```markdown
 ---
