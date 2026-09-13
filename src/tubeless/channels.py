@@ -32,6 +32,7 @@ from __future__ import annotations
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 from tubeless.config import config_dir
 from tubeless.errors import ConfigError
@@ -112,7 +113,7 @@ def _channel_from(entry: dict[str, object], path: Path) -> Channel:
             f"valid keys are {', '.join(sorted(_KNOWN_CHANNEL_KEYS))}"
         )
     source = entry.get("source") or entry.get("handle") or entry.get("channel_id")
-    if not source:
+    if not isinstance(source, str) or not source:
         raise ConfigError(f"a [[channel]] in {path} is missing 'source' (a handle, URL, or id)")
     detail = entry.get("detail", "deep")
     if detail not in DETAIL_LEVELS:
@@ -126,7 +127,7 @@ def _channel_from(entry: dict[str, object], path: Path) -> Channel:
     excludes_key = "title_excludes" if "title_excludes" in entry else "excludes"
     return Channel(
         source   = source,
-        detail   = detail,
+        detail   = cast(DetailLevel, detail),
         includes = _keywords(entry.get(includes_key, ()), includes_key, source),
         excludes = _keywords(entry.get(excludes_key, ()), excludes_key, source),
     )

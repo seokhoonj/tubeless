@@ -75,7 +75,8 @@ def main(argv: list[str] | None = None) -> int:
         # any command reads them; idempotent, so it is a no-op after the first run.
         config.migrate_legacy_layout()
         args = _build_parser().parse_args(_with_default_subcommand(argv))
-        return args.run(args)
+        result: int = args.run(args)
+        return result
     except KeyboardInterrupt:
         # Ctrl-C is a BaseException, so it slips past `except TubelessError`;
         # catch it here for a clean exit instead of a network-stack traceback.

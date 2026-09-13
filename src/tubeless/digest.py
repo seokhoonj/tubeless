@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass
-from typing import TYPE_CHECKING, Literal, get_args
+from typing import TYPE_CHECKING, Literal, TypeGuard, cast, get_args
 
 from tubeless.channels import Channel
 from tubeless.errors import TranscriptUnavailable
@@ -331,14 +331,14 @@ def _is_optional_str(value: object) -> bool:
     return value is None or isinstance(value, str)
 
 
-def _is_seq(value: object) -> bool:
+def _is_seq(value: object) -> TypeGuard[list[object] | tuple[object, ...]]:
     # Accept both list (JSON on disk) and tuple (an in-memory digest_to_dict result,
     # since dataclasses.asdict keeps tuple fields as tuples) -- but never a str,
     # which is iterable and would validate character by character.
     return isinstance(value, (list, tuple))
 
 
-def _all_str(value: object) -> bool:
+def _all_str(value: object) -> TypeGuard[Sequence[str]]:
     return _is_seq(value) and all(isinstance(item, str) for item in value)
 
 
@@ -397,7 +397,7 @@ def _skips_from_list(raw: object) -> list[Skip] | None:
             return None
         if not isinstance(subject, str) or not isinstance(message, str):
             return None
-        skips.append(Skip(category=category, subject=subject, message=message))
+        skips.append(Skip(category=cast(SkipCategory, category), subject=subject, message=message))
     return skips
 
 

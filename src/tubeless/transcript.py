@@ -13,12 +13,16 @@ with ``.text`` / ``.start`` / ``.duration``. The pre-1.0 module-level
 
 from __future__ import annotations
 
+from typing import Any
+
 import requests
 from youtube_transcript_api import (
     CouldNotRetrieveTranscript,
     IpBlocked,
     NoTranscriptFound,
     RequestBlocked,
+    Transcript as CaptionTrack,
+    TranscriptList,
     YouTubeRequestFailed,
     YouTubeTranscriptApi,
 )
@@ -51,7 +55,7 @@ class _TimeoutSession(requests.Session):
     API exposes no timeout of its own, so without this a wedged fetch would hang
     the digest's per-video loop -- the same bound the other network calls carry."""
 
-    def request(self, *args: object, **kwargs: object) -> requests.Response:
+    def request(self, *args: Any, **kwargs: Any) -> requests.Response:
         kwargs.setdefault("timeout", _FETCH_TIMEOUT_SECONDS)
         return super().request(*args, **kwargs)
 
@@ -186,7 +190,7 @@ def fetch_transcript(
     )
 
 
-def _choose_transcript(listed, languages: tuple[str, ...]):
+def _choose_transcript(listed: TranscriptList, languages: tuple[str, ...]) -> CaptionTrack:
     """Pick the best caption track: a preferred-language one if present, else any
     available track (a manually created one before an auto-generated one).
 

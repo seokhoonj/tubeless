@@ -46,6 +46,9 @@ jobs:
       - name: Lint
         run: .venv/bin/ruff check src tests
 
+      - name: Types
+        run: .venv/bin/mypy
+
       - name: Confirm the console script installed
         # pyproject declares a `tubeless` entry point; a wheel that dropped it would
         # leave the CLI and the docs pointing at a command that is not there. `--help`

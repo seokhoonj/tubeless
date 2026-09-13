@@ -312,9 +312,10 @@ def _read_json(path: Path) -> object | None:
     except FileNotFoundError:
         return None
     try:
-        return json.loads(text)
+        parsed: object = json.loads(text)
     except json.JSONDecodeError:
         return None
+    return parsed
 
 
 def _write_json(path: Path, payload: dict[str, object]) -> None:
