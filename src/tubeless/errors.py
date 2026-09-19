@@ -14,7 +14,6 @@ __all__ = [
     "FeedError",
     "ConfigError",
     "CredentialsError",
-    "InsecureCredentialsError",
     "CorpusError",
     "ScheduleError",
 ]
@@ -60,14 +59,10 @@ class ConfigError(TubelessError):
 
 
 class CredentialsError(TubelessError):
-    """The credentials file exists but could not be used -- unreadable, not the
-    JSON object of name-to-secret it must be."""
-
-
-class InsecureCredentialsError(CredentialsError):
-    """The credentials file is readable by more than its owner. Refused rather
-    than trusted, the way ssh refuses a group-readable private key; the fix is a
-    one-line ``chmod 600``."""
+    """The credential store could not be read -- an unreadable or invalid file
+    (not UTF-8, not the JSON object of name-to-secret it must be) or an invalid
+    store binding. (A group/other-readable file is no longer refused -- credbox
+    warns with a ``chmod 600`` nudge and reads it.)"""
 
 
 class CorpusError(TubelessError):

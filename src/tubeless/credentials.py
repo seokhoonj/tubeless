@@ -1,33 +1,39 @@
 """Where tubeless keeps its secrets.
 
 The LLM API keys -- and the transcript proxy's credentials -- are the values that
-let a run speak to a paid service. They live in a file only their owner can read,
-under the XDG config directory, well outside any checkout that gets synced to a
-cloud drive or committed by accident. This is the shape ``.netrc`` and the cloud
-CLIs' credential files take, chosen for the reason they chose it: it never
+let a run speak to a paid service. They live in a file only their owner should
+read, under the XDG config directory, well outside any checkout that gets synced
+to a cloud drive or committed by accident. This is the shape ``.netrc`` and the
+cloud CLIs' credential files take, chosen for the reason they chose it: it never
 prompts, so a cron job or an agent session works the same as a terminal.
 
-JSON, not the TOML the settings use: it is the same store the sibling packages
-keep their secrets in, and a flat ``name -> value`` map with no comments or types
-is all a secret file needs. The keys are the same names the environment uses
-(``OPENAI_API_KEY`` ...), so one workflow overrides the other.
+The store is delegated to credbox: a flat ``name -> value`` JSON map at
+``$XDG_CONFIG_HOME/tubeless/credentials.json`` -- the same file, byte for byte,
+tubeless read before, and the same shape the sibling packages keep their secrets
+in. The keys are the same names the environment uses (``OPENAI_API_KEY`` ...), so
+one workflow overrides the other, and credbox checks the environment first.
 
 The file is not encrypted -- the ``0600`` mode guards against other users on the
-machine, not against anything running as you. What limits the damage is the
-secret itself: an API key is revocable at the vendor without touching anything
-else. Store nothing else here.
+machine, not against anything running as you. A group/other-readable file is
+warned about (a ``chmod 600`` nudge) and still read, the fleet-standard posture;
+what limits the damage is the secret itself, an API key revocable at the vendor
+without touching anything else. Store nothing else here.
+
+The store binding is not hardcoded: ``Credentials.for_app("tubeless")`` lets a
+host embedding tubeless redirect it via ``TUBELESS_STORE_APP`` /
+``TUBELESS_NAMESPACE``; standalone it is exactly the flat file above.
 """
 
 from __future__ import annotations
 
-import json
-import os
-import stat
+from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
+from credbox import CredBoxError, Credentials
+
 from tubeless.config import config_dir
-from tubeless.errors import CredentialsError, InsecureCredentialsError
+from tubeless.errors import CredentialsError
 
 __all__ = ["Vendor", "api_key", "credentials_path", "legacy_config_note", "secret"]
 
@@ -44,10 +50,13 @@ _KEY_NAME: dict[Vendor, str] = {
     "gemini": "GEMINI_API_KEY",
 }
 
+_STORE_APP = "tubeless"
+
 
 def credentials_path() -> Path:
-    """Where tubeless looks for stored secrets: ``credentials.json`` beside the
-    settings, in ``config_dir()``."""
+    """Where tubeless's secrets live standalone: ``credentials.json`` beside the
+    settings, in ``config_dir()``. Not redirect-aware -- under a ``TUBELESS_STORE_APP``
+    redirect the real store differs; this is the path the missing-key hint points at."""
     return config_dir() / "credentials.json"
 
 
@@ -88,66 +97,32 @@ def secret(name: str) -> str | None:
     """Return the named secret from the environment (which wins) or the
     credentials file, or ``None`` when neither has it.
 
-    The environment is checked first so a one-off or a container can supply a
-    secret without a file. Reading a credentials file that other users can reach
-    raises rather than trusting it -- a secret behind loose permissions is the
-    failure this exists to catch -- but an absent file is simply "no secret".
+    The environment is checked first (by credbox) so a one-off or a container can
+    supply a secret without a file; a blank value is treated as absent.
 
     Raises:
-        InsecureCredentialsError: the file is readable beyond its owner.
-        CredentialsError: the file exists but is not the JSON name-to-secret map.
-    """
-    from_env = os.environ.get(name)
-    if from_env:
-        return from_env
-    path = credentials_path()
-    if not path.exists():
-        return None
-    _require_owner_only_readable(path)
-    return _load(path).get(name) or None
-
-
-def _load(path: Path) -> dict[str, str]:
-    """Read ``credentials.json`` as a name-to-secret map.
-
-    Raises CredentialsError when the file cannot be read or is not a JSON object
-    whose values are all strings -- so a malformed store surfaces one clear error
-    rather than a stray secret going missing silently.
+        CredentialsError: the credential store cannot be read -- an unreadable or
+            invalid file (not valid UTF-8, not JSON, or not the name-to-secret map
+            it must be) or an invalid ``TUBELESS_STORE_APP`` / ``TUBELESS_NAMESPACE``
+            binding.
     """
     try:
-        text = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as err:
-        # UnicodeDecodeError is a ValueError, not an OSError, so it must be named
-        # explicitly or a non-UTF-8 file would escape this boundary.
-        raise CredentialsError(f"cannot read {path}: {err}") from err
-    try:
-        stored = json.loads(text)
-    except json.JSONDecodeError as err:
-        raise CredentialsError(f"{path} is not valid JSON: {err}") from err
-    if not isinstance(stored, dict) or not all(
-        isinstance(value, str) for value in stored.values()
-    ):
-        raise CredentialsError(f"{path} should map each secret name to its value")
-    return stored
+        found = _get_credentials().secret(name)
+    except CredBoxError as err:
+        # credbox's message names the store path + fault; it detaches secret-bearing
+        # context, so chaining `from err` keeps other secrets out of any traceback.
+        raise CredentialsError(f"could not read the credential store: {err}") from err
+    return found.reveal() if found is not None else None
 
 
-def _require_owner_only_readable(path: Path) -> None:
-    """Refuse a credentials file that other users can read.
+@lru_cache(maxsize=1)
+def _get_credentials() -> Credentials:
+    """tubeless's credbox credential store, built on first use and cached.
 
-    POSIX only, because the mode is only real there: Windows synthesises
-    ``st_mode`` from the read-only attribute alone, so this test would match every
-    file and send the reader off to run a ``chmod`` that Windows does not have.
-    What guards the file there is the ACL on the user's profile directory.
+    Built via ``for_app`` (not the bare ``Credentials(...)``) so a host embedding
+    tubeless can redirect the binding with ``TUBELESS_STORE_APP`` /
+    ``TUBELESS_NAMESPACE`` before the first lookup. credbox re-resolves the store
+    *path* per call (honouring a later ``XDG_CONFIG_HOME``); the binding is read from
+    the environment once, when this facade is built.
     """
-    if os.name != "posix":
-        return
-    try:
-        mode = path.stat().st_mode
-    except OSError as err:
-        raise CredentialsError(f"cannot check permissions on {path}: {err}") from err
-    if not (mode & (stat.S_IRWXG | stat.S_IRWXO)):
-        return
-    raise InsecureCredentialsError(
-        f"{path} is readable by more than its owner; secrets must not be. "
-        f"Fix it with: chmod 600 {path}"
-    )
+    return Credentials.for_app(_STORE_APP)

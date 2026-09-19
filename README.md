@@ -270,8 +270,8 @@ EOF
 
 `credentials.json` is a `name: value` JSON map — put the
 `OPENAI_API_KEY` / `CLAUDE_API_KEY` / `GEMINI_API_KEY` for the backend you use (plus
-the proxy keys below). If it is not `0600`, tubeless refuses to read it and prints
-the one-line `chmod 600` that fixes it.
+the proxy keys below). If it is not `0600`, tubeless warns you with the one-line
+`chmod 600` that fixes it, and still reads the file.
 
 - **Get an OpenAI key:** [platform.openai.com](https://platform.openai.com) → API keys.
 - **Get a Claude key:** [platform.claude.com](https://platform.claude.com) → API keys.

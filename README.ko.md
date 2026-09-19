@@ -259,7 +259,7 @@ EOF
 
 `credentials.json`은 `이름: 값` JSON입니다 — 쓰는 백엔드의
 `OPENAI_API_KEY`/`CLAUDE_API_KEY`/`GEMINI_API_KEY`(+ 아래 프록시 키)를 넣으세요.
-`0600`이 아니면 tubeless가 읽기를 거부하고 `chmod 600` 한 줄을 알려줍니다.
+`0600`이 아니면 tubeless가 `chmod 600` 한 줄로 고치라고 경고한 뒤, 파일은 그대로 읽습니다.
 
 - **OpenAI 키 발급:** [platform.openai.com](https://platform.openai.com) → API keys.
 - **Claude 키 발급:** [platform.claude.com](https://platform.claude.com) → API keys.

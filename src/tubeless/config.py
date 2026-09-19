@@ -173,7 +173,7 @@ def load_settings(path: Path | None = None) -> dict[str, object]:
     except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as err:
         # tomllib decodes UTF-8 internally, so a non-UTF-8 file raises
         # UnicodeDecodeError (a ValueError, not an OSError) -- name it explicitly
-        # or it escapes this boundary as a bare traceback (as credentials._load does).
+        # or it escapes this boundary as a bare traceback.
         raise ConfigError(f"could not read config file {path}: {err}") from err
 
 

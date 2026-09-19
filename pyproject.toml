@@ -7,7 +7,7 @@ build-backend = "hatchling.build"
 
 [project]
 name            = "tubeless"
-version         = "0.6.1"
+version         = "0.7.0"
 description     = "Summarize YouTube videos with an LLM, one video or a daily digest."
 readme          = "README.md"
 license         = "MIT"
@@ -29,6 +29,7 @@ classifiers     = [
 # 3.11+ for the stdlib tomllib the digest's channels.toml parser uses.
 requires-python = ">=3.11"
 dependencies    = [
+    "credbox>=0.4",
     "youtube-transcript-api>=1.0",
     "thinchat>=0.1,<0.2",
     "requests>=2.31",
